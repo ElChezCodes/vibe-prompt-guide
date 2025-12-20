@@ -57,6 +57,14 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "song-a": {
+          DEFAULT: "hsl(var(--song-a))",
+          foreground: "hsl(var(--song-a-foreground))",
+        },
+        "song-b": {
+          DEFAULT: "hsl(var(--song-b))",
+          foreground: "hsl(var(--song-b-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
