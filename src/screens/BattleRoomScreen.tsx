@@ -1,9 +1,31 @@
+import { useState } from "react";
 import TensionBar from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import SongCard from "@/components/battle/SongCard";
 import ActionStrip from "@/components/battle/ActionStrip";
 
+type VoteSelection = 'A' | 'B' | null;
+
 const BattleRoomScreen = () => {
+  const [currentVote, setCurrentVote] = useState<VoteSelection>(null);
+  
+  // Placeholder: will be controlled by backend state
+  const isVotingEnabled = true;
+
+  const handleVoteA = () => {
+    if (isVotingEnabled) {
+      setCurrentVote('A');
+      // TODO: Send vote intent to backend
+    }
+  };
+
+  const handleVoteB = () => {
+    if (isVotingEnabled) {
+      setCurrentVote('B');
+      // TODO: Send vote intent to backend
+    }
+  };
+
   return (
     <div className="min-h-dvh w-full flex flex-col bg-background">
       {/* Tension Bar - fixed at top */}
@@ -21,7 +43,10 @@ const BattleRoomScreen = () => {
           <SongCard 
             position="left" 
             songTitle="Song A Title" 
-            artistName="Artist A" 
+            artistName="Artist A"
+            isSelected={currentVote === 'A'}
+            isDisabled={!isVotingEnabled}
+            onVote={handleVoteA}
           />
           
           {/* Center divider */}
@@ -31,7 +56,10 @@ const BattleRoomScreen = () => {
           <SongCard 
             position="right" 
             songTitle="Song B Title" 
-            artistName="Artist B" 
+            artistName="Artist B"
+            isSelected={currentVote === 'B'}
+            isDisabled={!isVotingEnabled}
+            onVote={handleVoteB}
           />
         </div>
       </div>
