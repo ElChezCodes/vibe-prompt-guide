@@ -4,8 +4,8 @@ interface BattleTimerProps {
 
 const BattleTimer = ({ time = "01:23" }: BattleTimerProps) => {
   return (
-    <div className="flex items-center justify-center py-4">
-      <span className="text-2xl font-mono text-foreground tracking-wider">
+    <div className="flex items-center justify-center py-6">
+      <span className="text-3xl font-semibold text-foreground tracking-widest tabular-nums">
         {time}
       </span>
     </div>

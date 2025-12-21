@@ -10,98 +10,102 @@
 @layer base {
   :root {
     /* Music Fighter uses dark mode only */
-    --background: 220 30% 6%;
+    --background: 222 47% 5%;
     --foreground: 210 40% 98%;
 
-    --card: 220 25% 10%;
+    --card: 222 40% 8%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 220 25% 10%;
+    --popover: 222 40% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 220 30% 6%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 222 47% 5%;
 
-    --secondary: 220 20% 14%;
+    --secondary: 222 30% 12%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 20% 14%;
+    --muted: 222 25% 16%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 220 20% 18%;
+    --accent: 222 25% 18%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 210 40% 98%;
+    --border: 222 20% 20%;
+    --input: 222 25% 14%;
+    --ring: 160 84% 39%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     /* Song A - Electric Blue */
     --song-a: 200 100% 50%;
-    --song-a-foreground: 220 30% 6%;
+    --song-a-glow: 200 100% 60%;
+    --song-a-foreground: 222 47% 5%;
 
-    /* Song B - Magenta */
-    --song-b: 320 100% 50%;
-    --song-b-foreground: 220 30% 6%;
+    /* Song B - Magenta/Pink */
+    --song-b: 340 82% 52%;
+    --song-b-glow: 340 82% 62%;
+    --song-b-foreground: 222 47% 5%;
 
-    --sidebar-background: 220 30% 6%;
+    --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 200 100% 50%;
-    --sidebar-primary-foreground: 220 30% 6%;
-    --sidebar-accent: 220 20% 14%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 222 47% 5%;
+    --sidebar-accent: 222 25% 14%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 200 100% 50%;
+    --sidebar-border: 222 20% 20%;
+    --sidebar-ring: 160 84% 39%;
   }
 
   .dark {
     /* Same as root - app is dark-only */
-    --background: 220 30% 6%;
+    --background: 222 47% 5%;
     --foreground: 210 40% 98%;
 
-    --card: 220 25% 10%;
+    --card: 222 40% 8%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 220 25% 10%;
+    --popover: 222 40% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 220 30% 6%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 222 47% 5%;
 
-    --secondary: 220 20% 14%;
+    --secondary: 222 30% 12%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 20% 14%;
+    --muted: 222 25% 16%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 220 20% 18%;
+    --accent: 222 25% 18%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 210 40% 98%;
+    --border: 222 20% 20%;
+    --input: 222 25% 14%;
+    --ring: 160 84% 39%;
 
     --song-a: 200 100% 50%;
-    --song-a-foreground: 220 30% 6%;
+    --song-a-glow: 200 100% 60%;
+    --song-a-foreground: 222 47% 5%;
 
-    --song-b: 320 100% 50%;
-    --song-b-foreground: 220 30% 6%;
+    --song-b: 340 82% 52%;
+    --song-b-glow: 340 82% 62%;
+    --song-b-foreground: 222 47% 5%;
 
-    --sidebar-background: 220 30% 6%;
+    --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 200 100% 50%;
-    --sidebar-primary-foreground: 220 30% 6%;
-    --sidebar-accent: 220 20% 14%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 222 47% 5%;
+    --sidebar-accent: 222 25% 14%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 200 100% 50%;
+    --sidebar-border: 222 20% 20%;
+    --sidebar-ring: 160 84% 39%;
   }
 }
 
@@ -111,12 +115,35 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 
   /* Prevent overscroll on mobile */
   html, body {
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+  /* Glow effects for battle elements */
+  .glow-a {
+    box-shadow: 0 0 20px hsl(var(--song-a) / 0.4), 
+                0 0 40px hsl(var(--song-a) / 0.2),
+                inset 0 0 20px hsl(var(--song-a) / 0.1);
+  }
+  
+  .glow-b {
+    box-shadow: 0 0 20px hsl(var(--song-b) / 0.4), 
+                0 0 40px hsl(var(--song-b) / 0.2),
+                inset 0 0 20px hsl(var(--song-b) / 0.1);
+  }
+
+  .text-glow-a {
+    text-shadow: 0 0 10px hsl(var(--song-a) / 0.8);
+  }
+
+  .text-glow-b {
+    text-shadow: 0 0 10px hsl(var(--song-b) / 0.8);
   }
 }

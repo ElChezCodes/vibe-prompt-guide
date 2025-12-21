@@ -52,24 +52,26 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-background border-border max-w-md mx-auto h-[80vh] flex flex-col">
+      <DialogContent className="bg-card border-border/50 max-w-md mx-auto h-[80vh] flex flex-col gap-4">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="text-foreground text-lg">Propose a Song</DialogTitle>
+          <DialogTitle className="text-foreground text-xl font-semibold">
+            Propose a Song
+          </DialogTitle>
         </DialogHeader>
 
         {/* Search Input */}
         <div className="relative flex-shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search for a song..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+            className="pl-11 h-12 bg-secondary/50 border-border/50 text-foreground placeholder:text-muted-foreground rounded-xl focus:ring-primary"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -80,8 +82,10 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
         <div className="flex-1 min-h-0">
           {!showResults ? (
             // Empty state
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <Music className="h-12 w-12 text-muted-foreground mb-4" />
+            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+              <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-5">
+                <Music className="h-10 w-10 text-muted-foreground" />
+              </div>
               <p className="text-muted-foreground text-sm">
                 Search for a song to propose
               </p>
@@ -95,21 +99,21 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
                     key={song.id}
                     onClick={() => handleSelect(song.id)}
                     className={`
-                      p-3 rounded-lg cursor-pointer transition-colors
+                      p-3 rounded-xl cursor-pointer transition-all duration-200
                       ${selectedSongId === song.id 
-                        ? 'bg-primary/20 ring-1 ring-primary' 
-                        : 'bg-secondary hover:bg-secondary/80'
+                        ? 'bg-primary/15 ring-1 ring-primary' 
+                        : 'bg-secondary/50 hover:bg-secondary/80'
                       }
                     `}
                     role="button"
                     aria-pressed={selectedSongId === song.id}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                        <Music className="h-5 w-5 text-muted-foreground" />
+                      <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0">
+                        <Music className={`h-5 w-5 ${selectedSongId === song.id ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-foreground text-sm font-medium truncate">
+                        <p className={`text-sm font-medium truncate ${selectedSongId === song.id ? 'text-primary' : 'text-foreground'}`}>
                           {song.title}
                         </p>
                         <p className="text-muted-foreground text-xs truncate">
@@ -125,11 +129,11 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
         </div>
 
         {/* Submit Button */}
-        <div className="flex-shrink-0 pt-4">
+        <div className="flex-shrink-0 pt-2">
           <Button
             onClick={handleSubmit}
             disabled={!selectedSongId}
-            className="w-full"
+            className="w-full h-12 text-base font-semibold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40"
           >
             Propose Song
           </Button>

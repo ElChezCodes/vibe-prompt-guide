@@ -41,26 +41,30 @@ const BattleRoomScreen = () => {
       <BattleTimer time="01:23" />
 
       {/* Battle Cards container - flexible middle section */}
-      <div className="flex-1 flex items-center justify-center px-2">
-        <div className="w-full max-w-md flex gap-2">
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md flex items-center gap-3">
           {/* Song A - Left */}
           <SongCard 
             position="left" 
-            songTitle="Song A Title" 
-            artistName="Artist A"
+            songTitle="Burning Lights" 
+            artistName="Skybound"
             isSelected={currentVote === 'A'}
             isDisabled={!isVotingEnabled}
             onVote={handleVoteA}
           />
           
-          {/* Center divider */}
-          <div className="w-px bg-border self-stretch my-4" />
+          {/* VS divider */}
+          <div className="flex-shrink-0 flex items-center justify-center">
+            <span className="text-2xl font-arcade font-bold text-muted-foreground/60">
+              VS
+            </span>
+          </div>
           
           {/* Song B - Right */}
           <SongCard 
             position="right" 
-            songTitle="Song B Title" 
-            artistName="Artist B"
+            songTitle="Starlight Groove" 
+            artistName="Neon Pulse"
             isSelected={currentVote === 'B'}
             isDisabled={!isVotingEnabled}
             onVote={handleVoteB}
