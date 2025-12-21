@@ -5,28 +5,30 @@ interface TensionBarProps {
 
 const TensionBar = ({ percentageA = 50, percentageB = 50 }: TensionBarProps) => {
   return (
-    <div className="w-full h-12 flex relative">
-      {/* Song A side */}
-      <div 
-        className="h-full bg-secondary flex items-center justify-end pr-4"
-        style={{ width: `${percentageA}%` }}
-      >
-        <span className="text-sm font-medium text-muted-foreground">
+    <div className="w-full px-4 pt-4">
+      {/* Percentage labels */}
+      <div className="flex justify-between mb-2 px-2">
+        <span className="text-sm font-semibold text-song-a text-glow-a">
           {percentageA}%
+        </span>
+        <span className="text-sm font-semibold text-song-b text-glow-b">
+          {percentageB}%
         </span>
       </div>
       
-      {/* Center divider */}
-      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2 z-10" />
-      
-      {/* Song B side */}
-      <div 
-        className="h-full bg-secondary flex items-center justify-start pl-4"
-        style={{ width: `${percentageB}%` }}
-      >
-        <span className="text-sm font-medium text-muted-foreground">
-          {percentageB}%
-        </span>
+      {/* Bar container */}
+      <div className="w-full h-2 flex rounded-full overflow-hidden bg-secondary">
+        {/* Song A side */}
+        <div 
+          className="h-full bg-gradient-to-r from-song-a/80 to-song-a transition-all duration-300"
+          style={{ width: `${percentageA}%` }}
+        />
+        
+        {/* Song B side */}
+        <div 
+          className="h-full bg-gradient-to-l from-song-b/80 to-song-b transition-all duration-300"
+          style={{ width: `${percentageB}%` }}
+        />
       </div>
     </div>
   );

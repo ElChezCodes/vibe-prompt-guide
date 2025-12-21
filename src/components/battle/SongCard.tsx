@@ -1,3 +1,5 @@
+import { Music } from "lucide-react";
+
 interface SongCardProps {
   position: 'left' | 'right';
   songTitle?: string;
@@ -21,19 +23,23 @@ const SongCard = ({
     }
   };
 
+  const isLeft = position === 'left';
+  const colorClass = isLeft ? 'song-a' : 'song-b';
+
   return (
     <div 
       className={`
-        flex-1 flex flex-col items-center p-3 rounded-xl transition-colors
+        flex-1 flex flex-col items-center p-3 rounded-xl transition-all duration-200
+        border-2
         ${isDisabled 
-          ? 'opacity-50 cursor-not-allowed' 
+          ? 'opacity-50 cursor-not-allowed border-transparent' 
           : 'cursor-pointer active:scale-[0.98]'
         }
         ${isSelected 
-          ? position === 'left'
-            ? 'ring-2 ring-song-a bg-song-a/10'
-            : 'ring-2 ring-song-b bg-song-b/10'
-          : 'bg-transparent'
+          ? isLeft
+            ? 'border-song-a glow-a bg-song-a/5'
+            : 'border-song-b glow-b bg-song-b/5'
+          : 'border-border/50 hover:border-border bg-card/50'
         }
       `}
       onClick={handleTap}
@@ -45,24 +51,41 @@ const SongCard = ({
       {/* Album artwork placeholder */}
       <div 
         className={`
-          w-full aspect-square rounded-lg flex items-center justify-center mb-3 transition-colors
+          w-full aspect-square rounded-lg flex items-center justify-center mb-4 
+          transition-all duration-200 relative overflow-hidden
           ${isSelected 
-            ? position === 'left'
-              ? 'bg-song-a/20'
-              : 'bg-song-b/20'
+            ? isLeft
+              ? 'bg-gradient-to-br from-song-a/30 to-song-a/10'
+              : 'bg-gradient-to-br from-song-b/30 to-song-b/10'
             : 'bg-secondary'
           }
         `}
       >
-        <div className="w-12 h-12 rounded-full bg-muted" />
+        <Music 
+          className={`
+            w-12 h-12 transition-colors duration-200
+            ${isSelected 
+              ? isLeft ? 'text-song-a' : 'text-song-b'
+              : 'text-muted-foreground'
+            }
+          `} 
+        />
       </div>
       
       {/* Song info */}
-      <div className="text-center w-full">
-        <h3 className="text-sm font-semibold text-foreground truncate">
+      <div className="text-center w-full space-y-1">
+        <h3 
+          className={`
+            text-base font-semibold truncate transition-colors duration-200
+            ${isSelected 
+              ? isLeft ? 'text-song-a' : 'text-song-b'
+              : 'text-foreground'
+            }
+          `}
+        >
           {songTitle}
         </h3>
-        <p className="text-xs text-muted-foreground truncate mt-1">
+        <p className="text-sm text-muted-foreground truncate">
           {artistName}
         </p>
       </div>

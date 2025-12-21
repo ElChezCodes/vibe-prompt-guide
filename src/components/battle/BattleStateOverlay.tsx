@@ -15,29 +15,29 @@ const BattleStateOverlay = ({ battleState }: BattleStateOverlayProps) => {
         return {
           title: 'FIGHT!',
           subtitle: 'Get ready to vote',
-          style: 'bg-background/95',
-          titleStyle: 'text-4xl font-bold text-foreground'
+          bgStyle: 'bg-background/95',
+          titleStyle: 'text-5xl font-arcade font-black tracking-wider bg-gradient-to-r from-song-a via-primary to-song-b bg-clip-text text-transparent'
         };
       case 'FINAL_30S':
         return {
           title: 'FINAL SECONDS',
-          subtitle: 'Make your decision',
-          style: 'bg-background/60',
-          titleStyle: 'text-2xl font-semibold text-song-b'
+          subtitle: 'Make your decision now',
+          bgStyle: 'bg-background/70',
+          titleStyle: 'text-2xl font-arcade font-bold tracking-wide text-song-b text-glow-b'
         };
       case 'SUDDEN_DEATH':
         return {
           title: 'SUDDEN DEATH',
           subtitle: 'Every vote counts',
-          style: 'bg-background/80',
-          titleStyle: 'text-3xl font-bold text-destructive'
+          bgStyle: 'bg-background/85',
+          titleStyle: 'text-3xl font-arcade font-black tracking-wider text-destructive'
         };
       case 'FINISHED':
         return {
-          title: 'BATTLE FINISHED',
-          subtitle: 'Winner announced',
-          style: 'bg-background/90',
-          titleStyle: 'text-3xl font-bold text-foreground'
+          title: 'WINNER',
+          subtitle: 'Battle complete',
+          bgStyle: 'bg-background/90',
+          titleStyle: 'text-4xl font-arcade font-black tracking-wider text-primary'
         };
       default:
         return null;
@@ -52,14 +52,14 @@ const BattleStateOverlay = ({ battleState }: BattleStateOverlayProps) => {
     <div 
       className={`
         fixed inset-0 z-30 flex flex-col items-center justify-center
-        ${content.style}
+        ${content.bgStyle}
       `}
       aria-live="polite"
     >
       <h2 className={content.titleStyle}>
         {content.title}
       </h2>
-      <p className="mt-2 text-muted-foreground text-sm">
+      <p className="mt-3 text-muted-foreground text-sm tracking-wide uppercase">
         {content.subtitle}
       </p>
     </div>

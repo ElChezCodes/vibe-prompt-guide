@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        arcade: ['Orbitron', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -59,10 +63,12 @@ export default {
         },
         "song-a": {
           DEFAULT: "hsl(var(--song-a))",
+          glow: "hsl(var(--song-a-glow))",
           foreground: "hsl(var(--song-a-foreground))",
         },
         "song-b": {
           DEFAULT: "hsl(var(--song-b))",
+          glow: "hsl(var(--song-b-glow))",
           foreground: "hsl(var(--song-b-foreground))",
         },
       },
