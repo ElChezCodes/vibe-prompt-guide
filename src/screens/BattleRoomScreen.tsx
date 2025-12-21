@@ -3,6 +3,7 @@ import TensionBar from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import SongCard from "@/components/battle/SongCard";
 import ActionStrip from "@/components/battle/ActionStrip";
+import BattleStateOverlay, { type BattleState } from "@/components/battle/BattleStateOverlay";
 
 type VoteSelection = 'A' | 'B' | null;
 
@@ -10,7 +11,10 @@ const BattleRoomScreen = () => {
   const [currentVote, setCurrentVote] = useState<VoteSelection>(null);
   
   // Placeholder: will be controlled by backend state
-  const isVotingEnabled = true;
+  const battleState: BattleState = 'NORMAL';
+  
+  // Voting enabled only in NORMAL, FINAL_30S, and SUDDEN_DEATH states
+  const isVotingEnabled = ['NORMAL', 'FINAL_30S', 'SUDDEN_DEATH'].includes(battleState);
 
   const handleVoteA = () => {
     if (isVotingEnabled) {
@@ -66,6 +70,9 @@ const BattleRoomScreen = () => {
 
       {/* Action Strip - bottom */}
       <ActionStrip />
+      
+      {/* Battle State Overlay */}
+      <BattleStateOverlay battleState={battleState} />
     </div>
   );
 };
