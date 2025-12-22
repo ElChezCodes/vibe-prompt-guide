@@ -15,7 +15,7 @@ const ActionStrip = () => {
           className="flex items-center gap-2 h-12 px-6 rounded-xl border-border/50 bg-secondary/50 hover:bg-secondary text-foreground"
         >
           <Music className="h-4 w-4" />
-          <span className="font-medium">Propose Song</span>
+          <span className="font-semibold">Propose Song</span>
         </Button>
       </div>
 

@@ -3,15 +3,18 @@
 @tailwind utilities;
 
 /* Music Fighter Design System
-   Dark, clean, product-grade UI
+   Visual Foundation v1.0
    All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Music Fighter uses dark mode only */
+    /* Background colors */
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
+    
+    /* Surface - for inputs, action strip */
+    --surface: 221 28% 15%;
 
     --card: 222 40% 8%;
     --card-foreground: 210 40% 98%;
@@ -19,51 +22,67 @@
     --popover: 222 40% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 160 84% 39%;
+    /* Primary CTA - Green (#7CFF6B) */
+    --primary: 112 100% 71%;
+    --primary-hover: 112 100% 80%;
     --primary-foreground: 222 47% 5%;
 
-    --secondary: 222 30% 12%;
+    /* Secondary - Panel background (#121826) */
+    --secondary: 220 32% 11%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 222 25% 16%;
-    --muted-foreground: 215 20% 55%;
+    /* Text muted (#7A8199) */
+    --muted-foreground: 223 11% 54%;
+    
+    /* Text secondary (#B6BDD6) */
+    --text-secondary: 226 18% 77%;
 
     --accent: 222 25% 18%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 72% 51%;
+    /* Destructive - Danger Red (#FF3B3B) */
+    --destructive: 0 100% 62%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 222 20% 20%;
     --input: 222 25% 14%;
-    --ring: 160 84% 39%;
+    --ring: 112 100% 71%;
 
     --radius: 0.75rem;
 
-    /* Song A - Electric Blue */
-    --song-a: 200 100% 50%;
-    --song-a-glow: 200 100% 60%;
+    /* Song A - Electric Blue (#2ED2FF) */
+    --song-a: 189 100% 59%;
+    --song-a-glow: 189 100% 59%;
+    --song-a-soft: 189 100% 59%;
     --song-a-foreground: 222 47% 5%;
 
-    /* Song B - Magenta/Pink */
-    --song-b: 340 82% 52%;
-    --song-b-glow: 340 82% 62%;
+    /* Song B - Magenta (#FF4D8D) */
+    --song-b: 340 100% 65%;
+    --song-b-glow: 340 100% 65%;
+    --song-b-soft: 340 100% 65%;
     --song-b-foreground: 222 47% 5%;
+
+    /* Energy colors for overlays */
+    --energy-yellow: 45 100% 65%;
+    --energy-orange: 32 100% 55%;
 
     --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary: 112 100% 71%;
     --sidebar-primary-foreground: 222 47% 5%;
     --sidebar-accent: 222 25% 14%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 20% 20%;
-    --sidebar-ring: 160 84% 39%;
+    --sidebar-ring: 112 100% 71%;
   }
 
   .dark {
     /* Same as root - app is dark-only */
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
+    
+    --surface: 221 28% 15%;
 
     --card: 222 40% 8%;
     --card-foreground: 210 40% 98%;
@@ -71,41 +90,48 @@
     --popover: 222 40% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 160 84% 39%;
+    --primary: 112 100% 71%;
+    --primary-hover: 112 100% 80%;
     --primary-foreground: 222 47% 5%;
 
-    --secondary: 222 30% 12%;
+    --secondary: 220 32% 11%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 222 25% 16%;
-    --muted-foreground: 215 20% 55%;
+    --muted-foreground: 223 11% 54%;
+    --text-secondary: 226 18% 77%;
 
     --accent: 222 25% 18%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 100% 62%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 222 20% 20%;
     --input: 222 25% 14%;
-    --ring: 160 84% 39%;
+    --ring: 112 100% 71%;
 
-    --song-a: 200 100% 50%;
-    --song-a-glow: 200 100% 60%;
+    --song-a: 189 100% 59%;
+    --song-a-glow: 189 100% 59%;
+    --song-a-soft: 189 100% 59%;
     --song-a-foreground: 222 47% 5%;
 
-    --song-b: 340 82% 52%;
-    --song-b-glow: 340 82% 62%;
+    --song-b: 340 100% 65%;
+    --song-b-glow: 340 100% 65%;
+    --song-b-soft: 340 100% 65%;
     --song-b-foreground: 222 47% 5%;
+
+    --energy-yellow: 45 100% 65%;
+    --energy-orange: 32 100% 55%;
 
     --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary: 112 100% 71%;
     --sidebar-primary-foreground: 222 47% 5%;
     --sidebar-accent: 222 25% 14%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 20% 20%;
-    --sidebar-ring: 160 84% 39%;
+    --sidebar-ring: 112 100% 71%;
   }
 }
 
@@ -126,17 +152,26 @@
 }
 
 @layer utilities {
-  /* Glow effects for battle elements */
+  /* Glow effects for battle elements - 0.6 opacity per Visual Foundation */
   .glow-a {
-    box-shadow: 0 0 20px hsl(var(--song-a) / 0.4), 
-                0 0 40px hsl(var(--song-a) / 0.2),
-                inset 0 0 20px hsl(var(--song-a) / 0.1);
+    box-shadow: 0 0 20px hsl(var(--song-a) / 0.6), 
+                0 0 40px hsl(var(--song-a) / 0.3),
+                inset 0 0 20px hsl(var(--song-a) / 0.15);
   }
   
   .glow-b {
-    box-shadow: 0 0 20px hsl(var(--song-b) / 0.4), 
-                0 0 40px hsl(var(--song-b) / 0.2),
-                inset 0 0 20px hsl(var(--song-b) / 0.1);
+    box-shadow: 0 0 20px hsl(var(--song-b) / 0.6), 
+                0 0 40px hsl(var(--song-b) / 0.3),
+                inset 0 0 20px hsl(var(--song-b) / 0.15);
+  }
+
+  /* Soft glow variants - 0.15 opacity */
+  .glow-a-soft {
+    box-shadow: 0 0 15px hsl(var(--song-a) / 0.15);
+  }
+
+  .glow-b-soft {
+    box-shadow: 0 0 15px hsl(var(--song-b) / 0.15);
   }
 
   .text-glow-a {
