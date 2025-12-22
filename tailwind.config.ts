@@ -23,8 +23,11 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        surface: "hsl(var(--surface))",
+        "text-secondary": "hsl(var(--text-secondary))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
+          hover: "hsl(var(--primary-hover))",
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
@@ -64,12 +67,18 @@ export default {
         "song-a": {
           DEFAULT: "hsl(var(--song-a))",
           glow: "hsl(var(--song-a-glow))",
+          soft: "hsl(var(--song-a-soft) / 0.15)",
           foreground: "hsl(var(--song-a-foreground))",
         },
         "song-b": {
           DEFAULT: "hsl(var(--song-b))",
           glow: "hsl(var(--song-b-glow))",
+          soft: "hsl(var(--song-b-soft) / 0.15)",
           foreground: "hsl(var(--song-b-foreground))",
+        },
+        energy: {
+          yellow: "hsl(var(--energy-yellow))",
+          orange: "hsl(var(--energy-orange))",
         },
       },
       borderRadius: {
