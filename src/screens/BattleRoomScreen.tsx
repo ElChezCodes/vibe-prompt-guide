@@ -1,7 +1,7 @@
 import { useState } from "react";
-import TensionBar from "@/components/battle/TensionBar";
+import TensionBar, { type BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
-import SongCard from "@/components/battle/SongCard";
+import SongCard, { type CardAnimationState } from "@/components/battle/SongCard";
 import ActionStrip from "@/components/battle/ActionStrip";
 import BattleStateOverlay, { type BattleState } from "@/components/battle/BattleStateOverlay";
 
@@ -11,10 +11,31 @@ const BattleRoomScreen = () => {
   const [currentVote, setCurrentVote] = useState<VoteSelection>(null);
   
   // Placeholder: will be controlled by backend state
-  const battleState: BattleState = 'NORMAL';
+  const battleState = 'NORMAL' as BattleState;
+  const winnerSide: 'A' | 'B' | null = null; // Placeholder for winner
   
   // Voting enabled only in NORMAL, FINAL_30S, and SUDDEN_DEATH states
   const isVotingEnabled = ['NORMAL', 'FINAL_30S', 'SUDDEN_DEATH'].includes(battleState);
+
+  // Map battle state to tension intensity
+  const getTensionIntensity = (): BattleIntensity => {
+    switch (battleState) {
+      case 'FINAL_30S':
+        return 'final';
+      case 'SUDDEN_DEATH':
+        return 'sudden';
+      default:
+        return 'normal';
+    }
+  };
+
+  // Map battle state to card animation state
+  const getCardAnimationState = (side: 'A' | 'B'): CardAnimationState => {
+    if (battleState === 'FINISHED' && winnerSide) {
+      return side === winnerSide ? 'winner' : 'loser';
+    }
+    return 'idle';
+  };
 
   const handleVoteA = () => {
     if (isVotingEnabled) {
@@ -34,7 +55,11 @@ const BattleRoomScreen = () => {
     <div className="min-h-dvh w-full flex flex-col bg-background">
       {/* Tension Bar - fixed at top */}
       <div className="sticky top-0 z-20 bg-background">
-        <TensionBar percentageA={50} percentageB={50} />
+        <TensionBar 
+          percentageA={50} 
+          percentageB={50} 
+          intensity={getTensionIntensity()}
+        />
       </div>
 
       {/* Timer */}
@@ -50,6 +75,7 @@ const BattleRoomScreen = () => {
             artistName="Skybound"
             isSelected={currentVote === 'A'}
             isDisabled={!isVotingEnabled}
+            animationState={getCardAnimationState('A')}
             onVote={handleVoteA}
           />
           
@@ -67,6 +93,7 @@ const BattleRoomScreen = () => {
             artistName="Neon Pulse"
             isSelected={currentVote === 'B'}
             isDisabled={!isVotingEnabled}
+            animationState={getCardAnimationState('B')}
             onVote={handleVoteB}
           />
         </div>
@@ -76,7 +103,7 @@ const BattleRoomScreen = () => {
       <ActionStrip />
       
       {/* Battle State Overlay */}
-      <BattleStateOverlay battleState={battleState} />
+      <BattleStateOverlay battleState={battleState} winnerSide={winnerSide} />
     </div>
   );
 };
