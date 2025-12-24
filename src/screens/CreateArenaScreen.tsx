@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QrCode, Music } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const CreateArenaScreen = () => {
   const [arenaName, setArenaName] = useState("");
@@ -111,12 +112,13 @@ const CreateArenaScreen = () => {
             {/* Secondary Action - Connect Music */}
             <Button
               variant="outline"
-              disabled
-              className="w-full h-12 text-muted-foreground border-border/50"
+              asChild
+              className="w-full h-12 border-border/50"
             >
-              <Music className="w-5 h-5 mr-2" />
-              Connect music account
-              <span className="ml-2 text-xs opacity-60">(Coming soon)</span>
+              <Link to="/connect">
+                <Music className="w-5 h-5 mr-2" />
+                Connect music account
+              </Link>
             </Button>
           </div>
         )}
