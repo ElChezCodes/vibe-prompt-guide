@@ -8,6 +8,7 @@ import JoinArenaScreen from "./screens/JoinArenaScreen";
 import BattleRoomScreen from "./screens/BattleRoomScreen";
 import StageViewScreen from "./screens/StageViewScreen";
 import CreateArenaScreen from "./screens/CreateArenaScreen";
+import ConnectStreamingScreen from "./screens/ConnectStreamingScreen";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,8 @@ const App = () => (
           <Route path="/stage" element={<StageViewScreen />} />
           {/* Host create arena */}
           <Route path="/create" element={<CreateArenaScreen />} />
+          {/* Host connect streaming */}
+          <Route path="/connect" element={<ConnectStreamingScreen />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
