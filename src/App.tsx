@@ -7,6 +7,7 @@ import SplashScreen from "./screens/SplashScreen";
 import JoinArenaScreen from "./screens/JoinArenaScreen";
 import BattleRoomScreen from "./screens/BattleRoomScreen";
 import StageViewScreen from "./screens/StageViewScreen";
+import CreateArenaScreen from "./screens/CreateArenaScreen";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,8 @@ const App = () => (
           <Route path="/battle" element={<BattleRoomScreen />} />
           {/* Stage view for venue displays */}
           <Route path="/stage" element={<StageViewScreen />} />
+          {/* Host create arena */}
+          <Route path="/create" element={<CreateArenaScreen />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
