@@ -5,17 +5,32 @@ import { QrCode, Music } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createArena } from "@/integrations/supabase/arenas";
 
+interface Arena {
+  id: string;
+  name: string;
+  state: string;
+  mood: string;
+}
+
 const CreateArenaScreen = () => {
   const [arenaName, setArenaName] = useState("");
   const [isCreated, setIsCreated] = useState(false);
+  const [arena, setArena] = useState<Arena | null>(null);
 
-  // Mock arena code - in real app this would be generated
-  const arenaCode = "847 291";
+  // Derive arena code from real ID (first 6 chars, formatted as XXX XXX)
+  const arenaCode = arena?.id 
+    ? arena.id.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
+    : '';
 
   const handleCreateArena = async () => {
     try {
-      const result = await createArena();
+      const result = await createArena({
+        name: arenaName || undefined,
+        state: 'active',
+        mood: 'warmup',
+      });
       console.log('Arena created:', result);
+      setArena(result);
       setIsCreated(true);
     } catch (error) {
       console.error('Failed to create arena:', error);
