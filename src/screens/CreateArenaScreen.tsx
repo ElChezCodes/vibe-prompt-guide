@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QrCode, Music } from "lucide-react";
 import { Link } from "react-router-dom";
+import { createArena } from "@/integrations/supabase/arenas";
 
 const CreateArenaScreen = () => {
   const [arenaName, setArenaName] = useState("");
@@ -11,8 +12,14 @@ const CreateArenaScreen = () => {
   // Mock arena code - in real app this would be generated
   const arenaCode = "847 291";
 
-  const handleCreateArena = () => {
-    setIsCreated(true);
+  const handleCreateArena = async () => {
+    try {
+      const result = await createArena();
+      console.log('Arena created:', result);
+      setIsCreated(true);
+    } catch (error) {
+      console.error('Failed to create arena:', error);
+    }
   };
 
   return (
