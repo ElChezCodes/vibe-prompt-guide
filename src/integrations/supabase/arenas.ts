@@ -5,8 +5,8 @@ export async function createArena() {
     .from('arenas')
     .insert({
       name: 'Test Arena',
-      state: 'waiting',
-      mood: 'neutral',
+      state: 'active',
+      mood: 'warmup',
     })
     .select()
     .single();
