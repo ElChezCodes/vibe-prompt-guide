@@ -12,6 +12,20 @@ interface Arena {
   mood: string;
 }
 
+function hashStringToUint32(input: string) {
+  // FNV-1a 32-bit hash (deterministic, small, no deps)
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function qrCellOn(arenaId: string, index: number) {
+  return (hashStringToUint32(`${arenaId}:${index}`) % 100) < 50;
+}
+
 const CreateArenaScreen = () => {
   const [arenaName, setArenaName] = useState("");
   const [isCreated, setIsCreated] = useState(false);
@@ -24,16 +38,13 @@ const CreateArenaScreen = () => {
 
   const handleCreateArena = async () => {
     try {
-      const result = await createArena({
-        name: arenaName || undefined,
-        state: 'active',
-        mood: 'warmup',
-      });
+      const result = await createArena(arenaName);
       console.log('Arena created:', result);
       setArena(result);
       setIsCreated(true);
     } catch (error) {
-      console.error('Failed to create arena:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to create arena:', message, error);
     }
   };
 
@@ -99,14 +110,15 @@ const CreateArenaScreen = () => {
                   <QrCode className="w-full h-full text-background" strokeWidth={0.5} />
                   {/* QR pattern overlay */}
                   <div className="absolute inset-4 grid grid-cols-7 grid-rows-7 gap-1">
-                    {Array.from({ length: 49 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`rounded-sm ${
-                          Math.random() > 0.5 ? "bg-background" : "bg-transparent"
-                        }`}
-                      />
-                    ))}
+                    {Array.from({ length: 49 }).map((_, i) => {
+                      const on = arena?.id ? qrCellOn(arena.id, i) : false;
+                      return (
+                        <div
+                          key={i}
+                          className={`rounded-sm ${on ? "bg-background" : "bg-transparent"}`}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               </div>
