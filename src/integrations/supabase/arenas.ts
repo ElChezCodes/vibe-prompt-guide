@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-interface Arena {
+export interface Arena {
   id: string;
   name: string;
   state: string;
@@ -11,7 +11,8 @@ interface Arena {
 
 export async function createArena(name: string): Promise<Arena> {
   const trimmed = name.trim();
-  const normalizedName = trimmed.length > 0 ? trimmed : 'Test Arena';
+  const normalizedName =
+    trimmed.length > 0 ? trimmed : 'Test Arena';
 
   const { data, error } = await supabase
     .from('arenas')
@@ -25,7 +26,7 @@ export async function createArena(name: string): Promise<Arena> {
     .single();
 
   if (error) {
-    console.error('Failed to create arena:', error.message);
+    console.error('Failed to create arena:', error.message, error);
     throw error;
   }
 
