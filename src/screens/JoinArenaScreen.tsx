@@ -51,7 +51,7 @@ const JoinArenaScreen = () => {
             </p>
           </div>
           <Button asChild size="lg" className="w-full text-base font-semibold">
-            <Link to="/battle">Enter Battle</Link>
+            <Link to="/battle" state={{ arenaId }}>Enter Battle</Link>
           </Button>
         </div>
       </div>
