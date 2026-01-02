@@ -6,7 +6,27 @@ export interface Arena {
   state: string;
   mood: string;
   host_id: string | null;
+  arena_code: string;
   created_at: string;
+}
+
+export async function resolveArenaByCode(code: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('arenas')
+    .select('id')
+    .eq('arena_code', code)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to resolve arena by code:', error.message, error);
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('Arena not found');
+  }
+
+  return data.id;
 }
 
 export async function createArena(name: string): Promise<Arena> {
