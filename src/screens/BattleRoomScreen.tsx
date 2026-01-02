@@ -1,109 +1,118 @@
-import { useState } from "react";
-import TensionBar, { type BattleIntensity } from "@/components/battle/TensionBar";
-import BattleTimer from "@/components/battle/BattleTimer";
-import SongCard, { type CardAnimationState } from "@/components/battle/SongCard";
-import ActionStrip from "@/components/battle/ActionStrip";
-import BattleStateOverlay, { type BattleState } from "@/components/battle/BattleStateOverlay";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
-type VoteSelection = 'A' | 'B' | null;
+type ScreenState = 'loading' | 'error' | 'ready';
+
+interface ArenaData {
+  id: string;
+  name: string;
+  state: string;
+}
+
+interface ParticipantData {
+  id: string;
+  is_host: boolean;
+}
 
 const BattleRoomScreen = () => {
-  const [currentVote, setCurrentVote] = useState<VoteSelection>(null);
-  
-  // Placeholder: will be controlled by backend state
-  const battleState = 'NORMAL' as BattleState;
-  const winnerSide: 'A' | 'B' | null = null; // Placeholder for winner
-  
-  // Voting enabled only in NORMAL, FINAL_30S, and SUDDEN_DEATH states
-  const isVotingEnabled = ['NORMAL', 'FINAL_30S', 'SUDDEN_DEATH'].includes(battleState);
+  const location = useLocation();
+  const [screenState, setScreenState] = useState<ScreenState>('loading');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [arena, setArena] = useState<ArenaData | null>(null);
+  const [participant, setParticipant] = useState<ParticipantData | null>(null);
 
-  // Map battle state to tension intensity
-  const getTensionIntensity = (): BattleIntensity => {
-    switch (battleState) {
-      case 'FINAL_30S':
-        return 'final';
-      case 'SUDDEN_DEATH':
-        return 'sudden';
-      default:
-        return 'normal';
-    }
-  };
+  useEffect(() => {
+    const loadBattleRoom = async () => {
+      try {
+        // Read arena_id from navigation state
+        const arenaId = location.state?.arenaId as string | undefined;
+        if (!arenaId) {
+          setErrorMessage('No arena ID provided');
+          setScreenState('error');
+          return;
+        }
 
-  // Map battle state to card animation state
-  const getCardAnimationState = (side: 'A' | 'B'): CardAnimationState => {
-    if (battleState === 'FINISHED' && winnerSide) {
-      return side === winnerSide ? 'winner' : 'loser';
-    }
-    return 'idle';
-  };
+        // Read identity_anchor_id from localStorage
+        const identityAnchorId = localStorage.getItem('identity_anchor_id');
+        if (!identityAnchorId) {
+          setErrorMessage('No identity found');
+          setScreenState('error');
+          return;
+        }
 
-  const handleVoteA = () => {
-    if (isVotingEnabled) {
-      setCurrentVote('A');
-      // TODO: Send vote intent to backend
-    }
-  };
+        // Fetch Arena
+        const { data: arenaData, error: arenaError } = await supabase
+          .from('arenas')
+          .select('id, name, state')
+          .eq('id', arenaId)
+          .single();
 
-  const handleVoteB = () => {
-    if (isVotingEnabled) {
-      setCurrentVote('B');
-      // TODO: Send vote intent to backend
-    }
-  };
+        if (arenaError || !arenaData) {
+          console.error('Failed to fetch arena:', arenaError);
+          setErrorMessage('Arena not found');
+          setScreenState('error');
+          return;
+        }
 
+        // Fetch Participant
+        const { data: participantData, error: participantError } = await supabase
+          .from('participants')
+          .select('id, is_host')
+          .eq('arena_id', arenaId)
+          .eq('identity_anchor_id', identityAnchorId)
+          .single();
+
+        if (participantError || !participantData) {
+          console.error('Failed to fetch participant:', participantError);
+          setErrorMessage('Not a participant');
+          setScreenState('error');
+          return;
+        }
+
+        setArena(arenaData);
+        setParticipant(participantData);
+        setScreenState('ready');
+      } catch (err) {
+        console.error('Battle room load error:', err);
+        setErrorMessage('Failed to load battle room');
+        setScreenState('error');
+      }
+    };
+
+    loadBattleRoom();
+  }, [location.state]);
+
+  // Loading state
+  if (screenState === 'loading') {
+    return (
+      <div className="min-h-dvh w-full flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (screenState === 'error') {
+    return (
+      <div className="min-h-dvh w-full flex items-center justify-center bg-background">
+        <p className="text-destructive">{errorMessage}</p>
+      </div>
+    );
+  }
+
+  // Ready state
   return (
-    <div className="min-h-dvh w-full flex flex-col bg-background">
-      {/* Tension Bar - fixed at top */}
-      <div className="sticky top-0 z-20 bg-background">
-        <TensionBar 
-          percentageA={50} 
-          percentageB={50} 
-          intensity={getTensionIntensity()}
-        />
-      </div>
-
-      {/* Timer */}
-      <BattleTimer time="01:23" />
-
-      {/* Battle Cards container - flexible middle section */}
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="w-full max-w-md flex items-center gap-3">
-          {/* Song A - Left */}
-          <SongCard 
-            position="left" 
-            songTitle="Burning Lights" 
-            artistName="Skybound"
-            isSelected={currentVote === 'A'}
-            isDisabled={!isVotingEnabled}
-            animationState={getCardAnimationState('A')}
-            onVote={handleVoteA}
-          />
-          
-          {/* VS divider */}
-          <div className="flex-shrink-0 flex items-center justify-center">
-            <span className="text-2xl font-arcade font-bold text-muted-foreground/60">
-              VS
-            </span>
-          </div>
-          
-          {/* Song B - Right */}
-          <SongCard 
-            position="right" 
-            songTitle="Starlight Groove" 
-            artistName="Neon Pulse"
-            isSelected={currentVote === 'B'}
-            isDisabled={!isVotingEnabled}
-            animationState={getCardAnimationState('B')}
-            onVote={handleVoteB}
-          />
-        </div>
-      </div>
-
-      {/* Action Strip - bottom */}
-      <ActionStrip />
-      
-      {/* Battle State Overlay */}
-      <BattleStateOverlay battleState={battleState} winnerSide={winnerSide} />
+    <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-4">
+      <h1 className="text-2xl font-bold text-foreground mb-2">
+        {arena?.name}
+      </h1>
+      <p className="text-sm text-muted-foreground mb-8">
+        Status: {arena?.state}
+      </p>
+      <p className="text-muted-foreground text-center">
+        Waiting for the next battle to start
+      </p>
     </div>
   );
 };
