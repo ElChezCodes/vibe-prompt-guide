@@ -1,33 +1,33 @@
 import { supabase } from '@/integrations/supabase/client';
 
-function normalizeName(name?: string) {
-  const n = name?.trim();
-  return n && n.length > 0 ? n : 'Test Arena';
+interface Arena {
+  id: string;
+  name: string;
+  state: string;
+  mood: string;
+  host_id: string | null;
+  created_at: string;
 }
 
-export async function createArena(
-  name?: string,
-  state: string = 'active',
-  mood: string = 'warmup'
-) {
-  const insertPayload = {
-    name: normalizeName(name),
-    state,
-    mood,
-    // Host is anonymous for now; DB is assumed to allow null.
-    host_id: null as null,
-  };
+export async function createArena(name?: string): Promise<Arena> {
+  const trimmed = name?.trim();
+  const normalizedName = trimmed && trimmed.length > 0 ? trimmed : 'Test Arena';
 
   const { data, error } = await supabase
     .from('arenas')
-    .insert(insertPayload)
+    .insert({
+      name: normalizedName,
+      state: 'active',
+      mood: 'warmup',
+      host_id: null,
+    })
     .select()
     .single();
 
   if (error) {
-    console.error('Failed to create arena:', error.message, error);
+    console.error('Failed to create arena:', error.message);
     throw error;
   }
 
-  return data;
+  return data as Arena;
 }
