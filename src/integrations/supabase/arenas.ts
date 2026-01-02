@@ -9,9 +9,9 @@ interface Arena {
   created_at: string;
 }
 
-export async function createArena(name?: string): Promise<Arena> {
-  const trimmed = name?.trim();
-  const normalizedName = trimmed && trimmed.length > 0 ? trimmed : 'Test Arena';
+export async function createArena(name: string): Promise<Arena> {
+  const trimmed = name.trim();
+  const normalizedName = trimmed.length > 0 ? trimmed : 'Test Arena';
 
   const { data, error } = await supabase
     .from('arenas')
