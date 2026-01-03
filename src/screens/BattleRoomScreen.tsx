@@ -15,12 +15,18 @@ interface ParticipantData {
   is_host: boolean;
 }
 
+interface BattleData {
+  id: string;
+  state: string;
+}
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
+  const [battle, setBattle] = useState<BattleData | null>(null);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -70,8 +76,22 @@ const BattleRoomScreen = () => {
           return;
         }
 
+        // Fetch Active Battle (may not exist)
+        const { data: battleData, error: battleError } = await supabase
+          .from('battles')
+          .select('id, state')
+          .eq('arena_id', arenaId)
+          .eq('state', 'active')
+          .maybeSingle();
+
+        if (battleError) {
+          console.error('Failed to fetch battle:', battleError);
+          // Not a critical error - battle may not exist yet
+        }
+
         setArena(arenaData);
         setParticipant(participantData);
+        setBattle(battleData);
         setScreenState('ready');
       } catch (err) {
         console.error('Battle room load error:', err);
@@ -110,9 +130,16 @@ const BattleRoomScreen = () => {
       <p className="text-sm text-muted-foreground mb-8">
         Status: {arena?.state}
       </p>
-      <p className="text-muted-foreground text-center">
-        Waiting for the next battle to start
-      </p>
+      {battle ? (
+        <div className="text-center">
+          <p className="text-foreground font-medium">Battle in progress</p>
+          <p className="text-sm text-muted-foreground">State: {battle.state}</p>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-center">
+          Waiting for the next battle to start
+        </p>
+      )}
     </div>
   );
 };
