@@ -76,22 +76,39 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        // Fetch Active Battle (may not exist)
-        const { data: battleData, error: battleError } = await supabase
+        const { data: existingBattle, error: battleError } = await supabase
           .from('battles')
           .select('id, state')
           .eq('arena_id', arenaId)
-          .eq('state', 'active')
           .maybeSingle();
 
         if (battleError) {
           console.error('Failed to fetch battle:', battleError);
-          // Not a critical error - battle may not exist yet
+        }
+
+        let currentBattle = existingBattle;
+
+        if (!currentBattle) {
+          const { data: newBattle, error: insertError } = await supabase
+            .from('battles')
+            .insert({
+              arena_id: arenaId,
+              state: 'pending',
+              started_at: null
+            })
+            .select('id, state')
+            .single();
+
+          if (insertError) {
+            console.error('Failed to create battle:', insertError);
+          } else {
+            currentBattle = newBattle;
+          }
         }
 
         setArena(arenaData);
         setParticipant(participantData);
-        setBattle(battleData);
+        setBattle(currentBattle);
         setScreenState('ready');
       } catch (err) {
         console.error('Battle room load error:', err);
@@ -132,7 +149,9 @@ const BattleRoomScreen = () => {
       </p>
       {battle ? (
         <div className="text-center">
-          <p className="text-foreground font-medium">Battle in progress</p>
+          <p className="text-foreground font-medium">
+            {battle.state === 'pending' ? 'Waiting for songs to be proposed' : 'Battle in progress'}
+          </p>
           <p className="text-sm text-muted-foreground">State: {battle.state}</p>
         </div>
       ) : (
