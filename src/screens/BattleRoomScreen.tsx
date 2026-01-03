@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 
 type ScreenState = 'loading' | 'error' | 'ready';
 
@@ -28,33 +27,19 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [battle, setBattle] = useState<BattleData | null>(null);
-  const [isCreatingBattle, setIsCreatingBattle] = useState(false);
-
-  const arenaId = location.state?.arenaId as string | undefined;
-
-  const fetchBattle = useCallback(async (arenaIdToFetch: string) => {
-    const { data: battleData, error: battleError } = await supabase
-      .from('battles')
-      .select('id, state')
-      .eq('arena_id', arenaIdToFetch)
-      .maybeSingle();
-
-    if (battleError) {
-      console.error('Failed to fetch battle:', battleError);
-    }
-
-    return battleData;
-  }, []);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
       try {
+        // Read arena_id from navigation state
+        const arenaId = location.state?.arenaId as string | undefined;
         if (!arenaId) {
           setErrorMessage('No arena ID provided');
           setScreenState('error');
           return;
         }
 
+        // Read identity_anchor_id from localStorage
         const identityAnchorId = localStorage.getItem('identity_anchor_id');
         if (!identityAnchorId) {
           setErrorMessage('No identity found');
@@ -62,6 +47,7 @@ const BattleRoomScreen = () => {
           return;
         }
 
+        // Fetch Arena
         const { data: arenaData, error: arenaError } = await supabase
           .from('arenas')
           .select('id, name, state')
@@ -75,6 +61,7 @@ const BattleRoomScreen = () => {
           return;
         }
 
+        // Fetch Participant
         const { data: participantData, error: participantError } = await supabase
           .from('participants')
           .select('id, is_host')
@@ -89,7 +76,18 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        const battleData = await fetchBattle(arenaId);
+        // Fetch Active Battle (may not exist)
+        const { data: battleData, error: battleError } = await supabase
+          .from('battles')
+          .select('id, state')
+          .eq('arena_id', arenaId)
+          .eq('state', 'active')
+          .maybeSingle();
+
+        if (battleError) {
+          console.error('Failed to fetch battle:', battleError);
+          // Not a critical error - battle may not exist yet
+        }
 
         setArena(arenaData);
         setParticipant(participantData);
@@ -103,43 +101,7 @@ const BattleRoomScreen = () => {
     };
 
     loadBattleRoom();
-  }, [arenaId, fetchBattle]);
-
-  const handleCreateBattle = async () => {
-    if (!arenaId || !participant?.is_host || isCreatingBattle) return;
-
-    setIsCreatingBattle(true);
-
-    try {
-      const existingBattle = await fetchBattle(arenaId);
-      if (existingBattle) {
-        setBattle(existingBattle);
-        setIsCreatingBattle(false);
-        return;
-      }
-
-      const { error: insertError } = await supabase
-        .from('battles')
-        .insert({
-          arena_id: arenaId,
-          state: 'pending',
-          started_at: null,
-        });
-
-      if (insertError) {
-        console.error('Failed to create battle:', insertError);
-        setIsCreatingBattle(false);
-        return;
-      }
-
-      const newBattle = await fetchBattle(arenaId);
-      setBattle(newBattle);
-    } catch (err) {
-      console.error('Create battle error:', err);
-    } finally {
-      setIsCreatingBattle(false);
-    }
-  };
+  }, [location.state]);
 
   // Loading state
   if (screenState === 'loading') {
@@ -159,6 +121,7 @@ const BattleRoomScreen = () => {
     );
   }
 
+  // Ready state
   return (
     <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-4">
       <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -169,22 +132,9 @@ const BattleRoomScreen = () => {
       </p>
       {battle ? (
         <div className="text-center">
-          {battle.state === 'pending' ? (
-            <p className="text-muted-foreground">Waiting for songs to be proposed</p>
-          ) : (
-            <>
-              <p className="text-foreground font-medium">Battle in progress</p>
-              <p className="text-sm text-muted-foreground">State: {battle.state}</p>
-            </>
-          )}
+          <p className="text-foreground font-medium">Battle in progress</p>
+          <p className="text-sm text-muted-foreground">State: {battle.state}</p>
         </div>
-      ) : participant?.is_host ? (
-        <Button
-          onClick={handleCreateBattle}
-          disabled={isCreatingBattle}
-        >
-          {isCreatingBattle ? 'Creating...' : 'Create Battle'}
-        </Button>
       ) : (
         <p className="text-muted-foreground text-center">
           Waiting for the next battle to start
