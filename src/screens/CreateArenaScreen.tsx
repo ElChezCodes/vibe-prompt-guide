@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { QrCode, Music } from "lucide-react";
-import { Link } from "react-router-dom";
+import { QrCode, Music, Swords } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import { createArena } from "@/integrations/supabase/arenas";
-
+import { createParticipant } from "@/integrations/supabase/participants";
 interface Arena {
   id: string;
   name: string;
@@ -27,11 +27,13 @@ function qrCellOn(arenaId: string, index: number) {
 }
 
 const CreateArenaScreen = () => {
+  const location = useLocation();
   const [arenaName, setArenaName] = useState("");
   const [isCreated, setIsCreated] = useState(false);
   const [arena, setArena] = useState<Arena | null>(null);
 
-  // Derive arena code from real ID (first 6 chars, formatted as XXX XXX)
+  const passedArenaId = location.state?.arenaId as string | undefined;
+
   const arenaCode = arena?.id 
     ? arena.id.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
     : '';
@@ -40,6 +42,12 @@ const CreateArenaScreen = () => {
     try {
       const result = await createArena(arenaName);
       console.log('Arena created:', result);
+
+      const identityAnchorId = localStorage.getItem('identity_anchor_id');
+      if (identityAnchorId) {
+        await createParticipant(result.id, identityAnchorId);
+      }
+
       setArena(result);
       setIsCreated(true);
     } catch (error) {
@@ -142,6 +150,17 @@ const CreateArenaScreen = () => {
                 </li>
               </ul>
             </div>
+
+            {/* Primary Action - Enter Battle */}
+            <Button
+              asChild
+              className="w-full h-12 text-lg font-semibold"
+            >
+              <Link to="/battle" state={{ arenaId: arena?.id }}>
+                <Swords className="w-5 h-5 mr-2" />
+                Enter Battle
+              </Link>
+            </Button>
 
             {/* Secondary Action - Connect Music */}
             <Button
