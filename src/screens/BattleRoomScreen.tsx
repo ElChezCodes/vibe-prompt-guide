@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { QrCode } from "lucide-react";
 
 type ScreenState = 'loading' | 'error' | 'ready';
 
@@ -138,7 +140,8 @@ const BattleRoomScreen = () => {
     );
   }
 
-  // Ready state
+  const arenaId = location.state?.arenaId as string | undefined;
+
   return (
     <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-4">
       <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -158,6 +161,19 @@ const BattleRoomScreen = () => {
         <p className="text-muted-foreground text-center">
           Waiting for the next battle to start
         </p>
+      )}
+
+      {participant?.is_host && (
+        <Button
+          variant="outline"
+          asChild
+          className="mt-8 border-border/50"
+        >
+          <Link to="/create" state={{ arenaId }}>
+            <QrCode className="w-5 h-5 mr-2" />
+            Show Arena QR
+          </Link>
+        </Button>
       )}
     </div>
   );
