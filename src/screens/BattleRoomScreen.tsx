@@ -90,12 +90,13 @@ const BattleRoomScreen = () => {
 
         let currentBattle = existingBattle;
 
-        if (!currentBattle) {
+        if (!currentBattle && participantData.is_host) {
           const { data: newBattle, error: insertError } = await supabase
             .from('battles')
             .insert({
               arena_id: arenaId,
-              state: 'pending',
+              song_a_id: '00000000-0000-0000-0000-000000000000',
+              song_b_id: '00000000-0000-0000-0000-000000000000',
               started_at: null
             })
             .select('id, state')
