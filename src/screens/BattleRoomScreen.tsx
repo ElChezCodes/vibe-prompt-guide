@@ -82,6 +82,7 @@ const BattleRoomScreen = () => {
           .from('battles')
           .select('id, state')
           .eq('arena_id', arenaId)
+          .in('state', ['pending', 'active'])
           .maybeSingle();
 
         if (battleError) {
@@ -90,7 +91,7 @@ const BattleRoomScreen = () => {
 
         let currentBattle = existingBattle;
 
-        if (!currentBattle && participantData.is_host) {
+        if (!currentBattle) {
           const { data: newBattle, error: insertError } = await supabase
             .from('battles')
             .insert({
