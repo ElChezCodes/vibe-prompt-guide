@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QrCode, Music } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { createArena } from "@/integrations/supabase/arenas";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Arena {
   id: string;
@@ -31,8 +30,8 @@ const CreateArenaScreen = () => {
   const [arenaName, setArenaName] = useState("");
   const [isCreated, setIsCreated] = useState(false);
   const [arena, setArena] = useState<Arena | null>(null);
-  const navigate = useNavigate();
 
+  // Derive arena code from real ID (first 6 chars, formatted as XXX XXX)
   const arenaCode = arena?.id 
     ? arena.id.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
     : '';
@@ -41,19 +40,8 @@ const CreateArenaScreen = () => {
     try {
       const result = await createArena(arenaName);
       console.log('Arena created:', result);
-
-      const identityAnchorId = localStorage.getItem('identity_anchor_id');
-      if (identityAnchorId) {
-        await supabase
-          .from('participants')
-          .insert({
-            arena_id: result.id,
-            identity_anchor_id: identityAnchorId,
-            is_host: true,
-          });
-      }
-
-      navigate('/battle', { state: { arenaId: result.id } });
+      setArena(result);
+      setIsCreated(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Failed to create arena:', message, error);
