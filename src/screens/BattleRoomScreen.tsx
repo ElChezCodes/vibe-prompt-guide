@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ interface BattleData {
   state: string;
 }
 
+const BATTLE_DURATION_MS = 30000;
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>('loading');
@@ -29,19 +31,77 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [battle, setBattle] = useState<BattleData | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isTransitioningRef = useRef(false);
+
+  const arenaId = location.state?.arenaId as string | undefined;
+
+  const endBattle = useCallback(async (battleId: string) => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+
+    const { data: updatedBattle, error } = await supabase
+      .from('battles')
+      .update({
+        state: 'finished',
+        ended_at: new Date().toISOString()
+      })
+      .eq('id', battleId)
+      .eq('state', 'active')
+      .select('id, state')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to end battle:', error);
+    }
+
+    if (updatedBattle) {
+      setBattle(updatedBattle);
+    }
+
+    isTransitioningRef.current = false;
+  }, []);
+
+  const startBattle = useCallback(async (battleId: string) => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+
+    const { data: updatedBattle, error } = await supabase
+      .from('battles')
+      .update({
+        state: 'active',
+        started_at: new Date().toISOString()
+      })
+      .eq('id', battleId)
+      .eq('state', 'pending')
+      .select('id, state')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to start battle:', error);
+      isTransitioningRef.current = false;
+      return;
+    }
+
+    if (updatedBattle) {
+      setBattle(updatedBattle);
+      timerRef.current = setTimeout(() => {
+        endBattle(battleId);
+      }, BATTLE_DURATION_MS);
+    }
+
+    isTransitioningRef.current = false;
+  }, [endBattle]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
       try {
-        // Read arena_id from navigation state
-        const arenaId = location.state?.arenaId as string | undefined;
         if (!arenaId) {
           setErrorMessage('No arena ID provided');
           setScreenState('error');
           return;
         }
 
-        // Read identity_anchor_id from localStorage
         const identityAnchorId = localStorage.getItem('identity_anchor_id');
         if (!identityAnchorId) {
           setErrorMessage('No identity found');
@@ -49,7 +109,6 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        // Fetch Arena
         const { data: arenaData, error: arenaError } = await supabase
           .from('arenas')
           .select('id, name, state')
@@ -63,7 +122,6 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        // Fetch Participant
         const { data: participantData, error: participantError } = await supabase
           .from('participants')
           .select('id, is_host')
@@ -114,6 +172,10 @@ const BattleRoomScreen = () => {
         setParticipant(participantData);
         setBattle(currentBattle);
         setScreenState('ready');
+
+        if (currentBattle?.state === 'pending') {
+          startBattle(currentBattle.id);
+        }
       } catch (err) {
         console.error('Battle room load error:', err);
         setErrorMessage('Failed to load battle room');
@@ -122,7 +184,13 @@ const BattleRoomScreen = () => {
     };
 
     loadBattleRoom();
-  }, [location.state]);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [arenaId, startBattle]);
 
   // Loading state
   if (screenState === 'loading') {
@@ -141,8 +209,6 @@ const BattleRoomScreen = () => {
       </div>
     );
   }
-
-  const arenaId = location.state?.arenaId as string | undefined;
 
   return (
     <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-4">
