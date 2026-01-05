@@ -40,20 +40,26 @@ const BattleRoomScreen = () => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
 
-    const { data: updatedBattle, error } = await supabase
+    const { error: updateError } = await supabase
       .from('battles')
       .update({
         state: 'finished',
         ended_at: new Date().toISOString()
       })
       .eq('id', battleId)
-      .eq('state', 'active')
-      .select('id, state')
-      .maybeSingle();
+      .eq('state', 'active');
 
-    if (error) {
-      console.error('Failed to end battle:', error);
+    if (updateError) {
+      console.error('Failed to end battle:', updateError);
+      isTransitioningRef.current = false;
+      return;
     }
+
+    const { data: updatedBattle } = await supabase
+      .from('battles')
+      .select('id, state')
+      .eq('id', battleId)
+      .maybeSingle();
 
     if (updatedBattle) {
       setBattle(updatedBattle);
@@ -66,22 +72,26 @@ const BattleRoomScreen = () => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
 
-    const { data: updatedBattle, error } = await supabase
+    const { error: updateError } = await supabase
       .from('battles')
       .update({
         state: 'active',
         started_at: new Date().toISOString()
       })
       .eq('id', battleId)
-      .eq('state', 'pending')
-      .select('id, state')
-      .maybeSingle();
+      .eq('state', 'pending');
 
-    if (error) {
-      console.error('Failed to start battle:', error);
+    if (updateError) {
+      console.error('Failed to start battle:', updateError);
       isTransitioningRef.current = false;
       return;
     }
+
+    const { data: updatedBattle } = await supabase
+      .from('battles')
+      .select('id, state')
+      .eq('id', battleId)
+      .maybeSingle();
 
     if (updatedBattle) {
       setBattle(updatedBattle);
