@@ -21,9 +21,10 @@ interface StageViewProps {
   arena: ArenaData;
   battle: BattleData | null;
   participant: ParticipantData;
+  currentVote?: 'A' | 'B' | null;
 }
 
-const StageView = ({ arena, battle, participant }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) => {
   // Placeholder values - will be connected to real data later
   const percentageA = 52;
   const percentageB = 48;
@@ -77,6 +78,7 @@ const StageView = ({ arena, battle, participant }: StageViewProps) => {
               position="A"
               songTitle="Blinding Lights"
               artistName="The Weeknd"
+              isSelected={currentVote === 'A'}
             />
           </div>
 
@@ -93,6 +95,7 @@ const StageView = ({ arena, battle, participant }: StageViewProps) => {
               position="B"
               songTitle="Levitating"
               artistName="Dua Lipa"
+              isSelected={currentVote === 'B'}
             />
           </div>
         </div>
@@ -112,17 +115,19 @@ interface StageSongCardProps {
   position: 'A' | 'B';
   songTitle: string;
   artistName: string;
+  isSelected?: boolean;
 }
 
-const StageSongCard = ({ position, songTitle, artistName }: StageSongCardProps) => {
+const StageSongCard = ({ position, songTitle, artistName, isSelected }: StageSongCardProps) => {
   const isA = position === 'A';
   
   return (
     <div 
       className={`
         relative w-full aspect-square rounded-2xl overflow-hidden
-        bg-surface border-2
+        bg-surface border-2 transition-all duration-200
         ${isA ? 'border-song-a/30' : 'border-song-b/30'}
+        ${isSelected ? (isA ? 'border-song-a ring-2 ring-song-a/50' : 'border-song-b ring-2 ring-song-b/50') : ''}
       `}
     >
       {/* Album art placeholder */}

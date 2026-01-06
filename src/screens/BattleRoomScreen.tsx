@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
+type VoteSide = 'A' | 'B' | null;
 
 interface ArenaData {
   id: string;
@@ -30,8 +31,18 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [battle, setBattle] = useState<BattleData | null>(null);
+  const [currentVote, setCurrentVote] = useState<VoteSide>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isTransitioningRef = useRef(false);
+
+  const handleVote = useCallback((side: 'A' | 'B') => {
+    if (!battle || battle.state !== 'active') {
+      console.log('[Vote] Blocked - battle not active');
+      return;
+    }
+    console.log(`[Vote] User voted for Song ${side}`);
+    setCurrentVote(side);
+  }, [battle]);
 
   const arenaId = location.state?.arenaId as string | undefined;
 
@@ -260,12 +271,56 @@ const BattleRoomScreen = () => {
     );
   }
 
+  const isVotingEnabled = battle?.state === 'active';
+
   return (
-    <StageView 
-      arena={arena!} 
-      battle={battle} 
-      participant={participant!} 
-    />
+    <div className="relative min-h-dvh w-full">
+      {/* Presentational layer */}
+      <StageView 
+        arena={arena!} 
+        battle={battle} 
+        participant={participant!}
+        currentVote={currentVote}
+      />
+
+      {/* Invisible interaction layer - positioned above StageView */}
+      {isVotingEnabled && (
+        <div className="absolute inset-0 z-50 pointer-events-none">
+          {/* Match the layout of StageView's battle arena section */}
+          <div className="min-h-dvh w-full flex flex-col">
+            {/* Spacer for tension bar + timer */}
+            <div className="pt-8 px-8"><div className="h-3" /></div>
+            <div className="py-8"><div className="h-16 lg:h-24" /></div>
+
+            {/* Clickable song areas */}
+            <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
+              <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
+                {/* Song A hit area */}
+                <div 
+                  className="flex-1 max-w-md aspect-square pointer-events-auto cursor-pointer"
+                  onClick={() => handleVote('A')}
+                  role="button"
+                  aria-label="Vote for Song A"
+                />
+
+                {/* VS spacer */}
+                <div className="flex-shrink-0 w-16 lg:w-24" />
+
+                {/* Song B hit area */}
+                <div 
+                  className="flex-1 max-w-md aspect-square pointer-events-auto cursor-pointer"
+                  onClick={() => handleVote('B')}
+                  role="button"
+                  aria-label="Vote for Song B"
+                />
+              </div>
+            </div>
+
+            <div className="h-16 lg:h-24" />
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
