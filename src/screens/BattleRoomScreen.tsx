@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { QrCode } from "lucide-react";
+import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
 
@@ -245,7 +244,6 @@ const BattleRoomScreen = () => {
     };
   }, [arenaId, startBattleAndScheduleEnd, endBattleAndContinue]);
 
-  // Loading state
   if (screenState === 'loading') {
     return (
       <div className="min-h-dvh w-full flex items-center justify-center bg-background">
@@ -254,7 +252,6 @@ const BattleRoomScreen = () => {
     );
   }
 
-  // Error state
   if (screenState === 'error') {
     return (
       <div className="min-h-dvh w-full flex items-center justify-center bg-background">
@@ -264,39 +261,11 @@ const BattleRoomScreen = () => {
   }
 
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-4">
-      <h1 className="text-2xl font-bold text-foreground mb-2">
-        {arena?.name}
-      </h1>
-      <p className="text-sm text-muted-foreground mb-8">
-        Status: {arena?.state}
-      </p>
-      {battle ? (
-        <div className="text-center">
-          <p className="text-foreground font-medium">
-            {battle.state === 'pending' ? 'Waiting for songs to be proposed' : 'Battle in progress'}
-          </p>
-          <p className="text-sm text-muted-foreground">State: {battle.state}</p>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-center">
-          Waiting for the next battle to start
-        </p>
-      )}
-
-      {participant?.is_host && (
-        <Button
-          variant="outline"
-          asChild
-          className="mt-8 border-border/50"
-        >
-          <Link to="/create" state={{ arenaId }}>
-            <QrCode className="w-5 h-5 mr-2" />
-            Show Arena QR
-          </Link>
-        </Button>
-      )}
-    </div>
+    <StageView 
+      arena={arena!} 
+      battle={battle} 
+      participant={participant!} 
+    />
   );
 };
 
