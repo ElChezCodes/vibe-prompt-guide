@@ -36,7 +36,40 @@ const BattleRoomScreen = () => {
 
   const arenaId = location.state?.arenaId as string | undefined;
 
-  const endBattle = useCallback(async (battleId: string) => {
+  const startBattleAndScheduleEnd = useCallback(async (battleId: string) => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+
+    const { error: updateError } = await supabase
+      .from('battles')
+      .update({
+        state: 'active',
+        started_at: new Date().toISOString()
+      })
+      .eq('id', battleId)
+      .eq('state', 'pending');
+
+    if (updateError) {
+      console.error('Failed to start battle:', updateError);
+      isTransitioningRef.current = false;
+      return;
+    }
+
+    const { data: updatedBattle } = await supabase
+      .from('battles')
+      .select('id, state')
+      .eq('id', battleId)
+      .maybeSingle();
+
+    if (updatedBattle) {
+      setBattle(updatedBattle);
+    }
+
+    isTransitioningRef.current = false;
+    return updatedBattle;
+  }, []);
+
+  const endBattleAndContinue = useCallback(async (battleId: string) => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
 
@@ -66,42 +99,47 @@ const BattleRoomScreen = () => {
     }
 
     isTransitioningRef.current = false;
-  }, []);
 
-  const startBattle = useCallback(async (battleId: string) => {
-    if (isTransitioningRef.current) return;
-    isTransitioningRef.current = true;
-
-    const { error: updateError } = await supabase
-      .from('battles')
-      .update({
-        state: 'active',
-        started_at: new Date().toISOString()
-      })
-      .eq('id', battleId)
-      .eq('state', 'pending');
-
-    if (updateError) {
-      console.error('Failed to start battle:', updateError);
-      isTransitioningRef.current = false;
-      return;
-    }
-
-    const { data: updatedBattle } = await supabase
+    // Query for next pending battle
+    const { data: nextPending } = await supabase
       .from('battles')
       .select('id, state')
-      .eq('id', battleId)
+      .eq('arena_id', arenaId!)
+      .eq('state', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    if (updatedBattle) {
-      setBattle(updatedBattle);
-      timerRef.current = setTimeout(() => {
-        endBattle(battleId);
-      }, BATTLE_DURATION_MS);
-    }
+    if (nextPending) {
+      const started = await startBattleAndScheduleEnd(nextPending.id);
+      if (started) {
+        timerRef.current = setTimeout(() => {
+          endBattleAndContinue(nextPending.id);
+        }, BATTLE_DURATION_MS);
+      }
+    } else {
+      // Create a new pending battle and start it
+      const { data: newBattle } = await supabase
+        .from('battles')
+        .insert({
+          arena_id: arenaId,
+          song_a_id: '00000000-0000-0000-0000-000000000000',
+          song_b_id: '00000000-0000-0000-0000-000000000000',
+          started_at: null
+        })
+        .select('id, state')
+        .single();
 
-    isTransitioningRef.current = false;
-  }, [endBattle]);
+      if (newBattle) {
+        const started = await startBattleAndScheduleEnd(newBattle.id);
+        if (started) {
+          timerRef.current = setTimeout(() => {
+            endBattleAndContinue(newBattle.id);
+          }, BATTLE_DURATION_MS);
+        }
+      }
+    }
+  }, [arenaId, startBattleAndScheduleEnd]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -184,7 +222,12 @@ const BattleRoomScreen = () => {
         setScreenState('ready');
 
         if (currentBattle?.state === 'pending') {
-          startBattle(currentBattle.id);
+          const started = await startBattleAndScheduleEnd(currentBattle.id);
+          if (started) {
+            timerRef.current = setTimeout(() => {
+              endBattleAndContinue(currentBattle.id);
+            }, BATTLE_DURATION_MS);
+          }
         }
       } catch (err) {
         console.error('Battle room load error:', err);
@@ -200,7 +243,7 @@ const BattleRoomScreen = () => {
         clearTimeout(timerRef.current);
       }
     };
-  }, [arenaId, startBattle]);
+  }, [arenaId, startBattleAndScheduleEnd, endBattleAndContinue]);
 
   // Loading state
   if (screenState === 'loading') {
