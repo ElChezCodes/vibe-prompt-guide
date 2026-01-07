@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { getParticipantVote, upsertVote, Vote } from "@/integrations/supabase/votes";
+import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
@@ -56,12 +56,18 @@ const BattleRoomScreen = () => {
     
     console.log(`[Vote] Processing vote for Song ${side} (${songId})`);
     
-    const { vote, action } = await upsertVote(
+    const { vote, action } = await applyVoteIntent(
       battle.id,
       participant.id,
       songId,
       voteRecord
     );
+
+    if (action === 'locked') {
+      console.log('[Vote] Battle is locked - voting not allowed');
+      isVotingRef.current = false;
+      return;
+    }
 
     console.log(`[Vote] Action: ${action}`, vote);
 
