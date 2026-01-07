@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getParticipantVote, upsertVote, Vote } from "@/integrations/supabase/votes";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
@@ -20,6 +21,8 @@ interface ParticipantData {
 interface BattleData {
   id: string;
   state: string;
+  song_a_id: string;
+  song_b_id: string;
 }
 
 const BATTLE_DURATION_MS = 30000;
@@ -32,17 +35,49 @@ const BattleRoomScreen = () => {
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [battle, setBattle] = useState<BattleData | null>(null);
   const [currentVote, setCurrentVote] = useState<VoteSide>(null);
+  const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isTransitioningRef = useRef(false);
+  const isVotingRef = useRef(false);
 
-  const handleVote = useCallback((side: 'A' | 'B') => {
-    if (!battle || battle.state !== 'active') {
-      console.log('[Vote] Blocked - battle not active');
+  const handleVote = useCallback(async (side: 'A' | 'B') => {
+    if (!battle || battle.state !== 'active' || !participant) {
+      console.log('[Vote] Blocked - battle not active or no participant');
       return;
     }
-    console.log(`[Vote] User voted for Song ${side}`);
-    setCurrentVote(side);
-  }, [battle]);
+
+    if (isVotingRef.current) {
+      console.log('[Vote] Blocked - vote in progress');
+      return;
+    }
+
+    isVotingRef.current = true;
+    const songId = side === 'A' ? battle.song_a_id : battle.song_b_id;
+    
+    console.log(`[Vote] Processing vote for Song ${side} (${songId})`);
+    
+    const { vote, action } = await upsertVote(
+      battle.id,
+      participant.id,
+      songId,
+      voteRecord
+    );
+
+    console.log(`[Vote] Action: ${action}`, vote);
+
+    if (vote) {
+      setVoteRecord(vote);
+      // Determine which side is now active
+      if (vote.status === 'active') {
+        const votedSide = vote.song_id === battle.song_a_id ? 'A' : 'B';
+        setCurrentVote(votedSide);
+      } else {
+        setCurrentVote(null);
+      }
+    }
+
+    isVotingRef.current = false;
+  }, [battle, participant, voteRecord]);
 
   const arenaId = location.state?.arenaId as string | undefined;
 
@@ -67,7 +102,7 @@ const BattleRoomScreen = () => {
 
     const { data: updatedBattle } = await supabase
       .from('battles')
-      .select('id, state')
+      .select('id, state, song_a_id, song_b_id')
       .eq('id', battleId)
       .maybeSingle();
 
@@ -100,7 +135,7 @@ const BattleRoomScreen = () => {
 
     const { data: updatedBattle } = await supabase
       .from('battles')
-      .select('id, state')
+      .select('id, state, song_a_id, song_b_id')
       .eq('id', battleId)
       .maybeSingle();
 
@@ -108,12 +143,16 @@ const BattleRoomScreen = () => {
       setBattle(updatedBattle);
     }
 
+    // Reset vote state when battle ends
+    setCurrentVote(null);
+    setVoteRecord(null);
+
     isTransitioningRef.current = false;
 
     // Query for next pending battle
     const { data: nextPending } = await supabase
       .from('battles')
-      .select('id, state')
+      .select('id, state, song_a_id, song_b_id')
       .eq('arena_id', arenaId!)
       .eq('state', 'pending')
       .order('created_at', { ascending: true })
@@ -137,7 +176,7 @@ const BattleRoomScreen = () => {
           song_b_id: '00000000-0000-0000-0000-000000000000',
           started_at: null
         })
-        .select('id, state')
+        .select('id, state, song_a_id, song_b_id')
         .single();
 
       if (newBattle) {
@@ -196,7 +235,7 @@ const BattleRoomScreen = () => {
 
         const { data: existingBattle, error: battleError } = await supabase
           .from('battles')
-          .select('id, state')
+          .select('id, state, song_a_id, song_b_id')
           .eq('arena_id', arenaId)
           .in('state', ['pending', 'active'])
           .maybeSingle();
@@ -216,7 +255,7 @@ const BattleRoomScreen = () => {
               song_b_id: '00000000-0000-0000-0000-000000000000',
               started_at: null
             })
-            .select('id, state')
+            .select('id, state, song_a_id, song_b_id')
             .single();
 
           if (insertError) {
@@ -230,6 +269,18 @@ const BattleRoomScreen = () => {
         setParticipant(participantData);
         setBattle(currentBattle);
         setScreenState('ready');
+
+        // Load existing vote if battle is active
+        if (currentBattle?.state === 'active') {
+          const existingVote = await getParticipantVote(currentBattle.id, participantData.id);
+          if (existingVote) {
+            setVoteRecord(existingVote);
+            if (existingVote.status === 'active') {
+              const votedSide = existingVote.song_id === currentBattle.song_a_id ? 'A' : 'B';
+              setCurrentVote(votedSide);
+            }
+          }
+        }
 
         if (currentBattle?.state === 'pending') {
           const started = await startBattleAndScheduleEnd(currentBattle.id);
