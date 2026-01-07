@@ -10,6 +10,8 @@ export interface Vote {
   updated_at: string;
 }
 
+export type VoteAction = 'created' | 'toggled_off' | 'switched' | 'toggled_on' | 'locked' | 'error';
+
 export async function getParticipantVote(
   battleId: string,
   participantId: string
@@ -29,12 +31,19 @@ export async function getParticipantVote(
   return data;
 }
 
-export async function upsertVote(
+function isRlsError(error: { code?: string; message?: string }): boolean {
+  // RLS violations typically return code 42501 or contain specific messages
+  return error.code === '42501' || 
+         error.message?.includes('row-level security') ||
+         error.message?.includes('violates row-level security policy');
+}
+
+export async function applyVoteIntent(
   battleId: string,
   participantId: string,
   songId: string,
   currentVote: Vote | null
-): Promise<{ vote: Vote | null; action: 'created' | 'toggled_off' | 'switched' | 'toggled_on' | 'error' }> {
+): Promise<{ vote: Vote | null; action: VoteAction }> {
   // No existing vote - INSERT new active vote
   if (!currentVote) {
     const { data, error } = await supabase
@@ -50,6 +59,9 @@ export async function upsertVote(
 
     if (error) {
       console.error('Failed to insert vote:', error);
+      if (isRlsError(error)) {
+        return { vote: null, action: 'locked' };
+      }
       return { vote: null, action: 'error' };
     }
 
@@ -64,16 +76,18 @@ export async function upsertVote(
     const newStatus = currentVote.status === 'active' ? 'inactive' : 'active';
     const { data, error } = await supabase
       .from('votes')
-      .update({ 
-        status: newStatus,
-        updated_at: new Date().toISOString()
-      })
+      .update({ status: newStatus })
       .eq('id', currentVote.id)
+      .eq('battle_id', battleId)
+      .eq('participant_id', participantId)
       .select()
       .single();
 
     if (error) {
       console.error('Failed to toggle vote:', error);
+      if (isRlsError(error)) {
+        return { vote: null, action: 'locked' };
+      }
       return { vote: null, action: 'error' };
     }
 
@@ -87,18 +101,71 @@ export async function upsertVote(
       .from('votes')
       .update({ 
         song_id: songId,
-        status: 'active',
-        updated_at: new Date().toISOString()
+        status: 'active'
       })
       .eq('id', currentVote.id)
+      .eq('battle_id', battleId)
+      .eq('participant_id', participantId)
       .select()
       .single();
 
     if (error) {
       console.error('Failed to switch vote:', error);
+      if (isRlsError(error)) {
+        return { vote: null, action: 'locked' };
+      }
       return { vote: null, action: 'error' };
     }
 
     return { vote: data, action: 'switched' };
   }
+}
+
+export async function getActiveVoteCounts(
+  battleId: string
+): Promise<{ songACount: number; songBCount: number; songAId: string | null; songBId: string | null } | null> {
+  // First get the battle to know song IDs
+  const { data: battle, error: battleError } = await supabase
+    .from('battles')
+    .select('song_a_id, song_b_id')
+    .eq('id', battleId)
+    .single();
+
+  if (battleError || !battle) {
+    console.error('Failed to fetch battle for vote count:', battleError);
+    return null;
+  }
+
+  // Count active votes for song A
+  const { count: songACount, error: countAError } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('battle_id', battleId)
+    .eq('song_id', battle.song_a_id)
+    .eq('status', 'active');
+
+  if (countAError) {
+    console.error('Failed to count song A votes:', countAError);
+    return null;
+  }
+
+  // Count active votes for song B
+  const { count: songBCount, error: countBError } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('battle_id', battleId)
+    .eq('song_id', battle.song_b_id)
+    .eq('status', 'active');
+
+  if (countBError) {
+    console.error('Failed to count song B votes:', countBError);
+    return null;
+  }
+
+  return {
+    songACount: songACount ?? 0,
+    songBCount: songBCount ?? 0,
+    songAId: battle.song_a_id,
+    songBId: battle.song_b_id
+  };
 }
