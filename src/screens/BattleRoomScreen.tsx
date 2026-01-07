@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
+import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
@@ -18,27 +19,18 @@ interface ParticipantData {
   is_host: boolean;
 }
 
-interface BattleData {
-  id: string;
-  state: string;
-  song_a_id: string;
-  song_b_id: string;
-}
-
-const BATTLE_DURATION_MS = 30000;
-
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
-  const [battle, setBattle] = useState<BattleData | null>(null);
   const [currentVote, setCurrentVote] = useState<VoteSide>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const isTransitioningRef = useRef(false);
   const isVotingRef = useRef(false);
+  const prevBattleIdRef = useRef<string | null>(null);
+
+  const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const handleVote = useCallback(async (side: 'A' | 'B') => {
     if (!battle || battle.state !== 'active' || !participant) {
@@ -87,114 +79,17 @@ const BattleRoomScreen = () => {
 
   const arenaId = location.state?.arenaId as string | undefined;
 
-  const startBattleAndScheduleEnd = useCallback(async (battleId: string) => {
-    if (isTransitioningRef.current) return;
-    isTransitioningRef.current = true;
-
-    const { error: updateError } = await supabase
-      .from('battles')
-      .update({
-        state: 'active',
-        started_at: new Date().toISOString()
-      })
-      .eq('id', battleId)
-      .eq('state', 'pending');
-
-    if (updateError) {
-      console.error('Failed to start battle:', updateError);
-      isTransitioningRef.current = false;
-      return;
-    }
-
-    const { data: updatedBattle } = await supabase
-      .from('battles')
-      .select('id, state, song_a_id, song_b_id')
-      .eq('id', battleId)
-      .maybeSingle();
-
-    if (updatedBattle) {
-      setBattle(updatedBattle);
-    }
-
-    isTransitioningRef.current = false;
-    return updatedBattle;
-  }, []);
-
-  const endBattleAndContinue = useCallback(async (battleId: string) => {
-    if (isTransitioningRef.current) return;
-    isTransitioningRef.current = true;
-
-    const { error: updateError } = await supabase
-      .from('battles')
-      .update({
-        state: 'finished',
-        ended_at: new Date().toISOString()
-      })
-      .eq('id', battleId)
-      .eq('state', 'active');
-
-    if (updateError) {
-      console.error('Failed to end battle:', updateError);
-      isTransitioningRef.current = false;
-      return;
-    }
-
-    const { data: updatedBattle } = await supabase
-      .from('battles')
-      .select('id, state, song_a_id, song_b_id')
-      .eq('id', battleId)
-      .maybeSingle();
-
-    if (updatedBattle) {
-      setBattle(updatedBattle);
-    }
-
-    // Reset vote state when battle ends
-    setCurrentVote(null);
-    setVoteRecord(null);
-
-    isTransitioningRef.current = false;
-
-    // Query for next pending battle
-    const { data: nextPending } = await supabase
-      .from('battles')
-      .select('id, state, song_a_id, song_b_id')
-      .eq('arena_id', arenaId!)
-      .eq('state', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (nextPending) {
-      const started = await startBattleAndScheduleEnd(nextPending.id);
-      if (started) {
-        timerRef.current = setTimeout(() => {
-          endBattleAndContinue(nextPending.id);
-        }, BATTLE_DURATION_MS);
+  // Reset vote state when battle changes
+  useEffect(() => {
+    if (battle?.id !== prevBattleIdRef.current) {
+      if (prevBattleIdRef.current !== null) {
+        // Battle changed, reset vote state
+        setCurrentVote(null);
+        setVoteRecord(null);
       }
-    } else {
-      // Create a new pending battle and start it
-      const { data: newBattle } = await supabase
-        .from('battles')
-        .insert({
-          arena_id: arenaId,
-          song_a_id: '00000000-0000-0000-0000-000000000000',
-          song_b_id: '00000000-0000-0000-0000-000000000000',
-          started_at: null
-        })
-        .select('id, state, song_a_id, song_b_id')
-        .single();
-
-      if (newBattle) {
-        const started = await startBattleAndScheduleEnd(newBattle.id);
-        if (started) {
-          timerRef.current = setTimeout(() => {
-            endBattleAndContinue(newBattle.id);
-          }, BATTLE_DURATION_MS);
-        }
-      }
+      prevBattleIdRef.current = battle?.id ?? null;
     }
-  }, [arenaId, startBattleAndScheduleEnd]);
+  }, [battle?.id]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -239,42 +134,12 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        const { data: existingBattle, error: battleError } = await supabase
-          .from('battles')
-          .select('id, state, song_a_id, song_b_id')
-          .eq('arena_id', arenaId)
-          .in('state', ['pending', 'active'])
-          .maybeSingle();
-
-        if (battleError) {
-          console.error('Failed to fetch battle:', battleError);
-        }
-
-        let currentBattle = existingBattle;
-
-        if (!currentBattle) {
-          const { data: newBattle, error: insertError } = await supabase
-            .from('battles')
-            .insert({
-              arena_id: arenaId,
-              song_a_id: '00000000-0000-0000-0000-000000000000',
-              song_b_id: '00000000-0000-0000-0000-000000000000',
-              started_at: null
-            })
-            .select('id, state, song_a_id, song_b_id')
-            .single();
-
-          if (insertError) {
-            console.error('Failed to create battle:', insertError);
-          } else {
-            currentBattle = newBattle;
-          }
-        }
-
         setArena(arenaData);
         setParticipant(participantData);
-        setBattle(currentBattle);
         setScreenState('ready');
+
+        // Initialize battle loop via orchestrator
+        const currentBattle = await initBattleLoop(arenaId);
 
         // Load existing vote if battle is active
         if (currentBattle?.state === 'active') {
@@ -287,15 +152,6 @@ const BattleRoomScreen = () => {
             }
           }
         }
-
-        if (currentBattle?.state === 'pending') {
-          const started = await startBattleAndScheduleEnd(currentBattle.id);
-          if (started) {
-            timerRef.current = setTimeout(() => {
-              endBattleAndContinue(currentBattle.id);
-            }, BATTLE_DURATION_MS);
-          }
-        }
       } catch (err) {
         console.error('Battle room load error:', err);
         setErrorMessage('Failed to load battle room');
@@ -306,11 +162,9 @@ const BattleRoomScreen = () => {
     loadBattleRoom();
 
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
+      stopBattleLoop();
     };
-  }, [arenaId, startBattleAndScheduleEnd, endBattleAndContinue]);
+  }, [arenaId, initBattleLoop, stopBattleLoop]);
 
   if (screenState === 'loading') {
     return (
