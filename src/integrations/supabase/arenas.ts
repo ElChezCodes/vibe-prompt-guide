@@ -30,6 +30,12 @@ export async function resolveArenaByCode(code: string): Promise<string> {
 }
 
 export async function createArena(name: string): Promise<Arena> {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session?.user) {
+    throw new Error('No authenticated session');
+  }
+
   const trimmed = name.trim();
   const normalizedName =
     trimmed.length > 0 ? trimmed : 'Test Arena';
@@ -40,7 +46,7 @@ export async function createArena(name: string): Promise<Arena> {
       name: normalizedName,
       state: 'active',
       mood: 'warmup',
-      host_id: null,
+      host_id: session.user.id,
     })
     .select()
     .single();
