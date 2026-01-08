@@ -9,8 +9,32 @@ import BattleRoomScreen from "./screens/BattleRoomScreen";
 import StageViewScreen from "./screens/StageViewScreen";
 import CreateArenaScreen from "./screens/CreateArenaScreen";
 import ConnectStreamingScreen from "./screens/ConnectStreamingScreen";
+import { useAnonymousAuth } from "./hooks/useAnonymousAuth";
 
 const queryClient = new QueryClient();
+
+const AppRoutes = () => {
+  const { isReady } = useAnonymousAuth();
+
+  if (!isReady) {
+    return null;
+  }
+
+  return (
+    <Routes>
+      {/* Linear flow: Splash → Join → Battle */}
+      <Route path="/" element={<SplashScreen />} />
+      <Route path="/join" element={<JoinArenaScreen />} />
+      <Route path="/battle" element={<BattleRoomScreen />} />
+      {/* Stage view for venue displays */}
+      <Route path="/stage" element={<StageViewScreen />} />
+      {/* Host create arena */}
+      <Route path="/create" element={<CreateArenaScreen />} />
+      {/* Host connect streaming */}
+      <Route path="/connect" element={<ConnectStreamingScreen />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -18,18 +42,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Linear flow: Splash → Join → Battle */}
-          <Route path="/" element={<SplashScreen />} />
-          <Route path="/join" element={<JoinArenaScreen />} />
-          <Route path="/battle" element={<BattleRoomScreen />} />
-          {/* Stage view for venue displays */}
-          <Route path="/stage" element={<StageViewScreen />} />
-          {/* Host create arena */}
-          <Route path="/create" element={<CreateArenaScreen />} />
-          {/* Host connect streaming */}
-          <Route path="/connect" element={<ConnectStreamingScreen />} />
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
