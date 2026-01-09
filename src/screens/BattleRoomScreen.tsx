@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
+import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
@@ -78,6 +79,7 @@ const BattleRoomScreen = () => {
   }, [battle, participant, voteRecord]);
 
   const arenaId = location.state?.arenaId as string | undefined;
+  const roleIntent = location.state?.role_intent as 'host' | 'participant' | undefined;
 
   // Reset vote state when battle changes
   useEffect(() => {
@@ -100,13 +102,17 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        const identityAnchorId = localStorage.getItem('identity_anchor_id');
-        if (!identityAnchorId) {
-          setErrorMessage('No identity found');
+        // Get current auth session for identity
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setErrorMessage('No authenticated session');
           setScreenState('error');
           return;
         }
 
+        const identityAnchorId = session.user.id;
+
+        // Fetch arena data
         const { data: arenaData, error: arenaError } = await supabase
           .from('arenas')
           .select('id, name, state')
@@ -120,19 +126,9 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        const { data: participantData, error: participantError } = await supabase
-          .from('participants')
-          .select('id, is_host')
-          .eq('arena_id', arenaId)
-          .eq('identity_anchor_id', identityAnchorId)
-          .single();
-
-        if (participantError || !participantData) {
-          console.error('Failed to fetch participant:', participantError);
-          setErrorMessage('Not a participant');
-          setScreenState('error');
-          return;
-        }
+        // Register participant based on role_intent (idempotent)
+        const isHost = roleIntent === 'host';
+        const participantData = await ensureParticipant(arenaId, identityAnchorId, isHost);
 
         setArena(arenaData);
         setParticipant(participantData);
@@ -164,7 +160,7 @@ const BattleRoomScreen = () => {
     return () => {
       stopBattleLoop();
     };
-  }, [arenaId, initBattleLoop, stopBattleLoop]);
+  }, [arenaId, roleIntent, initBattleLoop, stopBattleLoop]);
 
   if (screenState === 'loading') {
     return (

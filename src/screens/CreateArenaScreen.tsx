@@ -14,7 +14,7 @@ const CreateArenaScreen = () => {
     try {
       const result = await createArena(arenaName);
       console.log('Arena created:', result);
-      navigate("/battle", { state: { arenaId: result.id } });
+      navigate("/battle", { state: { arenaId: result.id, role_intent: "host" } });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Failed to create arena:', message, error);
