@@ -1,58 +1,24 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { QrCode, Music, Swords } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { createArena } from "@/integrations/supabase/arenas";
-import { createParticipant } from "@/integrations/supabase/participants";
-interface Arena {
-  id: string;
-  name: string;
-  state: string;
-  mood: string;
-}
-
-function hashStringToUint32(input: string) {
-  // FNV-1a 32-bit hash (deterministic, small, no deps)
-  let hash = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function qrCellOn(arenaId: string, index: number) {
-  return (hashStringToUint32(`${arenaId}:${index}`) % 100) < 50;
-}
 
 const CreateArenaScreen = () => {
-  const location = useLocation();
+  const navigate = useNavigate();
   const [arenaName, setArenaName] = useState("");
-  const [isCreated, setIsCreated] = useState(false);
-  const [arena, setArena] = useState<Arena | null>(null);
-
-  const passedArenaId = location.state?.arenaId as string | undefined;
-
-  const arenaCode = arena?.id 
-    ? arena.id.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
-    : '';
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreateArena = async () => {
+    setIsCreating(true);
     try {
       const result = await createArena(arenaName);
       console.log('Arena created:', result);
-
-      const identityAnchorId = localStorage.getItem('identity_anchor_id');
-      if (identityAnchorId) {
-        await createParticipant(result.id, identityAnchorId);
-      }
-
-      setArena(result);
-      setIsCreated(true);
+      navigate("/battle", { state: { arenaId: result.id } });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Failed to create arena:', message, error);
+      setIsCreating(false);
     }
   };
 
@@ -79,7 +45,7 @@ const CreateArenaScreen = () => {
             placeholder="Arena name (optional)"
             value={arenaName}
             onChange={(e) => setArenaName(e.target.value)}
-            disabled={isCreated}
+            disabled={isCreating}
             className="w-full h-12 text-center text-lg bg-surface border-border/50 focus:border-primary/50"
           />
         </div>
@@ -91,90 +57,12 @@ const CreateArenaScreen = () => {
         >
           <Button
             onClick={handleCreateArena}
-            disabled={isCreated}
+            disabled={isCreating}
             className="w-full h-12 text-lg font-semibold"
           >
-            {isCreated ? "Arena Created" : "Create Arena"}
+            {isCreating ? "Creating..." : "Create Arena"}
           </Button>
         </div>
-
-        {/* Created State - Arena Code, QR, and Next Steps */}
-        {isCreated && (
-          <div className="w-full flex flex-col items-center gap-8 animate-fade-in-up">
-            {/* Arena Code Block */}
-            <div className="w-full bg-surface rounded-xl border border-border/50 p-6 text-center">
-              <p className="text-sm text-muted-foreground mb-3">Arena Code</p>
-              <p className="text-4xl md:text-5xl font-bold text-foreground tracking-[0.3em] font-mono">
-                {arenaCode}
-              </p>
-            </div>
-
-            {/* QR Code Block */}
-            <div className="bg-surface rounded-xl border border-border/50 p-6 text-center">
-              <p className="text-sm text-muted-foreground mb-4">Scan to join</p>
-              <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center">
-                {/* Mock QR placeholder */}
-                <div className="w-40 h-40 relative">
-                  <QrCode className="w-full h-full text-background" strokeWidth={0.5} />
-                  {/* QR pattern overlay */}
-                  <div className="absolute inset-4 grid grid-cols-7 grid-rows-7 gap-1">
-                    {Array.from({ length: 49 }).map((_, i) => {
-                      const on = arena?.id ? qrCellOn(arena.id, i) : false;
-                      return (
-                        <div
-                          key={i}
-                          className={`rounded-sm ${on ? "bg-background" : "bg-transparent"}`}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Next Steps Guidance */}
-            <div className="w-full bg-surface/50 rounded-xl border border-border/30 p-5">
-              <p className="text-sm font-medium text-foreground mb-3">Next steps</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  Ask guests to join using the code or QR
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  Display the Stage View on the venue screen
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  Connect your music account to start battles
-                </li>
-              </ul>
-            </div>
-
-            {/* Primary Action - Enter Battle */}
-            <Button
-              asChild
-              className="w-full h-12 text-lg font-semibold"
-            >
-              <Link to="/battle" state={{ arenaId: arena?.id }}>
-                <Swords className="w-5 h-5 mr-2" />
-                Enter Battle
-              </Link>
-            </Button>
-
-            {/* Secondary Action - Connect Music */}
-            <Button
-              variant="outline"
-              asChild
-              className="w-full h-12 border-border/50"
-            >
-              <Link to="/connect">
-                <Music className="w-5 h-5 mr-2" />
-                Connect music account
-              </Link>
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );
