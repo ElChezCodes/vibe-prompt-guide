@@ -34,13 +34,20 @@ const BattleRoomScreen = () => {
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const handleVote = useCallback(async (side: 'A' | 'B') => {
-    if (!battle || battle.state !== 'active' || !participant) {
-      console.log('[Vote] Blocked - battle not active or no participant');
+    if (!battle || battle.state !== 'active' || !participant || !arena) {
+      console.log('[Vote] Blocked - battle not active or missing data');
       return;
     }
 
     if (isVotingRef.current) {
       console.log('[Vote] Blocked - vote in progress');
+      return;
+    }
+
+    // Get identity anchor from session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      console.log('[Vote] Blocked - no session');
       return;
     }
 
@@ -53,7 +60,9 @@ const BattleRoomScreen = () => {
       battle.id,
       participant.id,
       songId,
-      voteRecord
+      voteRecord,
+      arena.id,
+      session.user.id
     );
 
     if (action === 'locked') {

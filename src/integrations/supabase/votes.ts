@@ -42,7 +42,9 @@ export async function applyVoteIntent(
   battleId: string,
   participantId: string,
   songId: string,
-  currentVote: Vote | null
+  currentVote: Vote | null,
+  arenaId: string,
+  identityAnchorId: string
 ): Promise<{ vote: Vote | null; action: VoteAction }> {
   // No existing vote - INSERT new active vote
   if (!currentVote) {
@@ -52,7 +54,9 @@ export async function applyVoteIntent(
         battle_id: battleId,
         participant_id: participantId,
         song_id: songId,
-        status: 'active'
+        status: 'active',
+        arena_id: arenaId,
+        identity_anchor_id: identityAnchorId
       })
       .select()
       .single();
