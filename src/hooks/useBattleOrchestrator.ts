@@ -108,12 +108,16 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   }, []);
 
   const createPendingBattle = useCallback(async (arenaId: string): Promise<BattleData | null> => {
+    // MVP mock song IDs - stable and intentional
+    const MVP_SONG_A_ID = '11111111-1111-1111-1111-111111111111';
+    const MVP_SONG_B_ID = '22222222-2222-2222-2222-222222222222';
+
     const { data: newBattle, error } = await supabase
       .from('battles')
       .insert({
         arena_id: arenaId,
-        song_a_id: '00000000-0000-0000-0000-000000000000',
-        song_b_id: '00000000-0000-0000-0000-000000000000',
+        song_a_id: MVP_SONG_A_ID,
+        song_b_id: MVP_SONG_B_ID,
         started_at: null
       })
       .select('id, state, song_a_id, song_b_id')
