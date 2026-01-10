@@ -15,13 +15,20 @@ interface ParticipantData {
 interface BattleData {
   id: string;
   state: string;
+  song_a_id: string;
+  song_b_id: string;
+}
+
+interface VoteData {
+  song_id: string;
+  status: string;
 }
 
 interface StageViewProps {
   arena: ArenaData;
   battle: BattleData | null;
   participant: ParticipantData;
-  currentVote?: 'A' | 'B' | null;
+  currentVote?: VoteData | null;
 }
 
 const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) => {
@@ -76,9 +83,10 @@ const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) 
           <div className="flex-1 max-w-md animate-fade-in-up">
             <StageSongCard 
               position="A"
+              songId={battle?.song_a_id ?? ''}
               songTitle="Blinding Lights"
               artistName="The Weeknd"
-              isSelected={currentVote === 'A'}
+              currentVote={currentVote}
             />
           </div>
 
@@ -93,9 +101,10 @@ const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) 
           <div className="flex-1 max-w-md animate-fade-in-up" style={{ animationDelay: '100ms' }}>
             <StageSongCard 
               position="B"
+              songId={battle?.song_b_id ?? ''}
               songTitle="Levitating"
               artistName="Dua Lipa"
-              isSelected={currentVote === 'B'}
+              currentVote={currentVote}
             />
           </div>
         </div>
@@ -113,13 +122,17 @@ const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) 
 // Stage-optimized Song Card (read-only, larger text)
 interface StageSongCardProps {
   position: 'A' | 'B';
+  songId: string;
   songTitle: string;
   artistName: string;
-  isSelected?: boolean;
+  currentVote?: VoteData | null;
 }
 
-const StageSongCard = ({ position, songTitle, artistName, isSelected }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, currentVote }: StageSongCardProps) => {
   const isA = position === 'A';
+  
+  // Determine selection by comparing songId against currentVote
+  const isSelected = currentVote?.status === 'active' && currentVote?.song_id === songId;
   
   return (
     <div 

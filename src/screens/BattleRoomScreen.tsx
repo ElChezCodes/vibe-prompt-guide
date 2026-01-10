@@ -7,7 +7,7 @@ import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = 'loading' | 'error' | 'ready';
-type VoteSide = 'A' | 'B' | null;
+
 
 interface ArenaData {
   id: string;
@@ -26,7 +26,6 @@ const BattleRoomScreen = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
-  const [currentVote, setCurrentVote] = useState<VoteSide>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
@@ -75,13 +74,6 @@ const BattleRoomScreen = () => {
 
     if (vote) {
       setVoteRecord(vote);
-      // Determine which side is now active
-      if (vote.status === 'active') {
-        const votedSide = vote.song_id === battle.song_a_id ? 'A' : 'B';
-        setCurrentVote(votedSide);
-      } else {
-        setCurrentVote(null);
-      }
     }
 
     isVotingRef.current = false;
@@ -95,7 +87,6 @@ const BattleRoomScreen = () => {
     if (battle?.id !== prevBattleIdRef.current) {
       if (prevBattleIdRef.current !== null) {
         // Battle changed, reset vote state
-        setCurrentVote(null);
         setVoteRecord(null);
       }
       prevBattleIdRef.current = battle?.id ?? null;
@@ -151,10 +142,6 @@ const BattleRoomScreen = () => {
           const existingVote = await getParticipantVote(currentBattle.id, participantData.id);
           if (existingVote) {
             setVoteRecord(existingVote);
-            if (existingVote.status === 'active') {
-              const votedSide = existingVote.song_id === currentBattle.song_a_id ? 'A' : 'B';
-              setCurrentVote(votedSide);
-            }
           }
         }
       } catch (err) {
@@ -196,7 +183,7 @@ const BattleRoomScreen = () => {
         arena={arena!} 
         battle={battle} 
         participant={participant!}
-        currentVote={currentVote}
+        currentVote={voteRecord}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
