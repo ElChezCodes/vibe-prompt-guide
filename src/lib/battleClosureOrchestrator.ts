@@ -1,6 +1,8 @@
 /**
  * Battle Closure Orchestrator - Logical Layer
  * 
+ * AUTHORITATIVE module for battle closure logic.
+ * 
  * Responsible for:
  * - Handling LOCK-IN event
  * - Deciding Sudden Death activation
@@ -13,14 +15,22 @@
  * - Register votes (delegated to Voting Layer)
  * - Depend on UI
  * - Manage timers
+ * - Modify the existing useBattleOrchestrator hook
  */
 
 import { supabase } from "@/integrations/supabase/client";
 
 // ============= Types =============
 
+/**
+ * Battle phase during closure sequence
+ * ALLOWED STATES ONLY: active, locked, sudden_death, closing, completed
+ */
 export type BattlePhase = 'active' | 'locked' | 'sudden_death' | 'closing' | 'completed';
 
+/**
+ * Complete closure state for a battle
+ */
 export interface BattleClosureState {
   battleId: string;
   phase: BattlePhase;
@@ -32,13 +42,23 @@ export interface BattleClosureState {
   suddenDeathVotesB: number;
   winner: 'A' | 'B' | 'draw' | null;
   resolvedAt: string | null;
+  /** GUARD: Prevents double LOCK-IN */
+  lockInExecuted: boolean;
+  /** GUARD: Prevents double closure */
+  closureExecuted: boolean;
 }
 
+/**
+ * Vote aggregate counts
+ */
 export interface VoteAggregate {
   songACount: number;
   songBCount: number;
 }
 
+/**
+ * Events handled by the closure orchestrator
+ */
 export interface BattleClosureEvent {
   type: 'LOCK_IN' | 'SUDDEN_DEATH_VOTE' | 'BATTLE_TIMER_ENDED';
   battleId: string;
@@ -50,6 +70,9 @@ export interface BattleClosureEvent {
   };
 }
 
+/**
+ * Result of processing a closure event
+ */
 export interface ClosureResult {
   success: boolean;
   state: BattleClosureState;
@@ -58,6 +81,9 @@ export interface ClosureResult {
 
 // ============= State Factory =============
 
+/**
+ * Create initial closure state for a new battle
+ */
 export function createInitialClosureState(battleId: string): BattleClosureState {
   return {
     battleId,
@@ -70,6 +96,8 @@ export function createInitialClosureState(battleId: string): BattleClosureState 
     suddenDeathVotesB: 0,
     winner: null,
     resolvedAt: null,
+    lockInExecuted: false,
+    closureExecuted: false,
   };
 }
 
@@ -99,7 +127,6 @@ export async function countVotes(
     .eq('song_id', songBId)
     .eq('status', 'active');
 
-  // Filter by timestamp if provided (for normal votes before lock-in)
   if (beforeTimestamp) {
     queryA = queryA.lte('created_at', beforeTimestamp);
     queryB = queryB.lte('created_at', beforeTimestamp);
@@ -202,7 +229,7 @@ export async function hasSuddenDeathVote(
 
   if (error) {
     console.error('[ClosureOrchestrator] Failed to check SD vote:', error);
-    return true; // Block on error for safety
+    return true;
   }
 
   return (count ?? 0) > 0;
@@ -212,33 +239,49 @@ export async function hasSuddenDeathVote(
 
 /**
  * Handle LOCK_IN event
- * - Capture locked_at timestamp
+ * 
+ * BEHAVIOR:
+ * - Only execute if battle.state === "active"
+ * - Set lockedAt timestamp
  * - Freeze normal voting via state change
- * - Evaluate tie for Sudden Death
+ * - Retrieve vote aggregates AT lockedAt
+ * - Activate Sudden Death ONLY if there is an EXACT total tie
+ * - DO NOT resolve the battle here
+ * - Ensure idempotency (LOCK-IN can only happen once)
  */
 export async function handleLockIn(
   state: BattleClosureState,
   songAId: string,
   songBId: string
 ): Promise<ClosureResult> {
+  // GUARD: Prevent double LOCK-IN
+  if (state.lockInExecuted) {
+    console.warn('[ClosureOrchestrator] LOCK_IN already executed, skipping');
+    return {
+      success: false,
+      state,
+      error: 'LOCK_IN already executed',
+    };
+  }
+
+  // GUARD: Only execute if in active phase
   if (state.phase !== 'active') {
-    return { 
-      success: false, 
-      state, 
-      error: `Invalid phase for LOCK_IN: ${state.phase}` 
+    return {
+      success: false,
+      state,
+      error: `Invalid phase for LOCK_IN: ${state.phase}`,
     };
   }
 
   const lockedAt = new Date().toISOString();
 
-  // Count votes at moment of lock-in
   const aggregate = await countVotes(state.battleId, songAId, songBId, lockedAt);
-  
+
   if (!aggregate) {
-    return { 
-      success: false, 
-      state, 
-      error: 'Failed to count votes at lock-in' 
+    return {
+      success: false,
+      state,
+      error: 'Failed to count votes at lock-in',
     };
   }
 
@@ -252,6 +295,7 @@ export async function handleLockIn(
     suddenDeathActive,
     normalVotesA: aggregate.songACount,
     normalVotesB: aggregate.songBCount,
+    lockInExecuted: true,
   };
 
   console.log('[ClosureOrchestrator] LOCK_IN processed:', {
@@ -266,26 +310,48 @@ export async function handleLockIn(
 
 /**
  * Handle BATTLE_TIMER_ENDED event
- * - Count final votes (normal + Sudden Death if active)
- * - Resolve winner
- * - Execute side effects
- * - Mark battle as completed
+ * 
+ * BEHAVIOR:
+ * - Only execute if battle.state === "active" (via locked/sudden_death phase)
+ * - Transition to "closing"
+ * - Count normal votes with created_at <= lockedAt
+ * - Add Sudden Death votes ONLY if Sudden Death was active
+ * - Resolve winner or final draw
+ * - Persist immutable result
+ * - Execute side effects in strict order
+ * - Transition to "completed"
+ * - Ensure idempotency (closure runs only once)
  */
 export async function handleBattleTimerEnded(
   state: BattleClosureState,
   songAId: string,
   songBId: string
 ): Promise<ClosureResult> {
+  // GUARD: Prevent double closure
+  if (state.closureExecuted) {
+    console.warn('[ClosureOrchestrator] Closure already executed, skipping');
+    return {
+      success: false,
+      state,
+      error: 'Closure already executed',
+    };
+  }
+
+  // GUARD: Only execute if in locked or sudden_death phase
   if (state.phase !== 'locked' && state.phase !== 'sudden_death') {
-    return { 
-      success: false, 
-      state, 
-      error: `Invalid phase for BATTLE_TIMER_ENDED: ${state.phase}` 
+    return {
+      success: false,
+      state,
+      error: `Invalid phase for BATTLE_TIMER_ENDED: ${state.phase}`,
     };
   }
 
   // Transition to closing phase
-  let newState: BattleClosureState = { ...state, phase: 'closing' };
+  let newState: BattleClosureState = {
+    ...state,
+    phase: 'closing',
+    closureExecuted: true,
+  };
 
   // Count Sudden Death votes if active
   let sdVotesA = 0;
@@ -343,10 +409,12 @@ export async function handleBattleTimerEnded(
 
 /**
  * Execute side effects in strict order:
- * 1. Enqueue winning song (if winner exists)
- * 2. Emit BATTLE_ENDED event (abstract)
- * 3. Update statistics (placeholder)
- * 4. Cleanup (placeholder)
+ * 1. Enqueue winning song into host playlist (if winner exists)
+ * 2. Emit BATTLE_ENDED event
+ * 3. Update statistics
+ * 4. Cleanup
+ * 
+ * NOTE: No Spotify integration assumed - events are abstract
  */
 async function executeSideEffects(
   state: BattleClosureState,
@@ -363,26 +431,43 @@ async function executeSideEffects(
   emitBattleEndedEvent(state);
 
   // 3. Update statistics (placeholder for future implementation)
-  // await updateBattleStatistics(state);
+  await updateBattleStatistics(state);
 
   // 4. Cleanup (placeholder for future implementation)
-  // await cleanupBattle(state.battleId);
+  await cleanupBattle(state.battleId);
 }
 
 /**
  * Enqueue winning song to host playlist
- * Abstract implementation - actual integration TBD
+ * Abstract implementation - actual streaming integration TBD
  */
 async function enqueueWinningSong(battleId: string, songId: string): Promise<void> {
-  console.log('[ClosureOrchestrator] Enqueue winning song:', { battleId, songId });
+  console.log('[ClosureOrchestrator] Side effect 1: Enqueue winning song:', { battleId, songId });
   // Future: Integrate with streaming provider
+}
+
+/**
+ * Update battle statistics
+ * Placeholder for future implementation
+ */
+async function updateBattleStatistics(state: BattleClosureState): Promise<void> {
+  console.log('[ClosureOrchestrator] Side effect 3: Update statistics:', { battleId: state.battleId });
+  // Future: Persist statistics to database
+}
+
+/**
+ * Cleanup battle resources
+ * Placeholder for future implementation
+ */
+async function cleanupBattle(battleId: string): Promise<void> {
+  console.log('[ClosureOrchestrator] Side effect 4: Cleanup:', { battleId });
+  // Future: Release resources, clear caches
 }
 
 /**
  * Emit battle ended event for UI consumption
  */
 function emitBattleEndedEvent(state: BattleClosureState): void {
-  // Use custom event for decoupled UI notification
   const event = new CustomEvent('battle:ended', {
     detail: {
       battleId: state.battleId,
@@ -395,12 +480,12 @@ function emitBattleEndedEvent(state: BattleClosureState): void {
       resolvedAt: state.resolvedAt,
     },
   });
-  
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(event);
   }
 
-  console.log('[ClosureOrchestrator] BATTLE_ENDED event emitted:', state);
+  console.log('[ClosureOrchestrator] Side effect 2: BATTLE_ENDED event emitted:', state.battleId);
 }
 
 // ============= Main Event Dispatcher =============
@@ -427,17 +512,18 @@ export async function processBattleClosureEvent(
     case 'SUDDEN_DEATH_VOTE':
       // Sudden Death votes are delegated to the Voting Layer
       // This orchestrator only validates, does NOT register votes
-      return { 
-        success: true, 
+      console.log('[ClosureOrchestrator] SUDDEN_DEATH_VOTE - delegating to Voting Layer');
+      return {
+        success: true,
         state: currentState,
-        error: 'SUDDEN_DEATH_VOTE should be handled by Voting Layer' 
+        error: 'SUDDEN_DEATH_VOTE should be handled by Voting Layer',
       };
 
     default:
-      return { 
-        success: false, 
-        state: currentState, 
-        error: `Unknown event type: ${(event as BattleClosureEvent).type}` 
+      return {
+        success: false,
+        state: currentState,
+        error: `Unknown event type: ${(event as BattleClosureEvent).type}`,
       };
   }
 }
@@ -446,10 +532,13 @@ export async function processBattleClosureEvent(
 
 /**
  * Validate if a Sudden Death vote is allowed
+ * 
  * RULES:
  * - Battle must be in sudden_death phase
- * - User must be ACTIVE (has valid session)
- * - User has not voted in Sudden Death before
+ * - suddenDeathActive must be true
+ * - User must be ACTIVE at the moment of voting (has valid session)
+ * - User has not voted in Sudden Death before (max 1 SD vote per user)
+ * - User history does NOT matter, only current active status
  */
 export async function validateSuddenDeathVote(
   state: BattleClosureState,
