@@ -127,28 +127,51 @@ async function fetchSuddenDeathVotes(
   songBId: string,
   lockedAt: string
 ): Promise<{ songACount: number; songBCount: number }> {
-  const songAQuery = supabase
+  const { data: suddenDeathVotes, error } = await supabase
     .from('votes')
-    .select('*', { count: 'exact', head: true })
+    .select('id, song_id, participant_id')
     .eq('battle_id', battleId)
-    .eq('song_id', songAId)
     .eq('status', 'active')
     .gt('created_at', lockedAt);
 
-  const songBQuery = supabase
-    .from('votes')
-    .select('*', { count: 'exact', head: true })
-    .eq('battle_id', battleId)
-    .eq('song_id', songBId)
-    .eq('status', 'active')
-    .gt('created_at', lockedAt);
+  if (error || !suddenDeathVotes) {
+    console.error('Failed to fetch sudden death votes:', error);
+    return { songACount: 0, songBCount: 0 };
+  }
 
-  const [songAResult, songBResult] = await Promise.all([songAQuery, songBQuery]);
+  const participantIds = [...new Set(suddenDeathVotes.map(v => v.participant_id))];
 
-  return {
-    songACount: songAResult.count ?? 0,
-    songBCount: songBResult.count ?? 0,
-  };
+  if (participantIds.length === 0) {
+    return { songACount: 0, songBCount: 0 };
+  }
+
+  const { data: activeParticipants, error: participantsError } = await supabase
+    .from('participants')
+    .select('id')
+    .in('id', participantIds)
+    .eq('status', 'active');
+
+  if (participantsError) {
+    console.error('Failed to fetch participant statuses:', participantsError);
+    return { songACount: 0, songBCount: 0 };
+  }
+
+  const activeParticipantIds = new Set(activeParticipants?.map(p => p.id) ?? []);
+
+  let songACount = 0;
+  let songBCount = 0;
+
+  for (const vote of suddenDeathVotes) {
+    if (activeParticipantIds.has(vote.participant_id)) {
+      if (vote.song_id === songAId) {
+        songACount++;
+      } else if (vote.song_id === songBId) {
+        songBCount++;
+      }
+    }
+  }
+
+  return { songACount, songBCount };
 }
 
 async function fetchBattle(battleId: string): Promise<BattleData | null> {
@@ -257,10 +280,10 @@ export async function handleLockIn(battleId: string): Promise<{
   };
 }
 
-export function canAcceptSuddenDeathVote(
+export async function canAcceptSuddenDeathVote(
   battleId: string,
   participantId: string
-): { allowed: boolean; reason: string } {
+): Promise<{ allowed: boolean; reason: string }> {
   const state = closureStates.get(battleId);
 
   if (!state) {
@@ -277,6 +300,20 @@ export function canAcceptSuddenDeathVote(
 
   if (state.suddenDeathVoters.has(participantId)) {
     return { allowed: false, reason: 'Participant already voted in sudden death' };
+  }
+
+  const { data: participant, error } = await supabase
+    .from('participants')
+    .select('status')
+    .eq('id', participantId)
+    .single();
+
+  if (error || !participant) {
+    return { allowed: false, reason: 'Participant not found' };
+  }
+
+  if (participant.status !== 'active') {
+    return { allowed: false, reason: 'Participant is not active' };
   }
 
   return { allowed: true, reason: '' };
