@@ -1,16 +1,19 @@
 import { supabase } from "./client";
 
+export type VoteType = 'regular' | 'sudden_death';
+
 export interface Vote {
   id: string;
   battle_id: string;
   participant_id: string;
   song_id: string;
   status: 'active' | 'inactive';
+  vote_type: VoteType;
   created_at: string;
   updated_at: string;
 }
 
-export type VoteAction = 'created' | 'toggled_off' | 'switched' | 'toggled_on' | 'locked' | 'error';
+export type VoteAction = 'created' | 'toggled_off' | 'switched' | 'toggled_on' | 'locked' | 'error' | 'frozen';
 
 export async function getParticipantVote(
   battleId: string,
@@ -44,9 +47,15 @@ export async function applyVoteIntent(
   songId: string,
   currentVote: Vote | null,
   arenaId: string,
-  identityAnchorId: string
+  identityAnchorId: string,
+  isLockedIn: boolean = false
 ): Promise<{ vote: Vote | null; action: VoteAction }> {
-  // No existing vote - INSERT new active vote
+  // If locked in, reject all regular vote attempts
+  if (isLockedIn) {
+    return { vote: null, action: 'frozen' };
+  }
+
+  // No existing vote - INSERT new active vote with vote_type = 'regular'
   if (!currentVote) {
     const { data, error } = await supabase
       .from('votes')
@@ -55,6 +64,7 @@ export async function applyVoteIntent(
         participant_id: participantId,
         song_id: songId,
         status: 'active',
+        vote_type: 'regular',
         arena_id: arenaId,
         identity_anchor_id: identityAnchorId
       })
@@ -72,7 +82,12 @@ export async function applyVoteIntent(
     return { vote: data, action: 'created' };
   }
 
-  // Existing vote - determine action
+  // Sudden death votes cannot be modified
+  if (currentVote.vote_type === 'sudden_death') {
+    return { vote: currentVote, action: 'locked' };
+  }
+
+  // Existing regular vote - determine action
   const isSameSong = currentVote.song_id === songId;
 
   if (isSameSong) {
@@ -126,7 +141,8 @@ export async function applyVoteIntent(
 }
 
 export async function getActiveVoteCounts(
-  battleId: string
+  battleId: string,
+  voteType?: VoteType
 ): Promise<{ songACount: number; songBCount: number; songAId: string | null; songBId: string | null } | null> {
   // First get the battle to know song IDs
   const { data: battle, error: battleError } = await supabase
@@ -141,12 +157,18 @@ export async function getActiveVoteCounts(
   }
 
   // Count active votes for song A
-  const { count: songACount, error: countAError } = await supabase
+  let songAQuery = supabase
     .from('votes')
     .select('*', { count: 'exact', head: true })
     .eq('battle_id', battleId)
     .eq('song_id', battle.song_a_id)
     .eq('status', 'active');
+
+  if (voteType) {
+    songAQuery = songAQuery.eq('vote_type', voteType);
+  }
+
+  const { count: songACount, error: countAError } = await songAQuery;
 
   if (countAError) {
     console.error('Failed to count song A votes:', countAError);
@@ -154,12 +176,18 @@ export async function getActiveVoteCounts(
   }
 
   // Count active votes for song B
-  const { count: songBCount, error: countBError } = await supabase
+  let songBQuery = supabase
     .from('votes')
     .select('*', { count: 'exact', head: true })
     .eq('battle_id', battleId)
     .eq('song_id', battle.song_b_id)
     .eq('status', 'active');
+
+  if (voteType) {
+    songBQuery = songBQuery.eq('vote_type', voteType);
+  }
+
+  const { count: songBCount, error: countBError } = await songBQuery;
 
   if (countBError) {
     console.error('Failed to count song B votes:', countBError);
