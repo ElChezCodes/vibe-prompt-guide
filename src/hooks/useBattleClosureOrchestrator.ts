@@ -42,7 +42,7 @@ export interface UseBattleClosureOrchestratorReturn {
     aggregates: VoteAggregate | null;
   }>;
   triggerBattleEnd: () => Promise<BattleClosureResult>;
-  checkCanVoteSuddenDeath: (participantId: string) => { allowed: boolean; reason: string };
+  checkCanVoteSuddenDeath: (participantId: string) => Promise<{ allowed: boolean; reason: string }>;
   recordSuddenDeathVote: (participantId: string) => boolean;
   reset: () => void;
   refreshState: () => void;
@@ -135,7 +135,7 @@ export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorRetu
     return result;
   }, [refreshState]);
 
-  const checkCanVoteSuddenDeath = useCallback((participantId: string) => {
+  const checkCanVoteSuddenDeath = useCallback(async (participantId: string) => {
     const battleId = battleIdRef.current;
     if (!battleId) {
       return { allowed: false, reason: 'No active battle' };
