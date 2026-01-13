@@ -58,6 +58,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       .update({
         state: "active",
         started_at: new Date().toISOString(),
+        duration_ms: 45000,
       })
       .eq("id", battleId)
       .eq("state", "pending");
