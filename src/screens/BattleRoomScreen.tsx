@@ -7,7 +7,6 @@ import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = "loading" | "error" | "ready";
-type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
 
 interface ArenaData {
   id: string;
@@ -20,7 +19,7 @@ interface ParticipantData {
   is_host: boolean;
 }
 
-const UI_MOCK_BATTLE_DURATION_SEC = 45;
+const MOCK_BATTLE_DURATION = 45;
 
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -28,11 +27,13 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
+
 const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
-  if (remainingTime > 30) return "NORMAL";
-  if (remainingTime > 15) return "FINAL_30S";
-  if (remainingTime > 0) return "LOCK_IN";
-  return "FINISHED";
+  if (remainingTime <= 0) return "FINISHED";
+  if (remainingTime <= 15) return "LOCK_IN";
+  if (remainingTime <= 30) return "FINAL_30S";
+  return "NORMAL";
 };
 
 const BattleRoomScreen = () => {
@@ -42,7 +43,7 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
-  const [remainingTime, setRemainingTime] = useState<number>(UI_MOCK_BATTLE_DURATION_SEC);
+  const [remainingTime, setRemainingTime] = useState<number>(MOCK_BATTLE_DURATION);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,7 +60,7 @@ const BattleRoomScreen = () => {
 
     // Start countdown when battle is active
     if (battle?.state === "active") {
-      setRemainingTime(UI_MOCK_BATTLE_DURATION_SEC);
+      setRemainingTime(MOCK_BATTLE_DURATION);
 
       timerIntervalRef.current = setInterval(() => {
         setRemainingTime((prev) => {
@@ -233,6 +234,7 @@ const BattleRoomScreen = () => {
   }
 
   const isVotingEnabled = battle?.state === "active";
+
   const derivedPhase = getDerivedBattlePhase(remainingTime);
 
   return (
