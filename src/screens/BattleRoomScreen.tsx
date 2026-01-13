@@ -7,6 +7,7 @@ import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 
 type ScreenState = "loading" | "error" | "ready";
+type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
 
 interface ArenaData {
   id: string;
@@ -25,6 +26,13 @@ const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
+
+const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
+  if (remainingTime > 30) return "NORMAL";
+  if (remainingTime > 15) return "FINAL_30S";
+  if (remainingTime > 0) return "LOCK_IN";
+  return "FINISHED";
 };
 
 const BattleRoomScreen = () => {
@@ -225,6 +233,7 @@ const BattleRoomScreen = () => {
   }
 
   const isVotingEnabled = battle?.state === "active";
+  const derivedPhase = getDerivedBattlePhase(remainingTime);
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -235,6 +244,7 @@ const BattleRoomScreen = () => {
         participant={participant!}
         currentVote={voteRecord}
         timer={formatTime(remainingTime)}
+        derivedPhase={derivedPhase}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}

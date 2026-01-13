@@ -24,15 +24,18 @@ interface VoteData {
   status: string;
 }
 
+type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
+
 interface StageViewProps {
   arena: ArenaData;
   battle: BattleData | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;
+  derivedPhase: DerivedBattlePhase;
 }
 
-const StageView = ({ arena, battle, participant, currentVote, timer }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
   // Placeholder values - will be connected to real data later
   const percentageA = 52;
   const percentageB = 48;
@@ -40,21 +43,17 @@ const StageView = ({ arena, battle, participant, currentVote, timer }: StageView
 
   const getBattleState = (): BattleState => {
     if (!battle) return 'INIT';
+    if (derivedPhase === 'FINISHED') return 'FINISHED';
+    if (derivedPhase === 'FINAL_30S' || derivedPhase === 'LOCK_IN') return 'FINAL_30S';
     switch (battle.state) {
       case 'pending': return 'INIT';
-      case 'active': return 'NORMAL';
-      case 'finished': return 'FINISHED';
       default: return 'NORMAL';
     }
   };
 
   const getTensionIntensity = (): BattleIntensity => {
-    const battleState = getBattleState();
-    switch (battleState) {
-      case 'FINAL_30S': return 'final';
-      case 'SUDDEN_DEATH': return 'sudden';
-      default: return 'normal';
-    }
+    if (derivedPhase === 'FINAL_30S' || derivedPhase === 'LOCK_IN') return 'final';
+    return 'normal';
   };
 
   return (
