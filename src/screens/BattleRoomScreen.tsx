@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
@@ -46,43 +46,8 @@ const BattleRoomScreen = () => {
   const [remainingTime, setRemainingTime] = useState<number>(MOCK_BATTLE_DURATION);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
-
-  // Timer countdown effect
-  useEffect(() => {
-    // Clear any existing interval
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-
-    // Start countdown when battle is active
-    if (battle?.state === "active") {
-      setRemainingTime(MOCK_BATTLE_DURATION);
-
-      timerIntervalRef.current = setInterval(() => {
-        setRemainingTime((prev) => {
-          if (prev <= 1) {
-            if (timerIntervalRef.current) {
-              clearInterval(timerIntervalRef.current);
-              timerIntervalRef.current = null;
-            }
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    };
-  }, [battle?.state, battle?.id]);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
