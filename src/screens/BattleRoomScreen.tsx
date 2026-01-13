@@ -20,6 +20,14 @@ interface ParticipantData {
   is_host: boolean;
 }
 
+const MOCK_BATTLE_DURATION = 45;
+
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>('loading');
@@ -27,10 +35,46 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
+  const [remainingTime, setRemainingTime] = useState<number>(MOCK_BATTLE_DURATION);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
+
+  // Timer countdown effect
+  useEffect(() => {
+    // Clear any existing interval
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    // Start countdown when battle is active
+    if (battle?.state === 'active') {
+      setRemainingTime(MOCK_BATTLE_DURATION);
+      
+      timerIntervalRef.current = setInterval(() => {
+        setRemainingTime((prev) => {
+          if (prev <= 1) {
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [battle?.state, battle?.id]);
 
   const handleVote = useCallback(async (side: 'A' | 'B') => {
     if (!battle || battle.state !== 'active' || !participant || !arena) {
@@ -184,6 +228,7 @@ const BattleRoomScreen = () => {
         battle={battle} 
         participant={participant!}
         currentVote={voteRecord}
+        timer={formatTime(remainingTime)}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
