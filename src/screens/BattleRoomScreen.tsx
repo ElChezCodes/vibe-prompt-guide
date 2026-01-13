@@ -21,6 +21,17 @@ interface ParticipantData {
 
 const UI_MOCK_BATTLE_DURATION_SEC = 45;
 
+// UI-only derived battle phase type
+export type DerivedBattlePhase = 'NORMAL' | 'FINAL_30S' | 'LOCK_IN' | 'FINISHED';
+
+// Pure function to derive UI battle phase from remaining time
+const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
+  if (remainingTime === 0) return 'FINISHED';
+  if (remainingTime <= 15) return 'LOCK_IN';
+  if (remainingTime <= 30) return 'FINAL_30S';
+  return 'NORMAL';
+};
+
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -225,6 +236,7 @@ const BattleRoomScreen = () => {
   }
 
   const isVotingEnabled = battle?.state === "active";
+  const derivedPhase = getDerivedBattlePhase(remainingTime);
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -235,6 +247,7 @@ const BattleRoomScreen = () => {
         participant={participant!}
         currentVote={voteRecord}
         timer={formatTime(remainingTime)}
+        derivedPhase={derivedPhase}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
