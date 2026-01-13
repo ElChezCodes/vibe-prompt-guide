@@ -233,9 +233,9 @@ const BattleRoomScreen = () => {
     );
   }
 
-  const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
-
   const derivedPhase = getDerivedBattlePhase(remainingTime);
+
+  const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
 
   return (
     <div className="relative min-h-dvh w-full">
