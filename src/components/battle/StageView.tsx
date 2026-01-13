@@ -1,5 +1,5 @@
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
-import BattleStateOverlay, { BattleState } from "@/components/battle/BattleStateOverlay";
+import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
 
 interface ArenaData {
   id: string;
