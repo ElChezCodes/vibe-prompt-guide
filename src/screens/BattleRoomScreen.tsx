@@ -233,7 +233,7 @@ const BattleRoomScreen = () => {
     );
   }
 
-  const isVotingEnabled = battle?.state === "active";
+  const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
 
   const derivedPhase = getDerivedBattlePhase(remainingTime);
 
