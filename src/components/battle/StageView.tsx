@@ -39,20 +39,6 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
   const percentageB = 48;
   const winnerSide: "A" | "B" | null = null;
 
-  const getBattleState = (): BattleState => {
-    if (!battle) return "INIT";
-    switch (battle.state) {
-      case "pending":
-        return "INIT";
-      case "active":
-        return "NORMAL";
-      case "finished":
-        return "FINISHED";
-      default:
-        return "NORMAL";
-    }
-  };
-
   const getTensionIntensity = (): BattleIntensity => {
     if (derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN") {
       return "final";
