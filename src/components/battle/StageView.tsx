@@ -24,15 +24,19 @@ interface VoteData {
   status: string;
 }
 
+// UI-only derived battle phase type
+export type DerivedBattlePhase = 'NORMAL' | 'FINAL_30S' | 'LOCK_IN' | 'FINISHED';
+
 interface StageViewProps {
   arena: ArenaData;
   battle: BattleData | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;
+  derivedPhase: DerivedBattlePhase;
 }
 
-const StageView = ({ arena, battle, participant, currentVote, timer }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
   // Placeholder values - will be connected to real data later
   const percentageA = 52;
   const percentageB = 48;
