@@ -1,6 +1,7 @@
 import { supabase } from "./client";
 
 export type VoteType = 'regular' | 'sudden_death';
+export type VotingPhase = 'active' | 'locked' | 'sudden_death';
 
 export interface Vote {
   id: string;
@@ -13,7 +14,67 @@ export interface Vote {
   updated_at: string;
 }
 
-export type VoteAction = 'created' | 'toggled_off' | 'switched' | 'toggled_on' | 'locked' | 'error' | 'frozen';
+export type VoteAction = 
+  | 'created' 
+  | 'toggled_off' 
+  | 'switched' 
+  | 'toggled_on' 
+  | 'locked' 
+  | 'error' 
+  | 'frozen' 
+  | 'sudden_death_created'
+  | 'sudden_death_upgraded'
+  | 'sudden_death_immutable'
+  | 'phase_rejected';
+
+interface BattleState {
+  lockin_reached_at: string | null;
+  sudden_death_active: boolean;
+}
+
+/**
+ * Fetches the authoritative battle state from the database.
+ * Returns null if battle not found.
+ */
+async function fetchBattleState(battleId: string): Promise<BattleState | null> {
+  const { data, error } = await supabase
+    .from('battles')
+    .select('lockin_reached_at, sudden_death_active')
+    .eq('id', battleId)
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to fetch battle state:', error);
+    return null;
+  }
+
+  return {
+    lockin_reached_at: data.lockin_reached_at,
+    sudden_death_active: data.sudden_death_active ?? false
+  };
+}
+
+/**
+ * Derives the voting phase from database state.
+ * NEVER trust frontend flags for this.
+ */
+function deriveVotingPhase(battleState: BattleState): VotingPhase {
+  if (battleState.lockin_reached_at === null) {
+    return 'active';
+  }
+  
+  if (battleState.sudden_death_active === true) {
+    return 'sudden_death';
+  }
+  
+  return 'locked';
+}
+
+function isRlsError(error: { code?: string; message?: string }): boolean {
+  return error.code === '42501' || 
+         error.message?.includes('row-level security') ||
+         error.message?.includes('violates row-level security policy');
+}
 
 export async function getParticipantVote(
   battleId: string,
@@ -34,13 +95,11 @@ export async function getParticipantVote(
   return data;
 }
 
-function isRlsError(error: { code?: string; message?: string }): boolean {
-  // RLS violations typically return code 42501 or contain specific messages
-  return error.code === '42501' || 
-         error.message?.includes('row-level security') ||
-         error.message?.includes('violates row-level security policy');
-}
-
+/**
+ * Backend-authoritative vote intent handler.
+ * Reads battle state from database and enforces all voting rules server-side.
+ * The isLockedIn parameter is IGNORED - phase is derived from database only.
+ */
 export async function applyVoteIntent(
   battleId: string,
   participantId: string,
@@ -48,14 +107,65 @@ export async function applyVoteIntent(
   currentVote: Vote | null,
   arenaId: string,
   identityAnchorId: string,
-  isLockedIn: boolean = false
+  _isLockedIn: boolean = false // DEPRECATED: Ignored, phase derived from DB
 ): Promise<{ vote: Vote | null; action: VoteAction }> {
-  // If locked in, reject all regular vote attempts
-  if (isLockedIn) {
-    return { vote: null, action: 'frozen' };
+  
+  // Step 1: Fetch authoritative battle state from database
+  const battleState = await fetchBattleState(battleId);
+  if (!battleState) {
+    console.error('Cannot process vote: battle state unavailable');
+    return { vote: null, action: 'error' };
   }
 
-  // No existing vote - INSERT new active vote with vote_type = 'regular'
+  // Step 2: Derive voting phase from database state
+  const phase = deriveVotingPhase(battleState);
+
+  // Step 3: Enforce rules based on phase
+  switch (phase) {
+    case 'locked':
+      // LOCKED PHASE: Reject ALL vote attempts
+      return { vote: null, action: 'locked' };
+
+    case 'sudden_death':
+      // SUDDEN_DEATH PHASE: Only sudden_death votes allowed, with strict rules
+      return handleSuddenDeathVote(
+        battleId,
+        participantId,
+        songId,
+        currentVote,
+        arenaId,
+        identityAnchorId
+      );
+
+    case 'active':
+    default:
+      // ACTIVE PHASE: Regular voting allowed
+      return handleActivePhaseVote(
+        battleId,
+        participantId,
+        songId,
+        currentVote,
+        arenaId,
+        identityAnchorId
+      );
+  }
+}
+
+/**
+ * Handles voting during ACTIVE phase (before lock-in).
+ * Allows: regular votes, switching, toggling.
+ * Does NOT allow: sudden_death votes.
+ */
+async function handleActivePhaseVote(
+  battleId: string,
+  participantId: string,
+  songId: string,
+  currentVote: Vote | null,
+  arenaId: string,
+  identityAnchorId: string
+): Promise<{ vote: Vote | null; action: VoteAction }> {
+  
+  // No existing vote - INSERT new active regular vote
   if (!currentVote) {
     const { data, error } = await supabase
       .from('votes')
@@ -82,12 +192,13 @@ export async function applyVoteIntent(
     return { vote: data, action: 'created' };
   }
 
-  // Sudden death votes cannot be modified
+  // Existing sudden_death vote - cannot be modified even in active phase
+  // (This is a safeguard; sudden_death votes shouldn't exist in active phase)
   if (currentVote.vote_type === 'sudden_death') {
-    return { vote: currentVote, action: 'locked' };
+    return { vote: currentVote, action: 'sudden_death_immutable' };
   }
 
-  // Existing regular vote - determine action
+  // Existing regular vote - allow toggle or switch
   const isSameSong = currentVote.song_id === songId;
 
   if (isSameSong) {
@@ -138,6 +249,80 @@ export async function applyVoteIntent(
 
     return { vote: data, action: 'switched' };
   }
+}
+
+/**
+ * Handles voting during SUDDEN_DEATH phase.
+ * STRICT RULES:
+ * - Only sudden_death votes allowed
+ * - Maximum ONE sudden_death vote per user
+ * - Existing regular vote can be upgraded (one-time)
+ * - Sudden death votes are IMMUTABLE once cast
+ */
+async function handleSuddenDeathVote(
+  battleId: string,
+  participantId: string,
+  songId: string,
+  currentVote: Vote | null,
+  arenaId: string,
+  identityAnchorId: string
+): Promise<{ vote: Vote | null; action: VoteAction }> {
+  
+  // CASE: User already has a sudden_death vote - REJECT (immutable)
+  if (currentVote?.vote_type === 'sudden_death') {
+    return { vote: currentVote, action: 'sudden_death_immutable' };
+  }
+
+  // CASE: User has a regular vote - upgrade to sudden_death (one-time only)
+  if (currentVote?.vote_type === 'regular') {
+    const { data, error } = await supabase
+      .from('votes')
+      .update({
+        song_id: songId,
+        status: 'active',
+        vote_type: 'sudden_death'
+      })
+      .eq('id', currentVote.id)
+      .eq('battle_id', battleId)
+      .eq('participant_id', participantId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to upgrade vote to sudden_death:', error);
+      if (isRlsError(error)) {
+        return { vote: null, action: 'locked' };
+      }
+      return { vote: null, action: 'error' };
+    }
+
+    return { vote: data, action: 'sudden_death_upgraded' };
+  }
+
+  // CASE: User has no vote - insert new sudden_death vote
+  const { data, error } = await supabase
+    .from('votes')
+    .insert({
+      battle_id: battleId,
+      participant_id: participantId,
+      song_id: songId,
+      status: 'active',
+      vote_type: 'sudden_death',
+      arena_id: arenaId,
+      identity_anchor_id: identityAnchorId
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to insert sudden_death vote:', error);
+    if (isRlsError(error)) {
+      return { vote: null, action: 'locked' };
+    }
+    return { vote: null, action: 'error' };
+  }
+
+  return { vote: data, action: 'sudden_death_created' };
 }
 
 export async function getActiveVoteCounts(
