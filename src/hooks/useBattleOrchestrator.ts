@@ -1,15 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const MOCK_BATTLE_DURATION_SEC = 45;
-const LOCK_IN_SEC = 15;
-const PASSIVE_WINDOW_SEC = 30;
-
-if (MOCK_BATTLE_DURATION_SEC < LOCK_IN_SEC + PASSIVE_WINDOW_SEC) {
-  throw new Error("[BattleOrchestrator] Mock battle duration inválida");
-}
-
-const BATTLE_DURATION_MS = MOCK_BATTLE_DURATION_SEC * 1000;
+const BATTLE_DURATION_MS = 45000;
 
 export interface BattleData {
   id: string;
