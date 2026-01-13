@@ -16,6 +16,8 @@ export interface BattleData {
   state: string;
   song_a_id: string;
   song_b_id: string;
+  started_at: string | null;
+  duration_ms: number;
 }
 
 interface OrchestratorState {
