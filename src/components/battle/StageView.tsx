@@ -24,48 +24,35 @@ interface VoteData {
   status: string;
 }
 
-// UI-only derived battle phase type
-export type DerivedBattlePhase = 'NORMAL' | 'FINAL_30S' | 'LOCK_IN' | 'FINISHED';
-
 interface StageViewProps {
   arena: ArenaData;
   battle: BattleData | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;
-  derivedPhase: DerivedBattlePhase;
 }
 
-const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, timer }: StageViewProps) => {
   // Placeholder values - will be connected to real data later
   const percentageA = 52;
   const percentageB = 48;
   const winnerSide: 'A' | 'B' | null = null;
 
-  // Derive BattleStateOverlay state from derivedPhase + battle.state
   const getBattleState = (): BattleState => {
     if (!battle) return 'INIT';
-    if (battle.state === 'pending') return 'INIT';
-    
-    // Use derivedPhase for time-based states during active battle
-    if (battle.state === 'active') {
-      switch (derivedPhase) {
-        case 'FINAL_30S': return 'FINAL_30S';
-        case 'LOCK_IN': return 'FINAL_30S'; // Lock-in uses FINAL_30S overlay
-        case 'FINISHED': return 'FINISHED';
-        default: return 'NORMAL';
-      }
+    switch (battle.state) {
+      case 'pending': return 'INIT';
+      case 'active': return 'NORMAL';
+      case 'finished': return 'FINISHED';
+      default: return 'NORMAL';
     }
-    
-    if (battle.state === 'finished') return 'FINISHED';
-    return 'NORMAL';
   };
 
-  // Derive TensionBar intensity from derivedPhase
   const getTensionIntensity = (): BattleIntensity => {
-    switch (derivedPhase) {
+    const battleState = getBattleState();
+    switch (battleState) {
       case 'FINAL_30S': return 'final';
-      case 'LOCK_IN': return 'final'; // Lock-in also uses final intensity
+      case 'SUDDEN_DEATH': return 'sudden';
       default: return 'normal';
     }
   };
