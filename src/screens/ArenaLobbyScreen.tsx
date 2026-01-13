@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { QrCode, Swords } from "lucide-react";
+import { QrCode, Swords, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 function hashStringToUint32(input: string) {
   let hash = 2166136261;
@@ -18,6 +20,7 @@ function qrCellOn(arenaId: string, index: number) {
 const ArenaLobbyScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   
   const arenaId = location.state?.arenaId as string | undefined;
   const arenaName = location.state?.arenaName as string | undefined;
@@ -26,8 +29,38 @@ const ArenaLobbyScreen = () => {
     ? arenaId.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
     : '';
 
-  const handleEnterBattle = () => {
-    navigate("/battle", { state: { arenaId, role_intent: "host" } });
+  const handleEnterBattle = async () => {
+    if (!arenaId || isLoading) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('create-battle', {
+        body: { arena_id: arenaId }
+      });
+
+      if (error) {
+        console.error('Failed to create battle:', error);
+        return;
+      }
+
+      if (!data?.battle_id) {
+        console.error('No battle_id returned from create-battle');
+        return;
+      }
+
+      navigate("/battle", { 
+        state: { 
+          arenaId, 
+          battleId: data.battle_id,
+          role_intent: "host" 
+        } 
+      });
+    } catch (err) {
+      console.error('Error calling create-battle:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!arenaId) {
@@ -111,11 +144,16 @@ const ArenaLobbyScreen = () => {
         {/* Primary Action - Enter Battle */}
         <Button
           onClick={handleEnterBattle}
+          disabled={isLoading}
           className="w-full h-12 text-lg font-semibold animate-fade-in-up"
           style={{ animationDelay: "200ms" }}
         >
-          <Swords className="w-5 h-5 mr-2" />
-          Enter Battle
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          ) : (
+            <Swords className="w-5 h-5 mr-2" />
+          )}
+          {isLoading ? "Creating Battle..." : "Enter Battle"}
         </Button>
       </div>
     </div>
