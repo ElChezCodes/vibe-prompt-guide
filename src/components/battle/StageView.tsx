@@ -29,9 +29,10 @@ interface StageViewProps {
   battle: BattleData | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
+  timer: string;
 }
 
-const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, timer }: StageViewProps) => {
   // Placeholder values - will be connected to real data later
   const percentageA = 52;
   const percentageB = 48;
@@ -71,7 +72,7 @@ const StageView = ({ arena, battle, participant, currentVote }: StageViewProps) 
       <div className="py-8">
         <div className="flex items-center justify-center">
           <span className="text-6xl lg:text-8xl font-semibold text-foreground tracking-widest tabular-nums">
-            01:23
+            {timer}
           </span>
         </div>
       </div>
