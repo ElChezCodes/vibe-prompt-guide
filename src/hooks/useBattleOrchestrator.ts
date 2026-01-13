@@ -73,7 +73,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
 
     const { data: updatedBattle } = await supabase
       .from("battles")
-      .select("id, state, song_a_id, song_b_id")
+      .select("id, state, song_a_id, song_b_id, started_at, duration_ms")
       .eq("id", battleId)
       .maybeSingle();
 
@@ -106,7 +106,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
 
     const { data: updatedBattle } = await supabase
       .from("battles")
-      .select("id, state, song_a_id, song_b_id")
+      .select("id, state, song_a_id, song_b_id, started_at, duration_ms")
       .eq("id", battleId)
       .maybeSingle();
 
@@ -131,7 +131,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
         song_b_id: MVP_SONG_B_ID,
         started_at: null,
       })
-      .select("id, state, song_a_id, song_b_id")
+      .select("id, state, song_a_id, song_b_id, started_at, duration_ms")
       .single();
 
     if (error) {
@@ -163,7 +163,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       // Query for next pending battle
       const { data: nextPending } = await supabase
         .from("battles")
-        .select("id, state, song_a_id, song_b_id")
+        .select("id, state, song_a_id, song_b_id, started_at, duration_ms")
         .eq("arena_id", arenaIdRef.current)
         .eq("state", "pending")
         .order("created_at", { ascending: true })
@@ -196,7 +196,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       // Check for existing pending/active battle
       const { data: existingBattle, error } = await supabase
         .from("battles")
-        .select("id, state, song_a_id, song_b_id")
+        .select("id, state, song_a_id, song_b_id, started_at, duration_ms")
         .eq("arena_id", arenaId)
         .in("state", ["pending", "active"])
         .maybeSingle();
