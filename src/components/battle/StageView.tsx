@@ -97,6 +97,12 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
       {/* Spacer for bottom balance */}
       <div className="h-16 lg:h-24" />
 
+      {derivedPhase === "LOCK_IN" && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+          <div className="px-6 py-3 rounded-xl bg-black/70 text-white text-2xl font-bold tracking-widest">LOCK IN</div>
+        </div>
+      )}
+
       {/* Battle State Overlay */}
       <BattleStateOverlay
         battleState={
