@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const UI_MOCK_BATTLE_DURATION_SEC = 45;
+const MOCK_BATTLE_DURATION_SEC = 45;
 const LOCK_IN_SEC = 15;
 const PASSIVE_WINDOW_SEC = 30;
 
