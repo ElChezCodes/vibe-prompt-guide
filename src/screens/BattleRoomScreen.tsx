@@ -36,6 +36,15 @@ const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
   return "NORMAL";
 };
 
+const getRemainingSecondsFromBattle = (startedAt: string, durationMs: number): number => {
+  const started = new Date(startedAt).getTime();
+  const now = Date.now();
+  const elapsedMs = now - started;
+  const remainingMs = durationMs - elapsedMs;
+
+  return Math.max(0, Math.ceil(remainingMs / 1000));
+};
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
@@ -111,15 +120,9 @@ const BattleRoomScreen = () => {
         // Battle changed, reset vote state
         setVoteRecord(null);
       }
-
-      if (battle?.started_at && battle?.duration_ms) {
-        const seconds = getRemainingSecondsFromBattle(battle.started_at, battle.duration_ms);
-        setRemainingTime(seconds);
-      }
-
       prevBattleIdRef.current = battle?.id ?? null;
     }
-  }, [battle?.id, battle?.started_at, battle?.duration_ms]);
+  }, [battle?.id]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
