@@ -27,10 +27,21 @@ const formatTime = (seconds: number): string => {
 
 type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
 
-const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
-  if (remainingTime <= 0) return "FINISHED";
-  if (remainingTime <= 15) return "LOCK_IN";
-  if (remainingTime <= 30) return "FINAL_30S";
+cconst getDerivedBattlePhase = (
+  battle: { state: string } | null,
+  remainingTime: number,
+): DerivedBattlePhase => {
+  if (!battle) return "NORMAL";
+
+  if (battle.state === "finished") return "FINISHED";
+
+  if (battle.state === "active") {
+    if (remainingTime <= 0) return "FINISHED";
+    if (remainingTime <= 15) return "LOCK_IN";
+    if (remainingTime <= 30) return "FINAL_30S";
+    return "NORMAL";
+  }
+
   return "NORMAL";
 };
 
@@ -223,7 +234,7 @@ const BattleRoomScreen = () => {
     );
   }
 
-  const derivedPhase = getDerivedBattlePhase(remainingTime);
+  const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
 
   const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
 
