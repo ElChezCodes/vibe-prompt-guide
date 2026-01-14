@@ -19,8 +19,6 @@ interface ParticipantData {
   is_host: boolean;
 }
 
-const MOCK_BATTLE_DURATION = 45;
-
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -52,7 +50,7 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
-  const [remainingTime, setRemainingTime] = useState<number>(MOCK_BATTLE_DURATION);
+  const [remainingTime, setRemainingTime] = useState<number>(0);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
 
