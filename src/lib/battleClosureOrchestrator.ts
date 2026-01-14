@@ -58,7 +58,6 @@ export interface BattleData {
   sudden_death_active: boolean;
   winner_song_id: string | null;
   had_sudden_death: boolean;
-  lockin_reached_at: string | null;
   is_special_battle: boolean;
 }
 
@@ -219,7 +218,7 @@ async function fetchSuddenDeathVoteCounts(
 async function fetchBattle(battleId: string): Promise<BattleData | null> {
   const { data, error } = await supabase
     .from('battles')
-    .select('id, arena_id, song_a_id, song_b_id, state, started_at, ended_at, locked_at, lockin_at, battle_end_at, sudden_death_active, winner_song_id, had_sudden_death, lockin_reached_at, is_special_battle')
+    .select('id, arena_id, song_a_id, song_b_id, state, started_at, ended_at, locked_at, lockin_at, battle_end_at, sudden_death_active, winner_song_id, had_sudden_death, is_special_battle')
     .eq('id', battleId)
     .single();
 
@@ -243,7 +242,6 @@ async function updateBattleState(
     sudden_death_active: boolean;
     winner_song_id: string | null;
     had_sudden_death: boolean;
-    lockin_reached_at: string;
     is_special_battle: boolean;
   }>
 ): Promise<boolean> {
@@ -347,7 +345,6 @@ export async function handleLockinReached(battleId: string): Promise<{
 
   const updateSuccess = await updateBattleState(battleId, {
     locked_at: lockinReachedAt,
-    lockin_reached_at: lockinReachedAt,
     sudden_death_active: isTied,
     had_sudden_death: isTied,
   });

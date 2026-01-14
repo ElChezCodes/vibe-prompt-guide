@@ -28,7 +28,7 @@ export type VoteAction =
   | 'phase_rejected';
 
 interface BattleState {
-  lockin_reached_at: string | null;
+  lockin_at: string | null;
   sudden_death_active: boolean;
 }
 
@@ -39,7 +39,7 @@ interface BattleState {
 async function fetchBattleState(battleId: string): Promise<BattleState | null> {
   const { data, error } = await supabase
     .from('battles')
-    .select('lockin_reached_at, sudden_death_active')
+    .select('lockin_at, sudden_death_active')
     .eq('id', battleId)
     .single();
 
@@ -49,7 +49,7 @@ async function fetchBattleState(battleId: string): Promise<BattleState | null> {
   }
 
   return {
-    lockin_reached_at: data.lockin_reached_at,
+    lockin_at: data.lockin_at,
     sudden_death_active: data.sudden_death_active ?? false
   };
 }
@@ -59,7 +59,7 @@ async function fetchBattleState(battleId: string): Promise<BattleState | null> {
  * NEVER trust frontend flags for this.
  */
 function deriveVotingPhase(battleState: BattleState): VotingPhase {
-  if (battleState.lockin_reached_at === null) {
+  if (battleState.lockin_at === null) {
     return 'active';
   }
   
