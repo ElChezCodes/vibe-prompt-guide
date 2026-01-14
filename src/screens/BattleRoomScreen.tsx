@@ -27,18 +27,10 @@ const formatTime = (seconds: number): string => {
 
 type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
 
-const getDerivedBattlePhase = (battle: { state: string } | null, remainingTime: number): DerivedBattlePhase => {
-  if (!battle) return "NORMAL";
-
-  if (battle.state === "finished") return "FINISHED";
-
-  if (battle.state === "active") {
-    if (remainingTime <= 0) return "FINISHED";
-    if (remainingTime <= 15) return "LOCK_IN";
-    if (remainingTime <= 30) return "FINAL_30S";
-    return "NORMAL";
-  }
-
+const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
+  if (remainingTime <= 0) return "FINISHED";
+  if (remainingTime <= 15) return "LOCK_IN";
+  if (remainingTime <= 30) return "FINAL_30S";
   return "NORMAL";
 };
 
@@ -130,11 +122,17 @@ const BattleRoomScreen = () => {
     }
   }, [battle?.id]);
 
-  // Sync remainingTime from backend battle clock
+  // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
-    if (!battle || battle.state !== "active") return;
+    if (!battle || battle.state !== "active") {
+      setRemainingTime(0);
+      return;
+    }
+
+    let cancelled = false;
 
     const updateRemaining = () => {
+      if (cancelled) return;
       const seconds = getRemainingSecondsFromBattle(battle);
       setRemainingTime(seconds);
     };
@@ -144,6 +142,7 @@ const BattleRoomScreen = () => {
     const interval = setInterval(updateRemaining, 1000);
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
     };
   }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
@@ -231,7 +230,7 @@ const BattleRoomScreen = () => {
     );
   }
 
-  const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
+  const derivedPhase = getDerivedBattlePhase(remainingTime);
 
   const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
 
