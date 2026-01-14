@@ -36,16 +36,6 @@ const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
   return "NORMAL";
 };
 
-const getRemainingSecondsFromBattle = (battle: { started_at?: string | null; duration_ms?: number | null }): number => {
-  if (!battle.started_at || !battle.duration_ms) return 0;
-
-  const startedAt = new Date(battle.started_at).getTime();
-  const endsAt = startedAt + battle.duration_ms;
-  const now = Date.now();
-
-  return Math.max(0, Math.ceil((endsAt - now) / 1000));
-};
-
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
@@ -124,6 +114,24 @@ const BattleRoomScreen = () => {
       prevBattleIdRef.current = battle?.id ?? null;
     }
   }, [battle?.id]);
+
+  // Sync remainingTime from backend battle clock
+  useEffect(() => {
+    if (!battle || battle.state !== "active") return;
+
+    const updateRemaining = () => {
+      const seconds = getRemainingSecondsFromBattle(battle);
+      setRemainingTime(seconds);
+    };
+
+    updateRemaining(); // initial sync
+
+    const interval = setInterval(updateRemaining, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
