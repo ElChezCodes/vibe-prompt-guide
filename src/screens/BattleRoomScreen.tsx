@@ -27,10 +27,7 @@ const formatTime = (seconds: number): string => {
 
 type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
 
-cconst getDerivedBattlePhase = (
-  battle: { state: string } | null,
-  remainingTime: number,
-): DerivedBattlePhase => {
+const getDerivedBattlePhase = (battle: { state: string } | null, remainingTime: number): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
   if (battle.state === "finished") return "FINISHED";
