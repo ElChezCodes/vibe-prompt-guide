@@ -36,6 +36,15 @@ const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
   return "NORMAL";
 };
 
+const getRemainingSecondsFromBattle = (battle: { started_at: string; duration_ms: number }) => {
+  const startedAt = new Date(battle.started_at).getTime();
+  const now = Date.now();
+  const elapsedMs = now - startedAt;
+  const remainingMs = battle.duration_ms - elapsedMs;
+
+  return Math.max(0, Math.ceil(remainingMs / 1000));
+};
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
