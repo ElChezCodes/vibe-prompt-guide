@@ -36,6 +36,16 @@ const getDerivedBattlePhase = (remainingTime: number): DerivedBattlePhase => {
   return "NORMAL";
 };
 
+const getRemainingSecondsFromBattle = (battle: { started_at?: string | null; duration_ms?: number | null }): number => {
+  if (!battle.started_at || !battle.duration_ms) return 0;
+
+  const startedAt = new Date(battle.started_at).getTime();
+  const endsAt = startedAt + battle.duration_ms;
+  const now = Date.now();
+
+  return Math.max(0, Math.ceil((endsAt - now) / 1000));
+};
+
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
@@ -43,7 +53,7 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
-  const [remainingTime, setRemainingTime] = useState<number>(0);
+  const [remainingTime, setRemainingTime] = useState<number>(MOCK_BATTLE_DURATION);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
 
@@ -200,21 +210,6 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(remainingTime);
 
-  useEffect(() => {
-    if (!battle || battle.state !== "active") return;
-
-    const updateRemaining = () => {
-      const seconds = getRemainingSecondsFromBattle(battle);
-      setRemainingTime(seconds);
-    };
-
-    // actualización inmediata
-    updateRemaining();
-
-    const interval = setInterval(updateRemaining, 1000);
-
-    return () => clearInterval(interval);
-  }, [battle]);
   const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
 
   return (
