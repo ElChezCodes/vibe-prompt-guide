@@ -535,6 +535,7 @@ export async function handleBattleTimerEnded(battleId: string): Promise<BattleCl
       songBTotal: 0, // ⛔ ya no se calcula aquí
       hadSuddenDeath: state.hadSuddenDeath,
     };
+  }
 
   const battle = await fetchBattle(battleId);
   if (!battle) {
