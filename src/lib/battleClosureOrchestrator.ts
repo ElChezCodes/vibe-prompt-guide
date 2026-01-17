@@ -530,12 +530,11 @@ export async function handleBattleTimerEnded(battleId: string): Promise<BattleCl
       winnerId: state.winnerId,
       winnerSide: state.winnerSide,
       isDraw: state.isDraw,
-      bothSongsWin,
-      songATotal: totalSongA,
-      songBTotal: totalSongB,
+      bothSongsWin: state.isDraw && state.hadSuddenDeath,
+      songATotal: 0, // ⛔ ya no se calcula aquí
+      songBTotal: 0, // ⛔ ya no se calcula aquí
       hadSuddenDeath: state.hadSuddenDeath,
     };
-  }
 
   const battle = await fetchBattle(battleId);
   if (!battle) {
