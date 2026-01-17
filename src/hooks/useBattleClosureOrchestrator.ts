@@ -1,110 +1,193 @@
-import { useEffect, useMemo } from "react";
-import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
- * This hook is a PURE BACKEND OBSERVER.
- *
- * ❗ It does NOT:
- * - count votes
- * - detect ties
- * - activate sudden death
- * - resolve winners
- * - manage timers
- *
- * ✅ It ONLY reflects backend-authoritative state from `battles`
- * and derives UI-safe flags for rendering.
+ * Backend-authoritative battle closure state.
+ * All fields are derived EXCLUSIVELY from the battles table.
+ * The frontend NEVER computes vote counts, winners, or ties.
  */
-
-export type DerivedBattlePhase = "pending" | "active" | "lockin" | "sudden_death" | "completed";
-
-export interface BattleClosureSnapshot {
+export interface ClosureStateSnapshot {
   battleId: string | null;
-
-  // backend fields
-  state: "pending" | "active" | "closing" | "completed";
+  // Lock-in state - derived from battles.locked_at
+  isLockinReached: boolean;
   lockedAt: string | null;
-  lockinAt: string | null;
+  // Sudden death - derived from battles.sudden_death_active
   suddenDeathActive: boolean;
-  winnerSongId: string | null;
-  hadSuddenDeath: boolean;
-
-  // derived (UI-only)
-  derivedPhase: DerivedBattlePhase;
-  isLocked: boolean;
-  isResolved: boolean;
+  // Resolution - derived from battles.state === 'completed'
+  resolved: boolean;
+  // Winner - derived from battles.winner_song_id
+  winnerId: string | null;
+  winnerSide: 'A' | 'B' | null;
+  // Draw state - derived from winner_song_id === null when resolved
+  isDraw: boolean;
   bothSongsWin: boolean;
+  hadSuddenDeath: boolean;
+  // Timing - derived from battles table
+  battleStartAt: string | null;
+  battleEndAt: string | null;
+  lockinAt: string | null;
 }
 
-export function useBattleClosureOrchestrator() {
-  const { battle } = useBattleOrchestrator();
+export interface UseBattleClosureOrchestratorReturn {
+  state: ClosureStateSnapshot;
+  syncFromBattle: (battleId: string) => Promise<void>;
+  reset: () => void;
+  refreshState: () => Promise<void>;
+}
 
-  /**
-   * Derive UI phase strictly from BACKEND STATE.
-   * No timers. No local heuristics.
-   */
-  const derivedPhase: DerivedBattlePhase = useMemo(() => {
-    if (!battle) return "pending";
+const initialState: ClosureStateSnapshot = {
+  battleId: null,
+  isLockinReached: false,
+  lockedAt: null,
+  suddenDeathActive: false,
+  resolved: false,
+  winnerId: null,
+  winnerSide: null,
+  isDraw: false,
+  bothSongsWin: false,
+  hadSuddenDeath: false,
+  battleStartAt: null,
+  battleEndAt: null,
+  lockinAt: null,
+};
 
-    if (battle.state === "completed") return "completed";
+/**
+ * Derives a pure snapshot from the battles table.
+ * NO local vote counting. NO local resolution logic.
+ * The backend is the SINGLE source of truth.
+ */
+async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapshot> {
+  const { data: battle, error } = await supabase
+    .from('battles')
+    .select(`
+      id,
+      state,
+      song_a_id,
+      song_b_id,
+      started_at,
+      ended_at,
+      locked_at,
+      lockin_at,
+      battle_end_at,
+      sudden_death_active,
+      winner_song_id,
+      had_sudden_death
+    `)
+    .eq('id', battleId)
+    .single();
 
-    if (battle.sudden_death_active) return "sudden_death";
+  if (error || !battle) {
+    console.error('[ClosureOrchestrator] Failed to fetch battle:', error);
+    return { ...initialState, battleId };
+  }
 
-    if (battle.locked_at) return "lockin";
+  const resolved = battle.state === 'completed';
+  const isDraw = resolved && battle.winner_song_id === null;
+  const bothSongsWin = isDraw && battle.had_sudden_death;
 
-    if (battle.state === "active") return "active";
-
-    return "pending";
-  }, [battle]);
-
-  const snapshot: BattleClosureSnapshot = useMemo(() => {
-    if (!battle) {
-      return {
-        battleId: null,
-        state: "pending",
-        lockedAt: null,
-        lockinAt: null,
-        suddenDeathActive: false,
-        winnerSongId: null,
-        hadSuddenDeath: false,
-        derivedPhase: "pending",
-        isLocked: false,
-        isResolved: false,
-        bothSongsWin: false,
-      };
+  let winnerSide: 'A' | 'B' | null = null;
+  if (battle.winner_song_id) {
+    if (battle.winner_song_id === battle.song_a_id) {
+      winnerSide = 'A';
+    } else if (battle.winner_song_id === battle.song_b_id) {
+      winnerSide = 'B';
     }
+  }
 
-    const isResolved = battle.state === "completed";
-    const isLocked = Boolean(battle.locked_at);
-    const bothSongsWin = isResolved && battle.winner_song_id === null && battle.had_sudden_death;
+  return {
+    battleId,
+    isLockinReached: battle.locked_at !== null,
+    lockedAt: battle.locked_at,
+    suddenDeathActive: battle.sudden_death_active ?? false,
+    resolved,
+    winnerId: battle.winner_song_id,
+    winnerSide,
+    isDraw,
+    bothSongsWin,
+    hadSuddenDeath: battle.had_sudden_death ?? false,
+    battleStartAt: battle.started_at,
+    battleEndAt: battle.battle_end_at ?? battle.ended_at,
+    lockinAt: battle.lockin_at,
+  };
+}
 
-    return {
-      battleId: battle.id,
-      state: battle.state,
-      lockedAt: battle.locked_at,
-      lockinAt: battle.lockin_at,
-      suddenDeathActive: battle.sudden_death_active,
-      winnerSongId: battle.winner_song_id,
-      hadSuddenDeath: battle.had_sudden_death,
-      derivedPhase,
-      isLocked,
-      isResolved,
-      bothSongsWin,
-    };
-  }, [battle, derivedPhase]);
+/**
+ * Backend-authoritative battle closure hook.
+ * 
+ * This hook is a PURE OBSERVER of backend state.
+ * It NEVER:
+ * - Computes vote counts
+ * - Determines winners
+ * - Detects ties
+ * - Activates sudden death
+ * - Ends battles based on timers
+ * 
+ * All resolution logic is handled by backend functions:
+ * - resolve_lockin_and_activate_sd(battle_id)
+ * - resolve_battle_after_sudden_death(battle_id)
+ */
+export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorReturn {
+  const [state, setState] = useState<ClosureStateSnapshot>(initialState);
+  const battleIdRef = useRef<string | null>(null);
 
-  /**
-   * Optional: helpful debug signal in Lovable logs
-   */
+  const refreshState = useCallback(async () => {
+    if (!battleIdRef.current) {
+      setState(initialState);
+      return;
+    }
+    const snapshot = await fetchBattleSnapshot(battleIdRef.current);
+    setState(snapshot);
+  }, []);
+
+  const syncFromBattle = useCallback(async (battleId: string) => {
+    battleIdRef.current = battleId;
+    const snapshot = await fetchBattleSnapshot(battleId);
+    setState(snapshot);
+  }, []);
+
+  const reset = useCallback(() => {
+    battleIdRef.current = null;
+    setState(initialState);
+  }, []);
+
+  // Listen for backend-driven events and refresh state
   useEffect(() => {
-    if (!battle) return;
-    console.log("[ClosureObserver]", {
-      battleId: battle.id,
-      phase: snapshot.derivedPhase,
-      lockedAt: snapshot.lockedAt,
-      suddenDeath: snapshot.suddenDeathActive,
-      resolved: snapshot.isResolved,
-    });
-  }, [battle, snapshot]);
+    const handleBattleClosed = (event: CustomEvent) => {
+      const { battleId } = event.detail;
+      if (battleId === battleIdRef.current) {
+        refreshState();
+      }
+    };
 
-  return snapshot;
+    const handleLockinReachedEvent = (event: CustomEvent) => {
+      const { battleId } = event.detail;
+      if (battleId === battleIdRef.current) {
+        refreshState();
+      }
+    };
+
+    const handleSuddenDeathStarted = (event: CustomEvent) => {
+      const { battleId } = event.detail;
+      if (battleId === battleIdRef.current) {
+        refreshState();
+      }
+    };
+
+    window.addEventListener('battle:closed', handleBattleClosed as EventListener);
+    window.addEventListener('battle:lockin_reached', handleLockinReachedEvent as EventListener);
+    window.addEventListener('battle:sudden_death_started', handleSuddenDeathStarted as EventListener);
+    
+    return () => {
+      window.removeEventListener('battle:closed', handleBattleClosed as EventListener);
+      window.removeEventListener('battle:lockin_reached', handleLockinReachedEvent as EventListener);
+      window.removeEventListener('battle:sudden_death_started', handleSuddenDeathStarted as EventListener);
+    };
+  }, [refreshState]);
+
+  return {
+    state,
+    syncFromBattle,
+    reset,
+    refreshState,
+  };
 }
