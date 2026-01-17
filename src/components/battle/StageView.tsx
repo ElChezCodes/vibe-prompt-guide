@@ -30,7 +30,7 @@ interface StageViewProps {
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;
-  derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
+  derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
 }
 
 const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
@@ -40,7 +40,7 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
   const winnerSide: "A" | "B" | null = null;
 
   const getTensionIntensity = (): BattleIntensity => {
-    if (derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN") {
+    if (derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN" || derivedPhase === "SUDDEN_DEATH") {
       return "final";
     }
     return "normal";
@@ -103,14 +103,24 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
         </div>
       )}
 
+      {derivedPhase === "SUDDEN_DEATH" && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+          <div className="px-6 py-3 rounded-xl bg-gradient-to-r from-song-a/80 to-song-b/80 text-white text-2xl font-arcade font-black tracking-widest animate-pulse">
+            SUDDEN DEATH
+          </div>
+        </div>
+      )}
+
       {/* Battle State Overlay */}
       <BattleStateOverlay
         battleState={
           derivedPhase === "FINISHED"
             ? "FINISHED"
-            : derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN"
+            : derivedPhase === "SUDDEN_DEATH"
               ? "FINAL_30S"
-              : "NORMAL"
+              : derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN"
+                ? "FINAL_30S"
+                : "NORMAL"
         }
         winnerSide={winnerSide}
       />
