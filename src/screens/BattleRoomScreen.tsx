@@ -37,9 +37,17 @@ const getDerivedBattlePhase = (
 
   if (battle.state === "active") {
     if (remainingTime <= 0) return "FINISHED";
-    // Sudden Death phase: active when battle.sudden_death_active is true and time remains
-    if (battle.sudden_death_active === true) return "SUDDEN_DEATH";
-    if (remainingTime <= 15) return "LOCK_IN";
+
+    // Last 15 seconds window:
+    // - LOCK_IN if no tie
+    // - SUDDEN_DEATH if tie occurred at lock-in
+    if (remainingTime <= 15) {
+      if (battle.sudden_death_active === true) {
+        return "SUDDEN_DEATH";
+      }
+      return "LOCK_IN";
+    }
+
     if (remainingTime <= 30) return "FINAL_30S";
     return "NORMAL";
   }
@@ -247,7 +255,8 @@ const BattleRoomScreen = () => {
 
   // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
   const isVotingEnabled =
-    battle?.state === "active" && (derivedPhase === "NORMAL" || derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH");
+    battle?.state === "active" &&
+    (derivedPhase === "NORMAL" || derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH");
 
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
   const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
