@@ -27,31 +27,53 @@ const formatTime = (seconds: number): string => {
 
 type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
 
+/**
+ * Derives the UI battle phase from BACKEND STATE + remaining time for display.
+ * 
+ * Backend-authoritative fields used:
+ * - battle.state: 'pending' | 'active' | 'closing' | 'completed'
+ * - battle.sudden_death_active: boolean (source of truth for sudden death)
+ * - battle.locked_at: string | null (source of truth for lock-in)
+ * - battle.winner_song_id: string | null (source of truth for resolution)
+ * 
+ * The remainingTime is DISPLAY-ONLY and does not trigger any state changes.
+ */
 const getDerivedBattlePhase = (
-  battle: { state: string; sudden_death_active?: boolean } | null,
+  battle: { 
+    state: string; 
+    sudden_death_active?: boolean;
+    locked_at?: string | null;
+    winner_song_id?: string | null;
+  } | null,
   remainingTime: number,
 ): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
-  if (battle.state === "finished") return "FINISHED";
+  // FINISHED: Backend says completed or closing
+  if (battle.state === "completed" || battle.state === "closing" || battle.state === "finished") {
+    return "FINISHED";
+  }
 
-  if (battle.state === "active") {
-    if (remainingTime <= 0) return "FINISHED";
-
-    // Last 15 seconds window:
-    // - LOCK_IN if no tie
-    // - SUDDEN_DEATH if tie occurred at lock-in
-    if (remainingTime <= 15) {
-      if (battle.sudden_death_active === true) {
-        return "SUDDEN_DEATH";
-      }
-      return "LOCK_IN";
-    }
-
-    if (remainingTime <= 30) return "FINAL_30S";
+  // Only derive phases when battle is active
+  if (battle.state !== "active") {
     return "NORMAL";
   }
 
+  // SUDDEN_DEATH: Backend-authoritative flag
+  if (battle.sudden_death_active === true) {
+    return "SUDDEN_DEATH";
+  }
+
+  // LOCK_IN: Backend says locked (locked_at is set)
+  if (battle.locked_at !== null && battle.locked_at !== undefined) {
+    return "LOCK_IN";
+  }
+
+  // Display-only phases based on remaining time (no state changes triggered)
+  if (remainingTime <= 0) return "FINISHED";
+  if (remainingTime <= 15) return "LOCK_IN";
+  if (remainingTime <= 30) return "FINAL_30S";
+  
   return "NORMAL";
 };
 
