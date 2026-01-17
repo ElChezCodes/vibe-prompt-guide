@@ -282,6 +282,9 @@ async function handleSuddenDeathVote(
   }
 
   // CASE: User has no vote - insert new sudden_death vote
+  // CASE: User has no prior vote
+  // Explicit first-time Sudden Death vote triggered by user action
+  // This is NOT an implicit or passive vote
   const { data, error } = await supabase
     .from("votes")
     .insert({
