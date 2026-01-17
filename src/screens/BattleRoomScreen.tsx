@@ -25,15 +25,20 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
-type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "FINISHED";
+type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
 
-const getDerivedBattlePhase = (battle: { state: string } | null, remainingTime: number): DerivedBattlePhase => {
+const getDerivedBattlePhase = (
+  battle: { state: string; sudden_death_active?: boolean } | null,
+  remainingTime: number,
+): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
   if (battle.state === "finished") return "FINISHED";
 
   if (battle.state === "active") {
     if (remainingTime <= 0) return "FINISHED";
+    // Sudden Death phase: active when battle.sudden_death_active is true and time remains
+    if (battle.sudden_death_active === true) return "SUDDEN_DEATH";
     if (remainingTime <= 15) return "LOCK_IN";
     if (remainingTime <= 30) return "FINAL_30S";
     return "NORMAL";
@@ -240,7 +245,15 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
 
-  const isVotingEnabled = battle?.state === "active" && derivedPhase !== "LOCK_IN";
+  // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
+  const isVotingEnabled =
+    battle?.state === "active" && (derivedPhase === "NORMAL" || derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH");
+
+  // Check if user has already voted in sudden death (vote_type === 'sudden_death')
+  const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
+
+  // During Sudden Death, disable voting if user already cast their sudden death vote
+  const isSuddenDeathVotingEnabled = derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote;
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -255,7 +268,7 @@ const BattleRoomScreen = () => {
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
-      {isVotingEnabled && (
+      {isVotingEnabled && (derivedPhase !== "SUDDEN_DEATH" || isSuddenDeathVotingEnabled) && (
         <div className="absolute inset-0 z-50 pointer-events-none">
           {/* Match the layout of StageView's battle arena section */}
           <div className="min-h-dvh w-full flex flex-col">
@@ -292,6 +305,15 @@ const BattleRoomScreen = () => {
             </div>
 
             <div className="h-16 lg:h-24" />
+          </div>
+        </div>
+      )}
+
+      {/* Sudden Death vote submitted confirmation */}
+      {derivedPhase === "SUDDEN_DEATH" && hasSuddenDeathVote && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="px-4 py-2 rounded-lg bg-primary/20 border border-primary/40 text-primary text-sm font-medium">
+            Vote submitted
           </div>
         </div>
       )}
