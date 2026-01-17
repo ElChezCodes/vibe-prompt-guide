@@ -605,7 +605,7 @@ export async function handleBattleTimerEnded(battleId: string): Promise<BattleCl
     battle.song_a_id,
     battle.song_b_id,
     winnerId,
-    winnerSide,
+    state.winnerSide,
     isDraw,
     bothSongsWin,
     state.hadSuddenDeath,
@@ -625,11 +625,11 @@ export async function handleBattleTimerEnded(battleId: string): Promise<BattleCl
   return {
     success: true,
     winnerId,
-    winnerSide,
+    winnerSide: state.winnerSide,
     isDraw,
     bothSongsWin,
-    songATotal: totalSongA,
-    songBTotal: totalSongB,
+    songATotal: 0,
+    songBTotal: 0,
     hadSuddenDeath: state.hadSuddenDeath,
   };
 }
