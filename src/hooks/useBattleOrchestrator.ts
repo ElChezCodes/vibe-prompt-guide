@@ -3,17 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 const MOCK_BATTLE_DURATION_SEC = 45;
 const LOCK_IN_SEC = 15;
-const PASSIVE_WINDOW_SEC = 30;
 
 const BATTLE_DURATION_MS = MOCK_BATTLE_DURATION_SEC * 1000;
 
-if (MOCK_BATTLE_DURATION_SEC < LOCK_IN_SEC + PASSIVE_WINDOW_SEC) {
-  throw new Error("[BattleOrchestrator] Invalid mock duration: must be >= lock-in + passive window");
-}
+// Valid battle states (backend-authoritative)
+type BattleState = "pending" | "active" | "closing" | "completed";
 
 export interface BattleData {
   id: string;
-  state: string;
+  state: BattleState;
   song_a_id: string;
   song_b_id: string;
   started_at: string | null;
@@ -66,7 +64,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       .update({
         state: "active",
         started_at: new Date().toISOString(),
-        duration_ms: 45000,
+        duration_ms: BATTLE_DURATION_MS,
       })
       .eq("id", battleId)
       .eq("state", "pending");
@@ -84,21 +82,22 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       .maybeSingle();
 
     if (updatedBattle) {
-      setState((prev) => ({ ...prev, battle: updatedBattle }));
+      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
     }
 
     isTransitioningRef.current = false;
-    return updatedBattle;
+    return updatedBattle as BattleData | null;
   }, []);
 
   const endBattle = useCallback(async (battleId: string): Promise<BattleData | null> => {
     if (isTransitioningRef.current || isStoppedRef.current) return null;
     isTransitioningRef.current = true;
 
+    // Transition to "closing" - backend will resolve to "completed"
     const { error: updateError } = await supabase
       .from("battles")
       .update({
-        state: "finished",
+        state: "closing",
         ended_at: new Date().toISOString(),
       })
       .eq("id", battleId)
@@ -117,11 +116,11 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       .maybeSingle();
 
     if (updatedBattle) {
-      setState((prev) => ({ ...prev, battle: updatedBattle }));
+      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
     }
 
     isTransitioningRef.current = false;
-    return updatedBattle;
+    return updatedBattle as BattleData | null;
   }, []);
 
   const createPendingBattle = useCallback(async (arenaId: string): Promise<BattleData | null> => {
@@ -145,7 +144,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       return null;
     }
 
-    return newBattle;
+    return newBattle as BattleData;
   }, []);
 
   const scheduleEnd = useCallback(
@@ -176,7 +175,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
         .limit(1)
         .maybeSingle();
 
-      let battleToStart = nextPending;
+      let battleToStart = nextPending as BattleData | null;
 
       if (!battleToStart) {
         battleToStart = await createPendingBattle(arenaIdRef.current);
@@ -211,7 +210,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
         console.error("[Orchestrator] Failed to fetch battle:", error);
       }
 
-      let currentBattle = existingBattle;
+      let currentBattle = existingBattle as BattleData | null;
 
       // Create new pending battle if none exists
       if (!currentBattle) {
