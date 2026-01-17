@@ -29,18 +29,18 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
 
 /**
  * Derives the UI battle phase from BACKEND STATE + remaining time for display.
- * 
+ *
  * Backend-authoritative fields used:
  * - battle.state: 'pending' | 'active' | 'closing' | 'completed'
  * - battle.sudden_death_active: boolean (source of truth for sudden death)
  * - battle.locked_at: string | null (source of truth for lock-in)
  * - battle.winner_song_id: string | null (source of truth for resolution)
- * 
+ *
  * The remainingTime is DISPLAY-ONLY and does not trigger any state changes.
  */
 const getDerivedBattlePhase = (
-  battle: { 
-    state: string; 
+  battle: {
+    state: string;
     sudden_death_active?: boolean;
     locked_at?: string | null;
     winner_song_id?: string | null;
@@ -50,7 +50,7 @@ const getDerivedBattlePhase = (
   if (!battle) return "NORMAL";
 
   // FINISHED: Backend says completed or closing
-  if (battle.state === "completed" || battle.state === "closing" || battle.state === "finished") {
+  if (battle.state === "completed" || battle.state === "closing") {
     return "FINISHED";
   }
 
@@ -73,7 +73,7 @@ const getDerivedBattlePhase = (
   if (remainingTime <= 0) return "FINISHED";
   if (remainingTime <= 15) return "LOCK_IN";
   if (remainingTime <= 30) return "FINAL_30S";
-  
+
   return "NORMAL";
 };
 
