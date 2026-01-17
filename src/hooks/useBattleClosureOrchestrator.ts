@@ -1,48 +1,28 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  BattleClosureState,
-  BattleClosureResult,
-  VoteAggregate,
-  BattleState,
-  BattleTimingConfig,
-  initializeClosureState,
-  getClosureState,
-  clearClosureState,
-  handleLockinReached,
-  canAcceptRegularVote,
-  canAcceptSuddenDeathVote,
-  applySuddenDeathVote,
-  registerSuddenDeathVote,
-  handleBattleTimerEnded,
-  initializeBattleTiming,
-  isLockinReached,
-  isSuddenDeathActive,
-  isResolved,
-  getWinner,
-  getVoteCounts,
-  getBattleTiming,
-  getSuddenDeathDurationMs,
-  getLockinOffsetMs,
-} from '@/lib/battleClosureOrchestrator';
+import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * Backend-authoritative battle closure state.
+ * All fields are derived EXCLUSIVELY from the battles table.
+ * The frontend NEVER computes vote counts, winners, or ties.
+ */
 export interface ClosureStateSnapshot {
   battleId: string | null;
+  // Lock-in state - derived from battles.locked_at
   isLockinReached: boolean;
-  lockinReachedAt: string | null;
+  lockedAt: string | null;
+  // Sudden death - derived from battles.sudden_death_active
   suddenDeathActive: boolean;
-  suddenDeathStartedAt: string | null;
+  // Resolution - derived from battles.state === 'completed'
   resolved: boolean;
+  // Winner - derived from battles.winner_song_id
   winnerId: string | null;
   winnerSide: 'A' | 'B' | null;
+  // Draw state - derived from winner_song_id === null when resolved
   isDraw: boolean;
   bothSongsWin: boolean;
   hadSuddenDeath: boolean;
-  regularSongACount: number;
-  regularSongBCount: number;
-  suddenDeathSongACount: number;
-  suddenDeathSongBCount: number;
-  totalSongA: number;
-  totalSongB: number;
+  // Timing - derived from battles table
   battleStartAt: string | null;
   battleEndAt: string | null;
   lockinAt: string | null;
@@ -50,208 +30,127 @@ export interface ClosureStateSnapshot {
 
 export interface UseBattleClosureOrchestratorReturn {
   state: ClosureStateSnapshot;
-  initialize: (battleId: string, battleState: BattleState) => void;
-  initializeTiming: (battleId: string, config: BattleTimingConfig) => Promise<{
-    success: boolean;
-    battleEndAt: string | null;
-    lockinAt: string | null;
-  }>;
-  triggerLockinReached: () => Promise<{
-    success: boolean;
-    suddenDeathActive: boolean;
-    aggregates: VoteAggregate | null;
-  }>;
-  triggerBattleEnd: () => Promise<BattleClosureResult>;
-  checkCanVoteRegular: (participantId: string) => Promise<{ allowed: boolean; reason: string }>;
-  checkCanVoteSuddenDeath: (participantId: string) => Promise<{ allowed: boolean; reason: string }>;
-  submitSuddenDeathVote: (
-    participantId: string,
-    songId: string,
-    arenaId: string,
-    identityAnchorId: string
-  ) => Promise<{ success: boolean; action: 'created' | 'upgraded' | 'rejected'; reason: string }>;
-  recordSuddenDeathVote: (participantId: string) => boolean;
+  syncFromBattle: (battleId: string) => Promise<void>;
   reset: () => void;
-  refreshState: () => void;
-  getSuddenDeathDuration: () => number;
-  getLockinOffset: () => number;
+  refreshState: () => Promise<void>;
 }
 
 const initialState: ClosureStateSnapshot = {
   battleId: null,
   isLockinReached: false,
-  lockinReachedAt: null,
+  lockedAt: null,
   suddenDeathActive: false,
-  suddenDeathStartedAt: null,
   resolved: false,
   winnerId: null,
   winnerSide: null,
   isDraw: false,
   bothSongsWin: false,
   hadSuddenDeath: false,
-  regularSongACount: 0,
-  regularSongBCount: 0,
-  suddenDeathSongACount: 0,
-  suddenDeathSongBCount: 0,
-  totalSongA: 0,
-  totalSongB: 0,
   battleStartAt: null,
   battleEndAt: null,
   lockinAt: null,
 };
 
-function snapshotFromOrchestrator(battleId: string | null): ClosureStateSnapshot {
-  if (!battleId) {
-    return initialState;
-  }
+/**
+ * Derives a pure snapshot from the battles table.
+ * NO local vote counting. NO local resolution logic.
+ * The backend is the SINGLE source of truth.
+ */
+async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapshot> {
+  const { data: battle, error } = await supabase
+    .from('battles')
+    .select(`
+      id,
+      state,
+      song_a_id,
+      song_b_id,
+      started_at,
+      ended_at,
+      locked_at,
+      lockin_at,
+      battle_end_at,
+      sudden_death_active,
+      winner_song_id,
+      had_sudden_death
+    `)
+    .eq('id', battleId)
+    .single();
 
-  const closureState = getClosureState(battleId);
-  if (!closureState) {
+  if (error || !battle) {
+    console.error('[ClosureOrchestrator] Failed to fetch battle:', error);
     return { ...initialState, battleId };
   }
 
-  const voteCounts = getVoteCounts(battleId);
-  const winner = getWinner(battleId);
-  const timing = getBattleTiming(battleId);
+  const resolved = battle.state === 'completed';
+  const isDraw = resolved && battle.winner_song_id === null;
+  const bothSongsWin = isDraw && battle.had_sudden_death;
+
+  let winnerSide: 'A' | 'B' | null = null;
+  if (battle.winner_song_id) {
+    if (battle.winner_song_id === battle.song_a_id) {
+      winnerSide = 'A';
+    } else if (battle.winner_song_id === battle.song_b_id) {
+      winnerSide = 'B';
+    }
+  }
 
   return {
     battleId,
-    isLockinReached: isLockinReached(battleId),
-    lockinReachedAt: closureState.lockinReachedAt,
-    suddenDeathActive: isSuddenDeathActive(battleId),
-    suddenDeathStartedAt: closureState.suddenDeathStartedAt,
-    resolved: isResolved(battleId),
-    winnerId: winner.winnerId,
-    winnerSide: winner.winnerSide,
-    isDraw: winner.isDraw,
-    bothSongsWin: winner.bothSongsWin,
-    hadSuddenDeath: closureState.hadSuddenDeath,
-    regularSongACount: voteCounts.regularSongACount,
-    regularSongBCount: voteCounts.regularSongBCount,
-    suddenDeathSongACount: voteCounts.suddenDeathSongACount,
-    suddenDeathSongBCount: voteCounts.suddenDeathSongBCount,
-    totalSongA: voteCounts.totalSongA,
-    totalSongB: voteCounts.totalSongB,
-    battleStartAt: timing.battleStartAt,
-    battleEndAt: timing.battleEndAt,
-    lockinAt: timing.lockinAt,
+    isLockinReached: battle.locked_at !== null,
+    lockedAt: battle.locked_at,
+    suddenDeathActive: battle.sudden_death_active ?? false,
+    resolved,
+    winnerId: battle.winner_song_id,
+    winnerSide,
+    isDraw,
+    bothSongsWin,
+    hadSuddenDeath: battle.had_sudden_death ?? false,
+    battleStartAt: battle.started_at,
+    battleEndAt: battle.battle_end_at ?? battle.ended_at,
+    lockinAt: battle.lockin_at,
   };
 }
 
+/**
+ * Backend-authoritative battle closure hook.
+ * 
+ * This hook is a PURE OBSERVER of backend state.
+ * It NEVER:
+ * - Computes vote counts
+ * - Determines winners
+ * - Detects ties
+ * - Activates sudden death
+ * - Ends battles based on timers
+ * 
+ * All resolution logic is handled by backend functions:
+ * - resolve_lockin_and_activate_sd(battle_id)
+ * - resolve_battle_after_sudden_death(battle_id)
+ */
 export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorReturn {
   const [state, setState] = useState<ClosureStateSnapshot>(initialState);
   const battleIdRef = useRef<string | null>(null);
 
-  const refreshState = useCallback(() => {
-    setState(snapshotFromOrchestrator(battleIdRef.current));
+  const refreshState = useCallback(async () => {
+    if (!battleIdRef.current) {
+      setState(initialState);
+      return;
+    }
+    const snapshot = await fetchBattleSnapshot(battleIdRef.current);
+    setState(snapshot);
   }, []);
 
-  const initialize = useCallback((battleId: string, battleState: BattleState) => {
+  const syncFromBattle = useCallback(async (battleId: string) => {
     battleIdRef.current = battleId;
-    initializeClosureState(battleId, battleState);
-    refreshState();
-  }, [refreshState]);
-
-  const initializeTiming = useCallback(async (battleId: string, config: BattleTimingConfig) => {
-    battleIdRef.current = battleId;
-    const result = await initializeBattleTiming(battleId, config);
-    refreshState();
-    return result;
-  }, [refreshState]);
-
-  const triggerLockinReached = useCallback(async () => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return { success: false, suddenDeathActive: false, aggregates: null };
-    }
-
-    const result = await handleLockinReached(battleId);
-    refreshState();
-    return result;
-  }, [refreshState]);
-
-  const triggerBattleEnd = useCallback(async () => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return {
-        success: false,
-        winnerId: null,
-        winnerSide: null,
-        isDraw: false,
-        bothSongsWin: false,
-        songATotal: 0,
-        songBTotal: 0,
-        hadSuddenDeath: false,
-      };
-    }
-
-    const result = await handleBattleTimerEnded(battleId);
-    refreshState();
-    return result;
-  }, [refreshState]);
-
-  const checkCanVoteRegular = useCallback(async (participantId: string) => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return { allowed: true, reason: '' };
-    }
-    return canAcceptRegularVote(battleId, participantId);
+    const snapshot = await fetchBattleSnapshot(battleId);
+    setState(snapshot);
   }, []);
-
-  const checkCanVoteSuddenDeath = useCallback(async (participantId: string) => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return { allowed: false, reason: 'No active battle' };
-    }
-    return canAcceptSuddenDeathVote(battleId, participantId);
-  }, []);
-
-  const submitSuddenDeathVote = useCallback(async (
-    participantId: string,
-    songId: string,
-    arenaId: string,
-    identityAnchorId: string
-  ) => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return { success: false, action: 'rejected' as const, reason: 'No active battle' };
-    }
-    const result = await applySuddenDeathVote(battleId, participantId, songId, arenaId, identityAnchorId);
-    if (result.success) {
-      refreshState();
-    }
-    return result;
-  }, [refreshState]);
-
-  const recordSuddenDeathVoteLocal = useCallback((participantId: string) => {
-    const battleId = battleIdRef.current;
-    if (!battleId) {
-      return false;
-    }
-    const success = registerSuddenDeathVote(battleId, participantId);
-    if (success) {
-      refreshState();
-    }
-    return success;
-  }, [refreshState]);
 
   const reset = useCallback(() => {
-    const battleId = battleIdRef.current;
-    if (battleId) {
-      clearClosureState(battleId);
-    }
     battleIdRef.current = null;
     setState(initialState);
   }, []);
 
-  const getSuddenDeathDuration = useCallback(() => {
-    return getSuddenDeathDurationMs();
-  }, []);
-
-  const getLockinOffset = useCallback(() => {
-    return getLockinOffsetMs();
-  }, []);
-
+  // Listen for backend-driven events and refresh state
   useEffect(() => {
     const handleBattleClosed = (event: CustomEvent) => {
       const { battleId } = event.detail;
@@ -285,28 +184,10 @@ export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorRetu
     };
   }, [refreshState]);
 
-  useEffect(() => {
-    return () => {
-      const battleId = battleIdRef.current;
-      if (battleId) {
-        clearClosureState(battleId);
-      }
-    };
-  }, []);
-
   return {
     state,
-    initialize,
-    initializeTiming,
-    triggerLockinReached,
-    triggerBattleEnd,
-    checkCanVoteRegular,
-    checkCanVoteSuddenDeath,
-    submitSuddenDeathVote,
-    recordSuddenDeathVote: recordSuddenDeathVoteLocal,
+    syncFromBattle,
     reset,
     refreshState,
-    getSuddenDeathDuration,
-    getLockinOffset,
   };
 }
