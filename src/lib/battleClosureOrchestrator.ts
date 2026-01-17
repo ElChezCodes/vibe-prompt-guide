@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type BattleState = 'pending' | 'active' | 'closing' | 'completed';
-export type VoteType = 'regular' | 'sudden_death';
+export type BattleState = "pending" | "active" | "closing" | "completed";
+export type VoteType = "regular" | "sudden_death";
 
 export interface BattleClosureState {
   battleId: string;
@@ -16,7 +16,7 @@ export interface BattleClosureState {
   suddenDeathVoters: Set<string>;
   resolved: boolean;
   winnerId: string | null;
-  winnerSide: 'A' | 'B' | null;
+  winnerSide: "A" | "B" | null;
   isDraw: boolean;
   hadSuddenDeath: boolean;
   regularSongACount: number;
@@ -28,7 +28,7 @@ export interface BattleClosureState {
 export interface BattleClosureResult {
   success: boolean;
   winnerId: string | null;
-  winnerSide: 'A' | 'B' | null;
+  winnerSide: "A" | "B" | null;
   isDraw: boolean;
   bothSongsWin: boolean;
   songATotal: number;
@@ -77,7 +77,7 @@ function getOrCreateState(battleId: string): BattleClosureState {
   if (!state) {
     state = {
       battleId,
-      battleState: 'pending',
+      battleState: "pending",
       battleStartAt: null,
       battleEndAt: null,
       lockinAt: null,
@@ -117,43 +117,43 @@ export function clearClosureState(battleId: string): void {
 
 export function computeBattleTiming(
   startTime: Date,
-  config: BattleTimingConfig
+  config: BattleTimingConfig,
 ): { battleStartAt: string; battleEndAt: string; lockinAt: string } {
   let totalDurationMs: number;
-  
+
   if (config.playSingleSong) {
     totalDurationMs = Math.max(config.songADurationMs, config.songBDurationMs);
   } else {
     totalDurationMs = config.songADurationMs + config.songBDurationMs;
   }
-  
+
   const battleStartAt = startTime.toISOString();
   const battleEndAt = new Date(startTime.getTime() + totalDurationMs).toISOString();
   const lockinAt = new Date(startTime.getTime() + totalDurationMs - LOCKIN_OFFSET_MS).toISOString();
-  
+
   return { battleStartAt, battleEndAt, lockinAt };
 }
 
 async function fetchRegularVoteCounts(
   battleId: string,
   songAId: string,
-  songBId: string
+  songBId: string,
 ): Promise<{ songACount: number; songBCount: number }> {
   const songAQuery = supabase
-    .from('votes')
-    .select('*', { count: 'exact', head: true })
-    .eq('battle_id', battleId)
-    .eq('song_id', songAId)
-    .eq('status', 'active')
-    .eq('vote_type', 'regular');
+    .from("votes")
+    .select("*", { count: "exact", head: true })
+    .eq("battle_id", battleId)
+    .eq("song_id", songAId)
+    .eq("status", "active")
+    .eq("vote_type", "regular");
 
   const songBQuery = supabase
-    .from('votes')
-    .select('*', { count: 'exact', head: true })
-    .eq('battle_id', battleId)
-    .eq('song_id', songBId)
-    .eq('status', 'active')
-    .eq('vote_type', 'regular');
+    .from("votes")
+    .select("*", { count: "exact", head: true })
+    .eq("battle_id", battleId)
+    .eq("song_id", songBId)
+    .eq("status", "active")
+    .eq("vote_type", "regular");
 
   const [songAResult, songBResult] = await Promise.all([songAQuery, songBQuery]);
 
@@ -166,17 +166,17 @@ async function fetchRegularVoteCounts(
 async function fetchSuddenDeathVoteCounts(
   battleId: string,
   songAId: string,
-  songBId: string
+  songBId: string,
 ): Promise<{ songACount: number; songBCount: number }> {
   const { data: suddenDeathVotes, error } = await supabase
-    .from('votes')
-    .select('id, song_id, participant_id')
-    .eq('battle_id', battleId)
-    .eq('status', 'active')
-    .eq('vote_type', 'sudden_death');
+    .from("votes")
+    .select("id, song_id, participant_id")
+    .eq("battle_id", battleId)
+    .eq("status", "active")
+    .eq("vote_type", "sudden_death");
 
   if (error || !suddenDeathVotes) {
-    console.error('Failed to fetch sudden death votes:', error);
+    console.error("Failed to fetch sudden death votes:", error);
     return { songACount: 0, songBCount: 0 };
   }
 
@@ -184,20 +184,20 @@ async function fetchSuddenDeathVoteCounts(
     return { songACount: 0, songBCount: 0 };
   }
 
-  const participantIds = [...new Set(suddenDeathVotes.map(v => v.participant_id))];
+  const participantIds = [...new Set(suddenDeathVotes.map((v) => v.participant_id))];
 
   const { data: activeParticipants, error: participantsError } = await supabase
-    .from('participants')
-    .select('id')
-    .in('id', participantIds)
-    .eq('status', 'active');
+    .from("participants")
+    .select("id")
+    .in("id", participantIds)
+    .eq("status", "active");
 
   if (participantsError) {
-    console.error('Failed to fetch participant statuses:', participantsError);
+    console.error("Failed to fetch participant statuses:", participantsError);
     return { songACount: 0, songBCount: 0 };
   }
 
-  const activeParticipantIds = new Set(activeParticipants?.map(p => p.id) ?? []);
+  const activeParticipantIds = new Set(activeParticipants?.map((p) => p.id) ?? []);
 
   let songACount = 0;
   let songBCount = 0;
@@ -217,13 +217,15 @@ async function fetchSuddenDeathVoteCounts(
 
 async function fetchBattle(battleId: string): Promise<BattleData | null> {
   const { data, error } = await supabase
-    .from('battles')
-    .select('id, arena_id, song_a_id, song_b_id, state, started_at, ended_at, locked_at, lockin_at, battle_end_at, sudden_death_active, winner_song_id, had_sudden_death, is_special_battle')
-    .eq('id', battleId)
+    .from("battles")
+    .select(
+      "id, arena_id, song_a_id, song_b_id, state, started_at, ended_at, locked_at, lockin_at, battle_end_at, sudden_death_active, winner_song_id, had_sudden_death, is_special_battle",
+    )
+    .eq("id", battleId)
     .single();
 
   if (error || !data) {
-    console.error('Failed to fetch battle:', error);
+    console.error("Failed to fetch battle:", error);
     return null;
   }
 
@@ -243,15 +245,12 @@ async function updateBattleState(
     winner_song_id: string | null;
     had_sudden_death: boolean;
     is_special_battle: boolean;
-  }>
+  }>,
 ): Promise<boolean> {
-  const { error } = await supabase
-    .from('battles')
-    .update(updates)
-    .eq('id', battleId);
+  const { error } = await supabase.from("battles").update(updates).eq("id", battleId);
 
   if (error) {
-    console.error('Failed to update battle state:', error);
+    console.error("Failed to update battle state:", error);
     return false;
   }
 
@@ -260,33 +259,33 @@ async function updateBattleState(
 
 export async function initializeBattleTiming(
   battleId: string,
-  config: BattleTimingConfig
+  config: BattleTimingConfig,
 ): Promise<{ success: boolean; battleEndAt: string | null; lockinAt: string | null }> {
   const state = getOrCreateState(battleId);
-  
+
   const startTime = new Date();
   const timing = computeBattleTiming(startTime, config);
-  
+
   state.battleStartAt = timing.battleStartAt;
   state.battleEndAt = timing.battleEndAt;
   state.lockinAt = timing.lockinAt;
-  state.battleState = 'active';
-  
+  state.battleState = "active";
+
   const success = await updateBattleState(battleId, {
-    state: 'active',
+    state: "active",
     started_at: timing.battleStartAt,
     lockin_at: timing.lockinAt,
     battle_end_at: timing.battleEndAt,
   });
-  
+
   if (!success) {
     return { success: false, battleEndAt: null, lockinAt: null };
   }
-  
-  return { 
-    success: true, 
-    battleEndAt: timing.battleEndAt, 
-    lockinAt: timing.lockinAt 
+
+  return {
+    success: true,
+    battleEndAt: timing.battleEndAt,
+    lockinAt: timing.lockinAt,
   };
 }
 
@@ -316,18 +315,14 @@ export async function handleLockinReached(battleId: string): Promise<{
     return { success: false, suddenDeathActive: false, aggregates: null };
   }
 
-  if (battle.state !== 'active') {
-    console.warn('Cannot lock-in: battle state is not active');
+  if (battle.state !== "active") {
+    console.warn("Cannot lock-in: battle state is not active");
     return { success: false, suddenDeathActive: false, aggregates: null };
   }
 
   const lockinReachedAt = new Date().toISOString();
-  
-  const regularVotes = await fetchRegularVoteCounts(
-    battleId,
-    battle.song_a_id,
-    battle.song_b_id
-  );
+
+  const regularVotes = await fetchRegularVoteCounts(battleId, battle.song_a_id, battle.song_b_id);
 
   const isTied = regularVotes.songACount === regularVotes.songBCount;
 
@@ -375,62 +370,62 @@ export async function handleLockinReached(battleId: string): Promise<{
 
 export async function canAcceptRegularVote(
   battleId: string,
-  participantId: string
+  participantId: string,
 ): Promise<{ allowed: boolean; reason: string }> {
   const state = closureStates.get(battleId);
 
   if (!state) {
-    return { allowed: true, reason: '' };
+    return { allowed: true, reason: "" };
   }
 
-  if (state.battleState !== 'active') {
-    return { allowed: false, reason: 'Battle is not active' };
+  if (state.battleState !== "active") {
+    return { allowed: false, reason: "Battle is not active" };
   }
 
   if (state.lockinReached) {
-    return { allowed: false, reason: 'Voting is frozen after lock-in' };
+    return { allowed: false, reason: "Voting is frozen after lock-in" };
   }
 
-  return { allowed: true, reason: '' };
+  return { allowed: true, reason: "" };
 }
 
 export async function canAcceptSuddenDeathVote(
   battleId: string,
-  participantId: string
+  participantId: string,
 ): Promise<{ allowed: boolean; reason: string }> {
   const state = closureStates.get(battleId);
 
   if (!state) {
-    return { allowed: false, reason: 'Battle closure state not initialized' };
+    return { allowed: false, reason: "Battle closure state not initialized" };
   }
 
-  if (state.battleState !== 'active') {
-    return { allowed: false, reason: 'Battle is not active' };
+  if (state.battleState !== "active") {
+    return { allowed: false, reason: "Battle is not active" };
   }
 
   if (!state.suddenDeathActive) {
-    return { allowed: false, reason: 'Sudden death is not active' };
+    return { allowed: false, reason: "Sudden death is not active" };
   }
 
   if (state.suddenDeathVoters.has(participantId)) {
-    return { allowed: false, reason: 'Participant already voted in sudden death' };
+    return { allowed: false, reason: "Participant already voted in sudden death" };
   }
 
   const { data: participant, error } = await supabase
-    .from('participants')
-    .select('status')
-    .eq('id', participantId)
+    .from("participants")
+    .select("status")
+    .eq("id", participantId)
     .single();
 
   if (error || !participant) {
-    return { allowed: false, reason: 'Participant not found' };
+    return { allowed: false, reason: "Participant not found" };
   }
 
-  if (participant.status !== 'active') {
-    return { allowed: false, reason: 'Participant is not active' };
+  if (participant.status !== "active") {
+    return { allowed: false, reason: "Participant is not active" };
   }
 
-  return { allowed: true, reason: '' };
+  return { allowed: true, reason: "" };
 }
 
 export async function applySuddenDeathVote(
@@ -438,81 +433,76 @@ export async function applySuddenDeathVote(
   participantId: string,
   songId: string,
   arenaId: string,
-  identityAnchorId: string
-): Promise<{ success: boolean; action: 'created' | 'upgraded' | 'rejected'; reason: string }> {
+  identityAnchorId: string,
+): Promise<{ success: boolean; action: "created" | "upgraded" | "rejected"; reason: string }> {
   const canVote = await canAcceptSuddenDeathVote(battleId, participantId);
-  
+
   if (!canVote.allowed) {
-    return { success: false, action: 'rejected', reason: canVote.reason };
+    return { success: false, action: "rejected", reason: canVote.reason };
   }
 
   const { data: existingVote, error: fetchError } = await supabase
-    .from('votes')
-    .select('*')
-    .eq('battle_id', battleId)
-    .eq('participant_id', participantId)
+    .from("votes")
+    .select("*")
+    .eq("battle_id", battleId)
+    .eq("participant_id", participantId)
     .maybeSingle();
 
   if (fetchError) {
-    console.error('Failed to fetch existing vote:', fetchError);
-    return { success: false, action: 'rejected', reason: 'Database error' };
+    console.error("Failed to fetch existing vote:", fetchError);
+    return { success: false, action: "rejected", reason: "Database error" };
   }
 
   const state = closureStates.get(battleId);
 
   if (existingVote) {
     const { error: updateError } = await supabase
-      .from('votes')
+      .from("votes")
       .update({
         song_id: songId,
-        vote_type: 'sudden_death',
-        status: 'active',
+        vote_type: "sudden_death",
+        status: "active",
         updated_at: new Date().toISOString(),
       })
-      .eq('id', existingVote.id)
-      .eq('battle_id', battleId)
-      .eq('participant_id', participantId);
+      .eq("id", existingVote.id)
+      .eq("battle_id", battleId)
+      .eq("participant_id", participantId);
 
     if (updateError) {
-      console.error('Failed to upgrade vote to sudden death:', updateError);
-      return { success: false, action: 'rejected', reason: 'Failed to update vote' };
+      console.error("Failed to upgrade vote to sudden death:", updateError);
+      return { success: false, action: "rejected", reason: "Failed to update vote" };
     }
 
     if (state) {
       state.suddenDeathVoters.add(participantId);
     }
 
-    return { success: true, action: 'upgraded', reason: '' };
+    return { success: true, action: "upgraded", reason: "" };
   } else {
-    const { error: insertError } = await supabase
-      .from('votes')
-      .insert({
-        battle_id: battleId,
-        participant_id: participantId,
-        song_id: songId,
-        vote_type: 'sudden_death',
-        status: 'active',
-        arena_id: arenaId,
-        identity_anchor_id: identityAnchorId,
-      });
+    const { error: insertError } = await supabase.from("votes").insert({
+      battle_id: battleId,
+      participant_id: participantId,
+      song_id: songId,
+      vote_type: "sudden_death",
+      status: "active",
+      arena_id: arenaId,
+      identity_anchor_id: identityAnchorId,
+    });
 
     if (insertError) {
-      console.error('Failed to insert sudden death vote:', insertError);
-      return { success: false, action: 'rejected', reason: 'Failed to create vote' };
+      console.error("Failed to insert sudden death vote:", insertError);
+      return { success: false, action: "rejected", reason: "Failed to create vote" };
     }
 
     if (state) {
       state.suddenDeathVoters.add(participantId);
     }
 
-    return { success: true, action: 'created', reason: '' };
+    return { success: true, action: "created", reason: "" };
   }
 }
 
-export function registerSuddenDeathVote(
-  battleId: string,
-  participantId: string
-): boolean {
+export function registerSuddenDeathVote(battleId: string, participantId: string): boolean {
   const state = closureStates.get(battleId);
 
   if (!state) {
@@ -527,16 +517,14 @@ export function registerSuddenDeathVote(
   return true;
 }
 
-export async function handleBattleTimerEnded(
-  battleId: string
-): Promise<BattleClosureResult> {
+export async function handleBattleTimerEnded(battleId: string): Promise<BattleClosureResult> {
   const state = getOrCreateState(battleId);
 
   if (state.resolved) {
     const totalSongA = state.regularSongACount + state.suddenDeathSongACount;
     const totalSongB = state.regularSongBCount + state.suddenDeathSongBCount;
     const bothSongsWin = state.isDraw && state.hadSuddenDeath;
-    
+
     return {
       success: true,
       winnerId: state.winnerId,
@@ -563,8 +551,8 @@ export async function handleBattleTimerEnded(
     };
   }
 
-  if (battle.state !== 'active') {
-    console.warn('Cannot end battle: state is not active');
+  if (battle.state !== "active") {
+    console.warn("Cannot end battle: state is not active");
     return {
       success: false,
       winnerId: null,
@@ -578,7 +566,7 @@ export async function handleBattleTimerEnded(
   }
 
   const transitionSuccess = await updateBattleState(battleId, {
-    state: 'closing',
+    state: "closing",
   });
 
   if (!transitionSuccess) {
@@ -594,80 +582,44 @@ export async function handleBattleTimerEnded(
     };
   }
 
-  state.battleState = 'closing';
+  state.battleState = "closing";
 
-  const regularVotes = await fetchRegularVoteCounts(
-    battleId,
-    battle.song_a_id,
-    battle.song_b_id
-  );
+  const winnerId = battle.winner_song_id;
+  const hadSuddenDeath = battle.had_sudden_death;
 
-  state.regularSongACount = regularVotes.songACount;
-  state.regularSongBCount = regularVotes.songBCount;
-
-  let suddenDeathVotes = { songACount: 0, songBCount: 0 };
-  const suddenDeathWasActive = state.hadSuddenDeath || battle.had_sudden_death || state.suddenDeathActive || battle.sudden_death_active;
-
-  if (suddenDeathWasActive) {
-    suddenDeathVotes = await fetchSuddenDeathVoteCounts(
-      battleId,
-      battle.song_a_id,
-      battle.song_b_id
-    );
-    state.suddenDeathSongACount = suddenDeathVotes.songACount;
-    state.suddenDeathSongBCount = suddenDeathVotes.songBCount;
-    state.hadSuddenDeath = true;
-  }
-
-  const totalSongA = state.regularSongACount + state.suddenDeathSongACount;
-  const totalSongB = state.regularSongBCount + state.suddenDeathSongBCount;
-
-  let winnerId: string | null = null;
-  let winnerSide: 'A' | 'B' | null = null;
-  let isDraw = false;
-  let bothSongsWin = false;
-
-  if (totalSongA > totalSongB) {
-    winnerId = battle.song_a_id;
-    winnerSide = 'A';
-  } else if (totalSongB > totalSongA) {
-    winnerId = battle.song_b_id;
-    winnerSide = 'B';
-  } else {
-    isDraw = true;
-    if (state.hadSuddenDeath) {
-      bothSongsWin = true;
-    }
-  }
+  const isDraw = winnerId === null;
+  const bothSongsWin = isDraw && hadSuddenDeath;
 
   state.winnerId = winnerId;
-  state.winnerSide = winnerSide;
+  state.winnerSide = winnerId === battle.song_a_id ? "A" : winnerId === battle.song_b_id ? "B" : null;
+
   state.isDraw = isDraw;
+  state.hadSuddenDeath = hadSuddenDeath;
   state.resolved = true;
 
   await persistFinalVoteSnapshot(battleId, state);
 
   await executeSideEffects(
-    battleId, 
-    battle.arena_id, 
+    battleId,
+    battle.arena_id,
     battle.song_a_id,
     battle.song_b_id,
-    winnerId, 
-    winnerSide, 
-    isDraw, 
+    winnerId,
+    winnerSide,
+    isDraw,
     bothSongsWin,
-    state.hadSuddenDeath
+    state.hadSuddenDeath,
   );
 
   const finalSuccess = await updateBattleState(battleId, {
-    state: 'completed',
+    state: "completed",
     ended_at: new Date().toISOString(),
     winner_song_id: winnerId,
     had_sudden_death: state.hadSuddenDeath,
   });
 
   if (finalSuccess) {
-    state.battleState = 'completed';
+    state.battleState = "completed";
   }
 
   return {
@@ -682,10 +634,7 @@ export async function handleBattleTimerEnded(
   };
 }
 
-async function persistFinalVoteSnapshot(
-  battleId: string,
-  state: BattleClosureState
-): Promise<void> {
+async function persistFinalVoteSnapshot(battleId: string, state: BattleClosureState): Promise<void> {
   console.log(`[Closure] Persisting final vote snapshot for battle ${battleId}:`, {
     regularSongACount: state.regularSongACount,
     regularSongBCount: state.regularSongBCount,
@@ -702,10 +651,10 @@ async function executeSideEffects(
   songAId: string,
   songBId: string,
   winnerId: string | null,
-  winnerSide: 'A' | 'B' | null,
+  winnerSide: "A" | "B" | null,
   isDraw: boolean,
   bothSongsWin: boolean,
-  hadSuddenDeath: boolean
+  hadSuddenDeath: boolean,
 ): Promise<void> {
   if (bothSongsWin) {
     await enqueueWinningSong(arenaId, songAId);
@@ -732,7 +681,7 @@ async function markNextBattleAsSpecial(arenaId: string, songAId: string, songBId
 }
 
 function emitLockinReachedEvent(battleId: string, suddenDeathActive: boolean): void {
-  const event = new CustomEvent('battle:lockin_reached', {
+  const event = new CustomEvent("battle:lockin_reached", {
     detail: {
       battleId,
       suddenDeathActive,
@@ -740,11 +689,13 @@ function emitLockinReachedEvent(battleId: string, suddenDeathActive: boolean): v
     },
   });
   window.dispatchEvent(event);
-  console.log(`[Closure] Emitted battle:lockin_reached event for battle ${battleId}, suddenDeath: ${suddenDeathActive}`);
+  console.log(
+    `[Closure] Emitted battle:lockin_reached event for battle ${battleId}, suddenDeath: ${suddenDeathActive}`,
+  );
 }
 
 function emitSuddenDeathStartedEvent(battleId: string): void {
-  const event = new CustomEvent('battle:sudden_death_started', {
+  const event = new CustomEvent("battle:sudden_death_started", {
     detail: {
       battleId,
       timestamp: new Date().toISOString(),
@@ -758,12 +709,12 @@ function emitSuddenDeathStartedEvent(battleId: string): void {
 function emitBattleClosedEvent(
   battleId: string,
   winnerId: string | null,
-  winnerSide: 'A' | 'B' | null,
+  winnerSide: "A" | "B" | null,
   isDraw: boolean,
   bothSongsWin: boolean,
-  hadSuddenDeath: boolean
+  hadSuddenDeath: boolean,
 ): void {
-  const event = new CustomEvent('battle:closed', {
+  const event = new CustomEvent("battle:closed", {
     detail: {
       battleId,
       winnerId,
@@ -782,9 +733,11 @@ async function updateStatistics(
   battleId: string,
   arenaId: string,
   winnerId: string | null,
-  bothSongsWin: boolean
+  bothSongsWin: boolean,
 ): Promise<void> {
-  console.log(`[Closure] Updating statistics for battle ${battleId} in arena ${arenaId}, bothSongsWin: ${bothSongsWin}`);
+  console.log(
+    `[Closure] Updating statistics for battle ${battleId} in arena ${arenaId}, bothSongsWin: ${bothSongsWin}`,
+  );
 }
 
 function cleanup(battleId: string): void {
@@ -806,9 +759,9 @@ export function isResolved(battleId: string): boolean {
   return state?.resolved ?? false;
 }
 
-export function getWinner(battleId: string): { 
-  winnerId: string | null; 
-  winnerSide: 'A' | 'B' | null; 
+export function getWinner(battleId: string): {
+  winnerId: string | null;
+  winnerSide: "A" | "B" | null;
   isDraw: boolean;
   bothSongsWin: boolean;
 } {
@@ -887,5 +840,3 @@ export function getSuddenDeathDurationMs(): number {
 export function getLockinOffsetMs(): number {
   return LOCKIN_OFFSET_MS;
 }
-
-
