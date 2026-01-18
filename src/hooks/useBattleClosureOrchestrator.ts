@@ -8,9 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export interface ClosureStateSnapshot {
   battleId: string | null;
-  // Lock-in state - derived from battles.locked_at
+  // Lock-in state - derived from battles.lockin_at
   isLockinReached: boolean;
-  lockedAt: string | null;
   // Sudden death - derived from battles.sudden_death_active
   suddenDeathActive: boolean;
   // Resolution - derived from battles.state === 'completed'
@@ -20,8 +19,8 @@ export interface ClosureStateSnapshot {
   winnerSide: "A" | "B" | null;
   // Draw state - derived from winner_song_id === null when resolved
   isDraw: boolean;
+  // MVP placeholder - always false
   bothSongsWin: boolean;
-  hadSuddenDeath: boolean;
   // Timing - derived from battles table
   battleStartAt: string | null;
   battleEndAt: string | null;
@@ -38,14 +37,12 @@ export interface UseBattleClosureOrchestratorReturn {
 const initialState: ClosureStateSnapshot = {
   battleId: null,
   isLockinReached: false,
-  lockedAt: null,
   suddenDeathActive: false,
   resolved: false,
   winnerId: null,
   winnerSide: null,
   isDraw: false,
   bothSongsWin: false,
-  hadSuddenDeath: false,
   battleStartAt: null,
   battleEndAt: null,
   lockinAt: null,
@@ -67,12 +64,9 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
       song_b_id,
       started_at,
       ended_at,
-      locked_at,
       lockin_at,
-      battle_end_at,
       sudden_death_active,
-      winner_song_id,
-      had_sudden_death
+      winner_song_id
     `,
     )
     .eq("id", battleId)
@@ -85,7 +79,6 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
 
   const resolved = battle.state === "completed";
   const isDraw = resolved && battle.winner_song_id === null;
-  const bothSongsWin = isDraw && battle.had_sudden_death;
 
   let winnerSide: "A" | "B" | null = null;
   if (battle.winner_song_id) {
@@ -98,17 +91,15 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
 
   return {
     battleId,
-    isLockinReached: battle.locked_at !== null,
-    lockedAt: battle.locked_at,
+    isLockinReached: battle.lockin_at !== null,
     suddenDeathActive: battle.sudden_death_active ?? false,
     resolved,
     winnerId: battle.winner_song_id,
     winnerSide,
     isDraw,
-    bothSongsWin,
-    hadSuddenDeath: battle.had_sudden_death ?? false,
+    bothSongsWin: false, // MVP placeholder
     battleStartAt: battle.started_at,
-    battleEndAt: battle.battle_end_at ?? battle.ended_at,
+    battleEndAt: battle.ended_at,
     lockinAt: battle.lockin_at,
   };
 }
