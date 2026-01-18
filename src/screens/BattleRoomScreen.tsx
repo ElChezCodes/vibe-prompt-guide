@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
+import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
+import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 
@@ -99,6 +101,12 @@ const BattleRoomScreen = () => {
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
+  const {
+    state: closureState,
+    syncFromBattle,
+    reset: resetClosure,
+  } = useBattleClosureOrchestrator();
+
   const handleVote = useCallback(
     async (side: "A" | "B") => {
       if (!battle || battle.state !== "active" || !participant || !arena) {
@@ -154,16 +162,41 @@ const BattleRoomScreen = () => {
   const arenaId = location.state?.arenaId as string | undefined;
   const roleIntent = location.state?.role_intent as "host" | "participant" | undefined;
 
-  // Reset vote state when battle changes
+  const {
+    hasJustResolved,
+    lastWinnerSide,
+    isDraw,
+    acknowledgeResult,
+  } = useArenaFlow(arenaId ?? "", closureState);
+
+  // Reset vote state and sync closure when battle changes
   useEffect(() => {
     if (battle?.id !== prevBattleIdRef.current) {
       if (prevBattleIdRef.current !== null) {
-        // Battle changed, reset vote state
         setVoteRecord(null);
+        resetClosure();
       }
+
       prevBattleIdRef.current = battle?.id ?? null;
+
+      if (battle?.id) {
+        syncFromBattle(battle.id);
+      }
     }
-  }, [battle?.id]);
+  }, [battle?.id, syncFromBattle, resetClosure]);
+
+  // Consume resolution result (UI-side only)
+  useEffect(() => {
+    if (!hasJustResolved) return;
+
+    console.log(
+      "[BattleRoomScreen] Battle resolved:",
+      isDraw ? "DRAW" : `Winner side ${lastWinnerSide}`,
+    );
+
+    // MVP behavior: acknowledge immediately
+    acknowledgeResult();
+  }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
