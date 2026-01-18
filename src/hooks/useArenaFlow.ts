@@ -12,6 +12,7 @@ export interface UseArenaFlowReturn {
   lastWinnerId: string | null;
   lastWinnerSide: "A" | "B" | null;
   isDraw: boolean;
+  acknowledgeResult: () => void;
 }
 
 export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot): UseArenaFlowReturn {
