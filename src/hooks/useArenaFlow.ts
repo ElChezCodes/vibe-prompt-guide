@@ -47,6 +47,9 @@ export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot
     setLastWinnerId(closureState.winnerId);
     setLastWinnerSide(closureState.winnerSide);
     setIsDraw(closureState.isDraw);
+    const acknowledgeResult = () => {
+      setHasJustResolved(false);
+    };
 
     // MVP placeholder: log post-battle consequences
     if (closureState.isDraw) {
