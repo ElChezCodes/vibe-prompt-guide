@@ -67,7 +67,7 @@ const getDerivedBattlePhase = (
   }
 
   // LOCK_IN: Backend says locked (locked_at is set)
-  if (battle.lockin_at !== null && battle.locked_at !== undefined) {
+  if (battle.lockin_at !== null && battle.lockin_at !== undefined) {
     return "LOCK_IN";
   }
 
