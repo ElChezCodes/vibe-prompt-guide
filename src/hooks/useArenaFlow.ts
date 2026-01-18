@@ -12,14 +12,12 @@ export interface UseArenaFlowReturn {
   lastWinnerId: string | null;
   lastWinnerSide: "A" | "B" | null;
   isDraw: boolean;
+  acknowledgeResult: () => void;
 }
 
-export function useArenaFlow(
-  arenaId: string,
-  closureState: ClosureStateSnapshot
-): UseArenaFlowReturn {
+export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot): UseArenaFlowReturn {
   const lastConsumedBattleIdRef = useRef<string | null>(null);
-  
+
   const [hasJustResolved, setHasJustResolved] = useState(false);
   const [lastWinnerId, setLastWinnerId] = useState<string | null>(null);
   const [lastWinnerSide, setLastWinnerSide] = useState<"A" | "B" | null>(null);
@@ -49,33 +47,31 @@ export function useArenaFlow(
     setLastWinnerId(closureState.winnerId);
     setLastWinnerSide(closureState.winnerSide);
     setIsDraw(closureState.isDraw);
+    const acknowledgeResult = () => {
+      setHasJustResolved(false);
+    };
 
     // MVP placeholder: log post-battle consequences
     if (closureState.isDraw) {
-      console.log(
-        `[ArenaFlow] Battle ${closureState.battleId} ended in a DRAW. Both songs tied.`
-      );
+      console.log(`[ArenaFlow] Battle ${closureState.battleId} ended in a DRAW. Both songs tied.`);
     } else if (closureState.winnerId) {
       console.log(
-        `[ArenaFlow] Battle ${closureState.battleId} resolved. Winner: Song ${closureState.winnerSide} (${closureState.winnerId}). Enqueue placeholder.`
+        `[ArenaFlow] Battle ${closureState.battleId} resolved. Winner: Song ${closureState.winnerSide} (${closureState.winnerId}). Enqueue placeholder.`,
       );
     }
-  }, [closureState.battleId, closureState.resolved, closureState.winnerId, closureState.winnerSide, closureState.isDraw]);
-
-  // Reset hasJustResolved after it's been observed
-  useEffect(() => {
-    if (hasJustResolved) {
-      const resetFlag = () => setHasJustResolved(false);
-      // Allow one render cycle for consumers to observe the flag
-      const frameId = requestAnimationFrame(resetFlag);
-      return () => cancelAnimationFrame(frameId);
-    }
-  }, [hasJustResolved]);
+  }, [
+    closureState.battleId,
+    closureState.resolved,
+    closureState.winnerId,
+    closureState.winnerSide,
+    closureState.isDraw,
+  ]);
 
   return {
     hasJustResolved,
     lastWinnerId,
     lastWinnerSide,
     isDraw,
+    acknowledgeResult,
   };
 }
