@@ -44,7 +44,7 @@ const getDerivedBattlePhase = (
   battle: {
     state: string;
     sudden_death_active?: boolean;
-    locked_at?: string | null;
+    lockin_at?: string | null;
     winner_song_id?: string | null;
   } | null,
   remainingTime: number,
@@ -67,7 +67,7 @@ const getDerivedBattlePhase = (
   }
 
   // LOCK_IN: Backend says locked (locked_at is set)
-  if (battle.locked_at !== null && battle.locked_at !== undefined) {
+  if (battle.lockin_at !== null && battle.locked_at !== undefined) {
     return "LOCK_IN";
   }
 
@@ -101,11 +101,7 @@ const BattleRoomScreen = () => {
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
-  const {
-    state: closureState,
-    syncFromBattle,
-    reset: resetClosure,
-  } = useBattleClosureOrchestrator();
+  const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -162,12 +158,7 @@ const BattleRoomScreen = () => {
   const arenaId = location.state?.arenaId as string | undefined;
   const roleIntent = location.state?.role_intent as "host" | "participant" | undefined;
 
-  const {
-    hasJustResolved,
-    lastWinnerSide,
-    isDraw,
-    acknowledgeResult,
-  } = useArenaFlow(arenaId ?? "", closureState);
+  const { hasJustResolved, lastWinnerSide, isDraw, acknowledgeResult } = useArenaFlow(arenaId ?? "", closureState);
 
   // Reset vote state and sync closure when battle changes
   useEffect(() => {
@@ -189,10 +180,7 @@ const BattleRoomScreen = () => {
   useEffect(() => {
     if (!hasJustResolved) return;
 
-    console.log(
-      "[BattleRoomScreen] Battle resolved:",
-      isDraw ? "DRAW" : `Winner side ${lastWinnerSide}`,
-    );
+    console.log("[BattleRoomScreen] Battle resolved:", isDraw ? "DRAW" : `Winner side ${lastWinnerSide}`);
 
     // MVP behavior: acknowledge immediately
     acknowledgeResult();
