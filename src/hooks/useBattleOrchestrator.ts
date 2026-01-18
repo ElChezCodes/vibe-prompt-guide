@@ -94,20 +94,20 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
     isTransitioningRef.current = true;
 
     // Transition to "closing" - backend will resolve to "completed"
-    const { error: updateError } = await supabase
-      .from("battles")
-      .update({
-        state: "closing",
-        ended_at: new Date().toISOString(),
-      })
-      .eq("id", battleId)
-      .eq("state", "active");
+    const { data: updatedBattle, error } = await supabase.rpc("end_battle", { p_battle_id: battleId });
 
-    if (updateError) {
-      console.error("[Orchestrator] Failed to end battle:", updateError);
+    if (error) {
+      console.error("[Orchestrator] Failed to end battle:", error);
       isTransitioningRef.current = false;
       return null;
     }
+
+    if (updatedBattle) {
+      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
+    }
+
+    isTransitioningRef.current = false;
+    return updatedBattle as BattleData | null;
 
     const { data: updatedBattle } = await supabase
       .from("battles")
