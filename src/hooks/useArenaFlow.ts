@@ -12,7 +12,6 @@ export interface UseArenaFlowReturn {
   lastWinnerId: string | null;
   lastWinnerSide: "A" | "B" | null;
   isDraw: boolean;
-  acknowledgeResult: () => void;
 }
 
 export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot): UseArenaFlowReturn {
@@ -47,9 +46,6 @@ export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot
     setLastWinnerId(closureState.winnerId);
     setLastWinnerSide(closureState.winnerSide);
     setIsDraw(closureState.isDraw);
-    const acknowledgeResult = () => {
-      setHasJustResolved(false);
-    };
 
     // MVP placeholder: log post-battle consequences
     if (closureState.isDraw) {
@@ -66,6 +62,16 @@ export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot
     closureState.winnerSide,
     closureState.isDraw,
   ]);
+
+  // Reset hasJustResolved after it's been observed
+  useEffect(() => {
+    if (hasJustResolved) {
+      const resetFlag = () => setHasJustResolved(false);
+      // Allow one render cycle for consumers to observe the flag
+      const frameId = requestAnimationFrame(resetFlag);
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [hasJustResolved]);
 
   return {
     hasJustResolved,
