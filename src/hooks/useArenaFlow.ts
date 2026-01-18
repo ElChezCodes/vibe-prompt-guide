@@ -23,6 +23,10 @@ export function useArenaFlow(arenaId: string, closureState: ClosureStateSnapshot
   const [lastWinnerSide, setLastWinnerSide] = useState<"A" | "B" | null>(null);
   const [isDraw, setIsDraw] = useState(false);
 
+  const acknowledgeResult = () => {
+    setHasJustResolved(false);
+  };
+
   useEffect(() => {
     // Guard: no battle to observe
     if (!closureState.battleId) {
