@@ -108,21 +108,6 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
 
     isTransitioningRef.current = false;
     return updatedBattle as BattleData | null;
-
-    const { data: updatedBattle } = await supabase
-      .from("battles")
-      .select(
-        "id, state, song_a_id, song_b_id, started_at, duration_ms, lockin_at, sudden_death_active, winner_song_id",
-      )
-      .eq("id", battleId)
-      .maybeSingle();
-
-    if (updatedBattle) {
-      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
-    }
-
-    isTransitioningRef.current = false;
-    return updatedBattle as BattleData | null;
   }, []);
 
   const createPendingBattle = useCallback(async (arenaId: string): Promise<BattleData | null> => {
