@@ -40,19 +40,22 @@ export async function createArena(name: string): Promise<Arena> {
   const normalizedName =
     trimmed.length > 0 ? trimmed : 'Test Arena';
 
+  const { data: arenaId, error: rpcError } = await supabase
+    .rpc('create_arena', { p_name: normalizedName, p_host_id: session.user.id });
+
+  if (rpcError) {
+    console.error('Failed to create arena:', rpcError.message, rpcError);
+    throw rpcError;
+  }
+
   const { data, error } = await supabase
     .from('arenas')
-    .insert({
-      name: normalizedName,
-      state: 'active',
-      mood: 'warmup',
-      host_id: session.user.id,
-    })
-    .select()
+    .select('*')
+    .eq('id', arenaId)
     .single();
 
   if (error) {
-    console.error('Failed to create arena:', error.message, error);
+    console.error('Failed to fetch arena:', error.message, error);
     throw error;
   }
 
