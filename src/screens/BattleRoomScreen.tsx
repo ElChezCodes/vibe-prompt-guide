@@ -230,7 +230,7 @@ const BattleRoomScreen = () => {
     });
 
     (async () => {
-      const { error } = await supabase.functions.invoke("finalize-battle", {
+      const { data, error } = await supabase.functions.invoke("finalize-battle", {
         body: {
           battle_id: battle.id,
         },
@@ -238,7 +238,8 @@ const BattleRoomScreen = () => {
 
       if (error) {
         console.error("[FINALIZE ERROR]", error);
-        hasFinalizedRef.current = false; // permite retry si falla
+      } else {
+        console.log("[FINALIZE OK]", data);
       }
     })();
   }, [remainingTime, battle?.id, battle?.state]);
