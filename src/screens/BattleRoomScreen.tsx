@@ -243,7 +243,7 @@ const BattleRoomScreen = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          "X-User-JWT": session.access_token, // 🔥 CLAVE
         },
         body: JSON.stringify({
           battle_id: battle.id,
