@@ -229,23 +229,27 @@ const BattleRoomScreen = () => {
       state: battle.state,
     });
 
-    fetch("https://uuxzjroikbzwaszpgiks.supabase.co/functions/v1/finalize-battle", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        battle_id: battle.id,
-      }),
-    })
-      .then(async (res) => {
-        const text = await res.text();
-        console.log("[FINALIZE TEST RESPONSE]", res.status, text);
-      })
-      .catch((err) => {
-        console.error("[FINALIZE TEST ERROR]", err);
-        hasFinalizedRef.current = false;
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        console.error("No session token available");
+        return;
+      }
+
+      fetch("https://uuxzjroikbzwaszpgiks.supabase.co/functions/v1/finalize-battle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          battle_id: battle.id,
+        }),
       });
+    })();
   }, [remainingTime, battle?.id, battle?.state]);
 
   useEffect(() => {
