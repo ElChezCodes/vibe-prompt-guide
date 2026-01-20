@@ -214,18 +214,22 @@ const BattleRoomScreen = () => {
     };
   }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
 
-  // 🔒 Trigger backend-authoritative battle finalization when timer reaches 0
+  // 🧪 FINALIZE — backend-authoritative battle closure (TEMP TEST)
   useEffect(() => {
     if (!battle) return;
-    if (battle.state !== "active" && battle.state !== "closing") return;
+    if (battle.state !== "active") return;
     if (remainingTime > 0) return;
     if (hasFinalizedRef.current) return;
 
     hasFinalizedRef.current = true;
 
-    console.log("[BattleRoomScreen] Timer reached 0, calling finalize-battle for battle", battle.id);
+    console.log("[FINALIZE TEST] calling finalize-battle", {
+      battleId: battle.id,
+      remainingTime,
+      state: battle.state,
+    });
 
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-battle`, {
+    fetch("https://uuxzjroikbzwaszpgiks.supabase.co/functions/v1/finalize-battle", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -233,11 +237,15 @@ const BattleRoomScreen = () => {
       body: JSON.stringify({
         battle_id: battle.id,
       }),
-    }).catch((err) => {
-      console.error("[BattleRoomScreen] finalize-battle failed", err);
-      // allow retry if something transient fails
-      hasFinalizedRef.current = false;
-    });
+    })
+      .then(async (res) => {
+        const text = await res.text();
+        console.log("[FINALIZE TEST RESPONSE]", res.status, text);
+      })
+      .catch((err) => {
+        console.error("[FINALIZE TEST ERROR]", err);
+        hasFinalizedRef.current = false;
+      });
   }, [remainingTime, battle?.id, battle?.state]);
 
   useEffect(() => {
