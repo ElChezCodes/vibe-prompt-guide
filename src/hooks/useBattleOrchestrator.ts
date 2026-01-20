@@ -89,25 +89,22 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
     return updatedBattle as BattleData | null;
   }, []);
 
-  const endBattle = useCallback(async (battleId: string): Promise<BattleData | null> => {
-    if (isTransitioningRef.current || isStoppedRef.current) return null;
-    isTransitioningRef.current = true;
-
-    // Transition to "closing" - backend will resolve to "completed"
-    const { data: updatedBattle, error } = await supabase.rpc("end_battle", { p_battle_id: battleId });
-
-    if (error) {
-      console.error("[Orchestrator] Failed to end battle:", error);
-      isTransitioningRef.current = false;
-      return null;
-    }
-
-    if (updatedBattle) {
-      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
-    }
-
-    isTransitioningRef.current = false;
-    return updatedBattle as BattleData | null;
+  const endBattle = useCallback(async (_battleId: string): Promise<BattleData | null> => {
+    // DISABLED: Frontend no longer ends battles. Backend-authoritative lifecycle pending.
+    // if (isTransitioningRef.current || isStoppedRef.current) return null;
+    // isTransitioningRef.current = true;
+    // const { data: updatedBattle, error } = await supabase.rpc("end_battle", { p_battle_id: battleId });
+    // if (error) {
+    //   console.error("[Orchestrator] Failed to end battle:", error);
+    //   isTransitioningRef.current = false;
+    //   return null;
+    // }
+    // if (updatedBattle) {
+    //   setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
+    // }
+    // isTransitioningRef.current = false;
+    // return updatedBattle as BattleData | null;
+    return null;
   }, []);
 
   const createPendingBattle = useCallback(async (arenaId: string): Promise<BattleData | null> => {
@@ -137,20 +134,22 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   }, []);
 
   const scheduleEnd = useCallback(
-    (battleId: string, continueLoop: (id: string) => void) => {
-      clearTimer();
-      timerRef.current = setTimeout(() => {
-        continueLoop(battleId);
-      }, BATTLE_DURATION_MS);
+    (_battleId: string, _continueLoop: (id: string) => void) => {
+      // DISABLED: Frontend no longer schedules battle end. Backend-authoritative lifecycle pending.
+      // clearTimer();
+      // timerRef.current = setTimeout(() => {
+      //   continueLoop(battleId);
+      // }, BATTLE_DURATION_MS);
     },
-    [clearTimer],
+    [],
   );
 
   const continueLoop = useCallback(
-    async (endingBattleId: string) => {
+    async (_endingBattleId: string) => {
       if (isStoppedRef.current || !arenaIdRef.current) return;
 
-      await endBattle(endingBattleId);
+      // DISABLED: Frontend no longer ends battles. Backend-authoritative lifecycle pending.
+      // await endBattle(endingBattleId);
 
       if (isStoppedRef.current) return;
 
