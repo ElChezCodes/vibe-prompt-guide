@@ -98,6 +98,7 @@ const BattleRoomScreen = () => {
   const [remainingTime, setRemainingTime] = useState<number>(0);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
+  const hasFinalizedRef = useRef(false);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
@@ -163,6 +164,8 @@ const BattleRoomScreen = () => {
   // Reset vote state and sync closure when battle changes
   useEffect(() => {
     if (battle?.id !== prevBattleIdRef.current) {
+      hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
+
       if (prevBattleIdRef.current !== null) {
         setVoteRecord(null);
         resetClosure();
@@ -210,6 +213,32 @@ const BattleRoomScreen = () => {
       clearInterval(interval);
     };
   }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
+
+  // 🔒 Trigger backend-authoritative battle finalization when timer reaches 0
+  useEffect(() => {
+    if (!battle) return;
+    if (battle.state !== "active" && battle.state !== "closing") return;
+    if (remainingTime > 0) return;
+    if (hasFinalizedRef.current) return;
+
+    hasFinalizedRef.current = true;
+
+    console.log("[BattleRoomScreen] Timer reached 0, calling finalize-battle for battle", battle.id);
+
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-battle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        battle_id: battle.id,
+      }),
+    }).catch((err) => {
+      console.error("[BattleRoomScreen] finalize-battle failed", err);
+      // allow retry if something transient fails
+      hasFinalizedRef.current = false;
+    });
+  }, [remainingTime, battle?.id, battle?.state]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
