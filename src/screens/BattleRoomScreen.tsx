@@ -223,23 +223,32 @@ const BattleRoomScreen = () => {
 
     hasFinalizedRef.current = true;
 
-    console.log("[FINALIZE TEST] invoking finalize-battle", {
+    console.log("[FINALIZE TEST] calling finalize-battle", {
       battleId: battle.id,
       remainingTime,
       state: battle.state,
     });
 
     (async () => {
-      const { error } = await supabase.functions.invoke("finalize-battle", {
-        body: {
-          battle_id: battle.id,
-        },
-      });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error("[FINALIZE ERROR]", error);
-        hasFinalizedRef.current = false; // permite retry si falla
+      if (!session?.access_token) {
+        console.error("No session token available");
+        return;
       }
+
+      fetch("https://uuxzjroikbzwaszpgiks.supabase.co/functions/v1/finalize-battle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-JWT": session.access_token, // 🔥 CLAVE
+        },
+        body: JSON.stringify({
+          battle_id: battle.id,
+        }),
+      });
     })();
   }, [remainingTime, battle?.id, battle?.state]);
 
