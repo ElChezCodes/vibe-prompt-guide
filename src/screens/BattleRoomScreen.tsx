@@ -214,36 +214,6 @@ const BattleRoomScreen = () => {
     };
   }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
 
-  // 🧪 FINALIZE — backend-authoritative battle closure (TEMP TEST)
-  useEffect(() => {
-    if (!battle) return;
-    if (battle.state !== "active") return;
-    if (remainingTime > 0) return;
-    if (hasFinalizedRef.current) return;
-
-    hasFinalizedRef.current = true;
-
-    console.log("[FINALIZE TEST] invoking finalize-battle", {
-      battleId: battle.id,
-      remainingTime,
-      state: battle.state,
-    });
-
-    (async () => {
-      const { data, error } = await supabase.functions.invoke("finalize-battle", {
-        body: {
-          battle_id: battle.id,
-        },
-      });
-
-      if (error) {
-        console.error("[FINALIZE ERROR]", error);
-      } else {
-        console.log("[FINALIZE OK]", data);
-      }
-    })();
-  }, [remainingTime, battle?.id, battle?.state]);
-
   useEffect(() => {
     const loadBattleRoom = async () => {
       try {
