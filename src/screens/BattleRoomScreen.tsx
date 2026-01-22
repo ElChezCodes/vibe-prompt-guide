@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
+import { useBattleEndedTrigger } from "@/hooks/useBattleEndedTrigger";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
@@ -103,6 +104,9 @@ const BattleRoomScreen = () => {
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
+
+  // Trigger backend finalization when battle enters completed state
+  useBattleEndedTrigger(battle?.id ?? null, (battle?.state ?? "pending") as "pending" | "active" | "closing" | "completed");
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
