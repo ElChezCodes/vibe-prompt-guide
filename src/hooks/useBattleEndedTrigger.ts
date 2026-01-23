@@ -29,7 +29,12 @@ export function useBattleEndedTrigger(battleId: string | null, derivedPhase: Bat
 
     triggeredRef.current = battleId;
 
-    console.debug("[useBattleEndedTrigger] Triggering battle-ended", battleId);
+    // 🔍 OBSERVABILIDAD MÍNIMA (NO CAMBIA LÓGICA)
+    console.log("[battle-ended trigger]", {
+      battleId,
+      derivedPhase,
+      now: Date.now(),
+    });
 
     const triggerBattleEnded = async () => {
       try {
