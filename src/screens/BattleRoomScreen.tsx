@@ -106,7 +106,7 @@ const BattleRoomScreen = () => {
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
   // Trigger backend finalization when battle enters completed state
-  useBattleEndedTrigger(battle?.id ?? null, battle?.state === "active" ? "completed" : "active");
+  useBattleEndedTrigger(battle?.id ?? null, remainingTime === 0 ? "completed" : "active");
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
