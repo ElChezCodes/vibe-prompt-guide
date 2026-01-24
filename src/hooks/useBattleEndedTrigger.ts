@@ -29,6 +29,10 @@ export function useBattleEndedTrigger(battleId: string | null, derivedPhase: Bat
 
     triggeredRef.current = battleId;
 
+    setTimeout(() => {
+      triggeredRef.current = null;
+    }, 2000); // retry window
+
     // 🔍 OBSERVABILIDAD MÍNIMA (NO CAMBIA LÓGICA)
     console.log("[battle-ended trigger]", {
       battleId,
