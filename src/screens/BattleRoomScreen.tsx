@@ -105,9 +105,6 @@ const BattleRoomScreen = () => {
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
-  // Trigger backend finalization when battle enters completed state
-  useBattleEndedTrigger(battle?.id ?? null, derivedPhase === "FINISHED" ? "completed" : "active");
-
   const handleVote = useCallback(
     async (side: "A" | "B") => {
       if (!battle || battle.state !== "active" || !participant || !arena) {
@@ -304,6 +301,9 @@ const BattleRoomScreen = () => {
   }
 
   const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
+
+  // Trigger backend finalization when battle enters completed state
+  useBattleEndedTrigger(battle?.id ?? null, derivedPhase === "FINISHED" ? "completed" : "active");
 
   // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
   const isVotingEnabled =
