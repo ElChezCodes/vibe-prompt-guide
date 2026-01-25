@@ -170,8 +170,6 @@ const BattleRoomScreen = () => {
     if (battle?.id !== prevBattleIdRef.current) {
       hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
 
-      setRemainingTime(0); // 🔑 reset temporal entre battles
-
       if (prevBattleIdRef.current !== null) {
         setVoteRecord(null);
         resetClosure();
