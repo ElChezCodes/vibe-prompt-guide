@@ -302,8 +302,8 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
 
-  // Trigger backend finalization when battle enters completed state
-  useBattleEndedTrigger(battle?.id ?? null, derivedPhase === "FINISHED" ? "completed" : "active");
+  // Trigger backend finalization (frontend SOLO envía señal, backend decide)
+  useBattleEndedTrigger(battle?.id ?? null, "active");
 
   // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
   const isVotingEnabled =
