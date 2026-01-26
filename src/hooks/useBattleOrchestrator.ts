@@ -54,12 +54,26 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   }, []);
 
   const startBattle = useCallback(async (battleId: string): Promise<BattleData | null> => {
-    // BACKEND-AUTHORITATIVE: Frontend no longer writes state, started_at, or duration_ms.
-    // This function now only fetches and observes the current battle state.
     if (isTransitioningRef.current || isStoppedRef.current) return null;
     isTransitioningRef.current = true;
 
-    const { data: battle, error } = await supabase
+    const { error: updateError } = await supabase
+      .from("battles")
+      .update({
+        state: "active",
+        started_at: new Date().toISOString(),
+        duration_ms: BATTLE_DURATION_MS,
+      })
+      .eq("id", battleId)
+      .eq("state", "pending");
+
+    if (updateError) {
+      console.error("[Orchestrator] Failed to start battle:", updateError);
+      isTransitioningRef.current = false;
+      return null;
+    }
+
+    const { data: updatedBattle } = await supabase
       .from("battles")
       .select(
         "id, state, song_a_id, song_b_id, started_at, duration_ms, lockin_at, sudden_death_active, winner_song_id",
@@ -67,18 +81,12 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       .eq("id", battleId)
       .maybeSingle();
 
-    if (error) {
-      console.error("[Orchestrator] Failed to fetch battle:", error);
-      isTransitioningRef.current = false;
-      return null;
-    }
-
-    if (battle) {
-      setState((prev) => ({ ...prev, battle: battle as BattleData }));
+    if (updatedBattle) {
+      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
     }
 
     isTransitioningRef.current = false;
-    return battle as BattleData | null;
+    return updatedBattle as BattleData | null;
   }, []);
 
   const endBattle = useCallback(async (_battleId: string): Promise<BattleData | null> => {
