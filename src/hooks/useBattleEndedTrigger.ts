@@ -1,51 +1,48 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-type BattlePhase = "pending" | "active" | "closing" | "completed";
+/**
+ * Triggers the backend battle-ended signal.
+ *
+ * IMPORTANT:
+ * - This hook DOES NOT decide battle resolution.
+ * - It only emits a single signal when the local clock reaches zero.
+ * - Backend remains the sole authority.
+ */
 
-export function useBattleEndedTrigger(battleId: string | null, derivedPhase: BattlePhase): void {
-  const triggeredRef = useRef<string | null>(null);
+export function useBattleEndedTrigger(battleId: string | null, remainingSeconds: number): void {
+  const hasTriggeredRef = useRef<string | null>(null);
 
-  // ─────────────────────────────────────────────
-  // Reset trigger when leaving completed phase
-  // ─────────────────────────────────────────────
   useEffect(() => {
-    if (derivedPhase !== "completed") {
-      triggeredRef.current = null;
-    }
-  }, [derivedPhase]);
-
-  // ─────────────────────────────────────────────
-  // Trigger battle-ended when completed
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    if (derivedPhase !== "completed" || !battleId) {
+    if (!battleId) {
+      hasTriggeredRef.current = null;
       return;
     }
 
-    if (triggeredRef.current === battleId) {
+    // Only trigger when local clock reaches zero
+    if (remainingSeconds > 0) {
       return;
     }
 
-    triggeredRef.current = battleId;
+    // Prevent duplicate triggers for same battle
+    if (hasTriggeredRef.current === battleId) {
+      return;
+    }
 
-    setTimeout(() => {
-      triggeredRef.current = null;
-    }, 2000); // retry window
+    hasTriggeredRef.current = battleId;
 
-    // 🔍 OBSERVABILIDAD MÍNIMA (NO CAMBIA LÓGICA)
-    console.log("[battle-ended trigger]", {
+    console.log("[battle-ended trigger] sending signal", {
       battleId,
-      derivedPhase,
+      remainingSeconds,
       now: Date.now(),
     });
 
     const triggerBattleEnded = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
+        const { data } = await supabase.auth.getSession();
+        const accessToken = data?.session?.access_token;
 
-        const response = await fetch(
+        await fetch(
           `${
             import.meta.env.VITE_SUPABASE_URL ?? "https://uuxzjroikbzwaszpgiks.supabase.co"
           }/functions/v1/battle-ended`,
@@ -60,17 +57,11 @@ export function useBattleEndedTrigger(battleId: string | null, derivedPhase: Bat
             body: JSON.stringify({ battle_id: battleId }),
           },
         );
-
-        if (response.status === 200 || response.status === 409) {
-          return;
-        }
-
-        console.warn("[useBattleEndedTrigger] Unexpected response status:", response.status);
       } catch (error) {
-        console.warn("[useBattleEndedTrigger] Request failed:", error);
+        console.warn("[useBattleEndedTrigger] request failed", error);
       }
     };
 
     triggerBattleEnded();
-  }, [battleId, derivedPhase]);
+  }, [battleId, remainingSeconds]);
 }
