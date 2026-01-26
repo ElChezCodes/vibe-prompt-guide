@@ -84,7 +84,7 @@ const BattleRoomScreen = () => {
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
   // Backend-authoritative trigger (no time-based logic)
-  useBattleEndedTrigger(battle?.id ?? null, battle?.state ?? "pending");
+  useBattleEndedTrigger(battle?.id ?? null, remainingTime);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
