@@ -2,28 +2,29 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Backend-authoritative battle closure state.
- * All fields are derived EXCLUSIVELY from the battles table.
- * The frontend NEVER computes vote counts, winners, or ties.
+ * Backend-authoritative battle closure snapshot.
+ * ALL fields are derived exclusively from the battles table.
+ * The frontend NEVER computes votes, winners, or timing decisions.
  */
+
 export interface ClosureStateSnapshot {
   battleId: string | null;
-  // Lock-in state - derived from battles.lockin_at
+
+  // Derived from battles.state
   isLockinReached: boolean;
-  // Sudden death - derived from battles.sudden_death_active
   suddenDeathActive: boolean;
-  // Resolution - derived from battles.state === 'completed'
   resolved: boolean;
-  // Winner - derived from battles.winner_song_id
+
+  // Derived from battles.winner_song_id
   winnerId: string | null;
   winnerSide: "A" | "B" | null;
-  // Draw state - derived from winner_song_id === null when resolved
   isDraw: boolean;
-  // MVP placeholder - always false
+
+  // MVP placeholder (future FASE 9)
   bothSongsWin: boolean;
-  // Timing - derived from battles table
+
+  // Informational only
   battleStartAt: string | null;
-  battleEndAt: string | null;
   lockinAt: string | null;
 }
 
@@ -44,14 +45,12 @@ const initialState: ClosureStateSnapshot = {
   isDraw: false,
   bothSongsWin: false,
   battleStartAt: null,
-  battleEndAt: null,
   lockinAt: null,
 };
 
 /**
- * Derives a pure snapshot from the battles table.
- * NO local vote counting. NO local resolution logic.
- * The backend is the SINGLE source of truth.
+ * Fetches a backend-authoritative snapshot of battle closure state.
+ * NO local logic. NO vote counting. NO timing assumptions.
  */
 async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapshot> {
   const { data: battle, error } = await supabase
@@ -63,21 +62,23 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
       song_a_id,
       song_b_id,
       started_at,
-      ended_at,
       lockin_at,
       sudden_death_active,
       winner_song_id
-    `,
+      `,
     )
     .eq("id", battleId)
     .single();
 
   if (error || !battle) {
-    console.error("[ClosureOrchestrator] Failed to fetch battle:", error);
+    console.error("[ClosureOrchestrator] Failed to fetch battle", error);
     return { ...initialState, battleId };
   }
 
   const resolved = battle.state === "completed";
+  const isLockinReached = battle.state === "closing";
+  const suddenDeathActive = battle.state === "closing" && battle.sudden_death_active === true;
+
   const isDraw = resolved && battle.winner_song_id === null;
 
   let winnerSide: "A" | "B" | null = null;
@@ -91,15 +92,14 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
 
   return {
     battleId,
-    isLockinReached: battle.lockin_at !== null,
-    suddenDeathActive: battle.sudden_death_active ?? false,
+    isLockinReached,
+    suddenDeathActive,
     resolved,
     winnerId: battle.winner_song_id,
     winnerSide,
     isDraw,
-    bothSongsWin: false, // MVP placeholder
+    bothSongsWin: false, // FASE 9
     battleStartAt: battle.started_at,
-    battleEndAt: battle.ended_at,
     lockinAt: battle.lockin_at,
   };
 }
@@ -107,20 +107,16 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
 /**
  * Backend-authoritative battle closure hook.
  *
- * This hook is a PURE OBSERVER of backend state.
- * It NEVER:
- * - Computes vote counts
- * - Determines winners
- * - Detects ties
- * - Activates sudden death
- * - Ends battles based on timers
+ * PURE OBSERVER:
+ * - No timers
+ * - No vote logic
+ * - No resolution logic
  *
- * All resolution logic is handled by backend functions:
- * - resolve_lockin_and_activate_sd(battle_id)
- * - resolve_battle_after_sudden_death(battle_id)
+ * Reacts only to backend state changes.
  */
 export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorReturn {
   const [state, setState] = useState<ClosureStateSnapshot>(initialState);
+
   const battleIdRef = useRef<string | null>(null);
 
   const refreshState = useCallback(async () => {
@@ -128,6 +124,7 @@ export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorRetu
       setState(initialState);
       return;
     }
+
     const snapshot = await fetchBattleSnapshot(battleIdRef.current);
     setState(snapshot);
   }, []);
@@ -143,37 +140,26 @@ export function useBattleClosureOrchestrator(): UseBattleClosureOrchestratorRetu
     setState(initialState);
   }, []);
 
-  // Listen for backend-driven events and refresh state
+  /**
+   * Listen to backend-driven events and refresh snapshot.
+   * Events are emitted by BattleClosureOrchestrator helpers.
+   */
   useEffect(() => {
-    const handleBattleClosed = (event: CustomEvent) => {
-      const { battleId } = event.detail;
+    const handleRefresh = (event: CustomEvent) => {
+      const { battleId } = event.detail ?? {};
       if (battleId === battleIdRef.current) {
         refreshState();
       }
     };
 
-    const handleLockinReachedEvent = (event: CustomEvent) => {
-      const { battleId } = event.detail;
-      if (battleId === battleIdRef.current) {
-        refreshState();
-      }
-    };
-
-    const handleSuddenDeathStarted = (event: CustomEvent) => {
-      const { battleId } = event.detail;
-      if (battleId === battleIdRef.current) {
-        refreshState();
-      }
-    };
-
-    window.addEventListener("battle:closed", handleBattleClosed as EventListener);
-    window.addEventListener("battle:lockin_reached", handleLockinReachedEvent as EventListener);
-    window.addEventListener("battle:sudden_death_started", handleSuddenDeathStarted as EventListener);
+    window.addEventListener("battle:closed", handleRefresh as EventListener);
+    window.addEventListener("battle:lockin_reached", handleRefresh as EventListener);
+    window.addEventListener("battle:sudden_death_started", handleRefresh as EventListener);
 
     return () => {
-      window.removeEventListener("battle:closed", handleBattleClosed as EventListener);
-      window.removeEventListener("battle:lockin_reached", handleLockinReachedEvent as EventListener);
-      window.removeEventListener("battle:sudden_death_started", handleSuddenDeathStarted as EventListener);
+      window.removeEventListener("battle:closed", handleRefresh as EventListener);
+      window.removeEventListener("battle:lockin_reached", handleRefresh as EventListener);
+      window.removeEventListener("battle:sudden_death_started", handleRefresh as EventListener);
     };
   }, [refreshState]);
 
