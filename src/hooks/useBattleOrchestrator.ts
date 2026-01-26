@@ -30,23 +30,18 @@ interface UseBattleOrchestratorReturn {
 }
 
 /**
- * Battle Orchestrator (Frontend) - OBSERVER ONLY
+ * Battle Orchestrator (Frontend)
  *
- * RESPONSIBILITY:
- * - Bootstrap: create a pending battle if none exists (MVP)
- * - Fetch: retrieve existing non-completed battles
- * - Expose: provide current battle state to UI components
+ * RESPONSIBILITY (MVP):
+ * - Ensure there is a battle to observe
+ * - Create pending battle if none exists
+ * - Observe backend state changes
  *
- * EXPLICITLY DOES NOT (Backend-Authoritative):
- * - Finalize or resolve battles
- * - Determine lock-in state
- * - Trigger sudden death
- * - Compute winners or vote counts
- * - Manage battle timers
- * - Transition battle state (pending → active → closing → completed)
- *
- * All lifecycle transitions are handled by the backend.
- * The frontend is a passive observer of backend state.
+ * DOES NOT:
+ * - Start battles
+ * - End battles
+ * - Manage timers
+ * - Change battle state
  */
 export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   const [state, setState] = useState<OrchestratorState>({
