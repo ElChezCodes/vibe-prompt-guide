@@ -1,23 +1,12 @@
 /**
  * Battle Closure Orchestrator - Backend-Authoritative Design
- * 
- * This module provides DISPLAY-ONLY utilities for the frontend.
- * All battle lifecycle decisions are made by the backend:
- * - Lock-in activation
- * - Sudden death activation
+ *
+ * DISPLAY-ONLY utilities for the frontend.
+ * Backend is the single source of truth for:
+ * - Lock-in
+ * - Sudden death
  * - Winner determination
  * - Battle resolution
- * 
- * Backend functions (source of truth):
- * - resolve_lockin_and_activate_sd(battle_id)
- * - resolve_battle_after_sudden_death(battle_id)
- * 
- * The frontend MUST NOT:
- * - Compute vote counts for resolution
- * - Determine winners
- * - Detect ties
- * - Activate sudden death
- * - End battles based on local timers
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -31,10 +20,7 @@ export interface BattleData {
   song_b_id: string;
   state: BattleState;
   started_at: string | null;
-  ended_at: string | null;
-  locked_at: string | null;
   lockin_at: string | null;
-  battle_end_at: string | null;
   sudden_death_active: boolean;
   winner_song_id: string | null;
   had_sudden_death: boolean;
@@ -49,13 +35,25 @@ export async function fetchBattle(battleId: string): Promise<BattleData | null> 
   const { data, error } = await supabase
     .from("battles")
     .select(
-      "id, arena_id, song_a_id, song_b_id, state, started_at, ended_at, locked_at, lockin_at, battle_end_at, sudden_death_active, winner_song_id, had_sudden_death, is_special_battle",
+      `
+      id,
+      arena_id,
+      song_a_id,
+      song_b_id,
+      state,
+      started_at,
+      lockin_at,
+      sudden_death_active,
+      winner_song_id,
+      had_sudden_death,
+      is_special_battle
+      `,
     )
     .eq("id", battleId)
     .single();
 
   if (error || !data) {
-    console.error("Failed to fetch battle:", error);
+    console.error("[Closure] Failed to fetch battle", error);
     return null;
   }
 
@@ -64,28 +62,25 @@ export async function fetchBattle(battleId: string): Promise<BattleData | null> 
 
 /**
  * Derives the voting phase from backend battle state.
- * NO local computation - purely reactive to backend fields.
+ * PURELY reactive — no local computation.
  */
-export function deriveVotingPhaseFromBattle(battle: BattleData): 'active' | 'locked' | 'sudden_death' | 'closed' {
-  if (battle.state === 'completed' || battle.state === 'closing') {
-    return 'closed';
+export function deriveVotingPhaseFromBattle(battle: BattleData): "active" | "locked" | "sudden_death" | "closed" {
+  if (battle.state === "completed") {
+    return "closed";
   }
 
-  if (battle.state !== 'active') {
-    return 'closed';
+  if (battle.state === "closing") {
+    if (battle.sudden_death_active) {
+      return "sudden_death";
+    }
+    return "locked";
   }
 
-  // Backend-authoritative: sudden_death_active takes precedence
-  if (battle.sudden_death_active) {
-    return 'sudden_death';
+  if (battle.state !== "active") {
+    return "closed";
   }
 
-  // Backend-authoritative: locked_at indicates lock-in reached
-  if (battle.locked_at !== null) {
-    return 'locked';
-  }
-
-  return 'active';
+  return "active";
 }
 
 /**
@@ -93,15 +88,15 @@ export function deriveVotingPhaseFromBattle(battle: BattleData): 'active' | 'loc
  * Derived ONLY from backend state.
  */
 export function isSuddenDeathActiveFromBattle(battle: BattleData): boolean {
-  return battle.sudden_death_active === true;
+  return battle.state === "closing" && battle.sudden_death_active === true;
 }
 
 /**
- * Checks if the battle is locked (voting frozen for regular votes).
+ * Checks if the battle is locked (regular voting frozen).
  * Derived ONLY from backend state.
  */
 export function isLockedFromBattle(battle: BattleData): boolean {
-  return battle.locked_at !== null;
+  return battle.state === "closing";
 }
 
 /**
@@ -109,7 +104,7 @@ export function isLockedFromBattle(battle: BattleData): boolean {
  * Derived ONLY from backend state.
  */
 export function isResolvedFromBattle(battle: BattleData): boolean {
-  return battle.state === 'completed';
+  return battle.state === "completed";
 }
 
 /**
@@ -118,23 +113,29 @@ export function isResolvedFromBattle(battle: BattleData): boolean {
  */
 export function getWinnerFromBattle(battle: BattleData): {
   winnerId: string | null;
-  winnerSide: 'A' | 'B' | null;
+  winnerSide: "A" | "B" | null;
   isDraw: boolean;
   bothSongsWin: boolean;
 } {
-  if (battle.state !== 'completed') {
-    return { winnerId: null, winnerSide: null, isDraw: false, bothSongsWin: false };
+  if (battle.state !== "completed") {
+    return {
+      winnerId: null,
+      winnerSide: null,
+      isDraw: false,
+      bothSongsWin: false,
+    };
   }
 
   const isDraw = battle.winner_song_id === null;
   const bothSongsWin = isDraw && battle.had_sudden_death;
 
-  let winnerSide: 'A' | 'B' | null = null;
+  let winnerSide: "A" | "B" | null = null;
+
   if (battle.winner_song_id) {
     if (battle.winner_song_id === battle.song_a_id) {
-      winnerSide = 'A';
+      winnerSide = "A";
     } else if (battle.winner_song_id === battle.song_b_id) {
-      winnerSide = 'B';
+      winnerSide = "B";
     }
   }
 
@@ -148,7 +149,7 @@ export function getWinnerFromBattle(battle: BattleData): {
 
 /**
  * Emits a custom event when backend signals battle closure.
- * This is triggered by realtime subscriptions or polling.
+ * Triggered by realtime subscriptions or polling.
  */
 export function emitBattleClosedEvent(
   battleId: string,
@@ -169,8 +170,9 @@ export function emitBattleClosedEvent(
       timestamp: new Date().toISOString(),
     },
   });
+
   window.dispatchEvent(event);
-  console.log(`[Closure] Emitted battle:closed event for battle ${battleId}`);
+  console.log(`[Closure] Emitted battle:closed for battle ${battleId}`);
 }
 
 /**
@@ -184,10 +186,9 @@ export function emitLockinReachedEvent(battleId: string, suddenDeathActive: bool
       timestamp: new Date().toISOString(),
     },
   });
+
   window.dispatchEvent(event);
-  console.log(
-    `[Closure] Emitted battle:lockin_reached event for battle ${battleId}, suddenDeath: ${suddenDeathActive}`,
-  );
+  console.log(`[Closure] Emitted battle:lockin_reached for battle ${battleId}, suddenDeath=${suddenDeathActive}`);
 }
 
 /**
@@ -200,13 +201,14 @@ export function emitSuddenDeathStartedEvent(battleId: string): void {
       timestamp: new Date().toISOString(),
     },
   });
+
   window.dispatchEvent(event);
-  console.log(`[Closure] Emitted battle:sudden_death_started event for battle ${battleId}`);
+  console.log(`[Closure] Emitted battle:sudden_death_started for battle ${battleId}`);
 }
 
-// Constants for display purposes only
-const SUDDEN_DEATH_DURATION_MS = 15000;
-const LOCKIN_OFFSET_MS = 15000;
+// DISPLAY-ONLY constants
+const SUDDEN_DEATH_DURATION_MS = 15_000;
+const LOCKIN_OFFSET_MS = 15_000;
 
 export function getSuddenDeathDurationMs(): number {
   return SUDDEN_DEATH_DURATION_MS;
