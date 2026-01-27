@@ -106,8 +106,8 @@ const BattleRoomScreen = () => {
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
-  // Trigger backend finalization when battle has confirmed lock-in
-  useBattleEndedTrigger(battle ?? null);
+  // Trigger backend finalization when battle enters completed state
+  useBattleEndedTrigger(battle?.id ?? null, remainingTime);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
