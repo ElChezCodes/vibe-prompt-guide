@@ -1,52 +1,60 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+interface BattleForEndedTrigger {
+  id: string;
+  state: string;
+  lockin_at?: string | null;
+}
+
 /**
  * useBattleEndedTrigger
  *
- * A neutral signal emitter that wakes up the backend when battle time is exhausted.
- * This hook does NOT decide if a battle is "completed" — it only signals
- * the backend to check if it can finalize the battle.
+ * A backend-authoritative signal emitter that wakes up the backend
+ * ONLY when the battle has confirmed lock-in (via backend state).
+ *
+ * Triggers when:
+ * - battle.state === "closing" OR battle.lockin_at !== null
+ *
+ * Does NOT trigger based on:
+ * - remainingTime
+ * - Frontend-derived phases
+ * - Timer simulations
  *
  * Backend-authoritative: The Edge Function decides the actual outcome.
  */
-export function useBattleEndedTrigger(battleId: string | null, remainingTime: number): void {
+export function useBattleEndedTrigger(battle: BattleForEndedTrigger | null): void {
   const triggeredRef = useRef<string | null>(null);
 
   // ─────────────────────────────────────────────
-  // Reset trigger when battle changes or time is restored
+  // Signal backend when lock-in has been confirmed by backend
   // ─────────────────────────────────────────────
   useEffect(() => {
-    if (remainingTime > 0) {
-      triggeredRef.current = null;
+    if (!battle) {
+      return;
     }
-  }, [remainingTime]);
 
-  // ─────────────────────────────────────────────
-  // Signal backend when time is exhausted
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    // Only signal when time has run out
-    if (remainingTime > 0 || !battleId) {
+    // ONLY trigger when backend has confirmed lock-in:
+    // - battle.state === "closing" (backend transitioned to closing)
+    // - OR battle.lockin_at is set (backend wrote lock-in timestamp)
+    const isLockinConfirmed = battle.state === "closing" || (battle.lockin_at !== null && battle.lockin_at !== undefined);
+
+    if (!isLockinConfirmed) {
       return;
     }
 
     // Idempotency: don't signal twice for the same battle
-    if (triggeredRef.current === battleId) {
+    if (triggeredRef.current === battle.id) {
       return;
     }
 
-    triggeredRef.current = battleId;
+    triggeredRef.current = battle.id;
 
-    // Allow retry after a short window (in case backend was temporarily unavailable)
-    setTimeout(() => {
-      triggeredRef.current = null;
-    }, 2000);
-
-    // 🔍 Observability (neutral signal, not a state assertion)
+    // 🔍 Observability (neutral signal after backend-confirmed lock-in)
     console.log("[battle-ended signal]", {
-      battleId,
-      remainingTime,
+      battleId: battle.id,
+      battleState: battle.state,
+      lockinAt: battle.lockin_at,
       now: Date.now(),
     });
 
@@ -67,7 +75,7 @@ export function useBattleEndedTrigger(battleId: string | null, remainingTime: nu
                 Authorization: `Bearer ${accessToken}`,
               }),
             },
-            body: JSON.stringify({ battle_id: battleId }),
+            body: JSON.stringify({ battle_id: battle.id }),
           },
         );
 
@@ -83,5 +91,5 @@ export function useBattleEndedTrigger(battleId: string | null, remainingTime: nu
     };
 
     signalBattleEnded();
-  }, [battleId, remainingTime]);
+  }, [battle?.id, battle?.state, battle?.lockin_at]);
 }
