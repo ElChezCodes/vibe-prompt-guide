@@ -100,8 +100,8 @@ const BattleRoomScreen = () => {
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
-  // Throttle lock-in signals: stores timestamp of last signal per battle
-  const lastLockinSignalRef = useRef<{ battleId: string; timestamp: number } | null>(null);
+  const lockinTriggeredRef = useRef<string | null>(null);
+
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
@@ -166,11 +166,11 @@ const BattleRoomScreen = () => {
 
   const { hasJustResolved, lastWinnerSide, isDraw, acknowledgeResult } = useArenaFlow(arenaId ?? "", closureState);
 
-  // Reset state when battle changes
+  // Reset vote state and sync closure when battle changes
   useEffect(() => {
     if (battle?.id !== prevBattleIdRef.current) {
       hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
-      // Note: lastLockinSignalRef resets naturally when battleId changes (checked in condition)
+      lockinTriggeredRef.current = null; // Reset lock-in trigger for new battle
 
       if (prevBattleIdRef.current !== null) {
         setVoteRecord(null);
@@ -196,41 +196,26 @@ const BattleRoomScreen = () => {
   }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
 
   // ─────────────────────────────────────────────
-  // Signal backend when lock-in window MAY be reached
-  // ─────────────────────────────────────────────
-  // SEMANTICS:
-  // - This is a NEUTRAL HINT to the backend, not an assertion.
-  // - The backend is the SOLE AUTHORITY for lock-in decisions.
-  // - Multiple clients may signal safely; backend handles idempotency.
-  // - We throttle to avoid spamming, but allow periodic rechecks.
+  // Signal backend when lock-in window is reached
   // ─────────────────────────────────────────────
   useEffect(() => {
-    // Only signal when battle is active and within lock-in display window
+    // Only signal when battle is active and lock-in window reached
     if (!battle || battle.state !== "active" || remainingTime > 15) {
       return;
     }
 
-    const now = Date.now();
-    const THROTTLE_MS = 5000; // Allow re-signaling every 5 seconds
-
-    // Throttle: skip if we signaled this battle recently
-    if (
-      lastLockinSignalRef.current &&
-      lastLockinSignalRef.current.battleId === battle.id &&
-      now - lastLockinSignalRef.current.timestamp < THROTTLE_MS
-    ) {
+    // Idempotency: don't signal twice for the same battle
+    if (lockinTriggeredRef.current === battle.id) {
       return;
     }
 
-    // Record this signal attempt
-    lastLockinSignalRef.current = { battleId: battle.id, timestamp: now };
+    lockinTriggeredRef.current = battle.id;
 
-    // 🔍 Observability: neutral signal, not a state assertion
+    // 🔍 Observability (neutral signal, not a state assertion)
     console.log("[battle-lockin signal]", {
       battleId: battle.id,
       remainingTime,
-      note: "Hint to backend; backend decides lock-in",
-      now,
+      now: Date.now(),
     });
 
     const signalBattleLockin = async () => {
@@ -254,7 +239,7 @@ const BattleRoomScreen = () => {
           },
         );
 
-        // 200 = processed, 409 = already handled or not yet eligible — both are expected
+        // 200 = processed, 409 = already handled — both are success
         if (response.status === 200 || response.status === 409) {
           return;
         }
