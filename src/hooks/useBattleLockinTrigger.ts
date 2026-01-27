@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface BattleForLockinTrigger {
   id: string;
   state: string;
-  started_at: string | null;
+  started_at: string;
   duration_ms: number;
   lockin_at?: string | null;
 }
@@ -39,11 +39,6 @@ export function useBattleLockinTrigger(battle: BattleForLockinTrigger | null): v
     if (!battle) return;
     if (battle.state !== "active") return;
     if (battle.lockin_at !== null && battle.lockin_at !== undefined) return;
-
-    // ─────────────────────────────────────────────
-    // GUARD: Ensure started_at is available for timing calculations
-    // ─────────────────────────────────────────────
-    if (!battle.started_at) return;
 
     // ─────────────────────────────────────────────
     // LOCAL ESTIMATE: Check if we're in the lock-in window
