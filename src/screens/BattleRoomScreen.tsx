@@ -5,7 +5,6 @@ import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supaba
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useBattleEndedTrigger } from "@/hooks/useBattleEndedTrigger";
-import { useBattleLockinTrigger } from "@/hooks/useBattleLockinTrigger";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
@@ -101,13 +100,14 @@ const BattleRoomScreen = () => {
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
+  // Throttle lock-in signals: stores timestamp of last signal per battle
+  const lastLockinSignalRef = useRef<{ battleId: string; timestamp: number } | null>(null);
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
-  // Backend-authoritative triggers (signal-only, no state mutations)
+  // Trigger backend finalization when battle has confirmed lock-in
   useBattleEndedTrigger(battle ?? null);
-  useBattleLockinTrigger(battle ?? null);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -194,6 +194,79 @@ const BattleRoomScreen = () => {
     // MVP behavior: acknowledge immediately
     acknowledgeResult();
   }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
+
+  // ─────────────────────────────────────────────
+  // Signal backend when lock-in window MAY be reached
+  // ─────────────────────────────────────────────
+  // SEMANTICS:
+  // - This is a NEUTRAL HINT to the backend, not an assertion.
+  // - The backend is the SOLE AUTHORITY for lock-in decisions.
+  // - Multiple clients may signal safely; backend handles idempotency.
+  // - We throttle to avoid spamming, but allow periodic rechecks.
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    // Only signal when battle is active and within lock-in display window
+    if (!battle || battle.state !== "active" || remainingTime > 15) {
+      return;
+    }
+
+    const now = Date.now();
+    const THROTTLE_MS = 5000; // Allow re-signaling every 5 seconds
+
+    // Throttle: skip if we signaled this battle recently
+    if (
+      lastLockinSignalRef.current &&
+      lastLockinSignalRef.current.battleId === battle.id &&
+      now - lastLockinSignalRef.current.timestamp < THROTTLE_MS
+    ) {
+      return;
+    }
+
+    // Record this signal attempt
+    lastLockinSignalRef.current = { battleId: battle.id, timestamp: now };
+
+    // 🔍 Observability: neutral signal, not a state assertion
+    console.log("[battle-lockin signal]", {
+      battleId: battle.id,
+      remainingTime,
+      note: "Hint to backend; backend decides lock-in",
+      now,
+    });
+
+    const signalBattleLockin = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_SUPABASE_URL ?? "https://uuxzjroikbzwaszpgiks.supabase.co"
+          }/functions/v1/battle-lockin`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(accessToken && {
+                Authorization: `Bearer ${accessToken}`,
+              }),
+            },
+            body: JSON.stringify({ battle_id: battle.id }),
+          },
+        );
+
+        // 200 = processed, 409 = already handled or not yet eligible — both are expected
+        if (response.status === 200 || response.status === 409) {
+          return;
+        }
+
+        console.warn("[BattleRoomScreen] battle-lockin unexpected response:", response.status);
+      } catch (error) {
+        console.warn("[BattleRoomScreen] battle-lockin request failed:", error);
+      }
+    };
+
+    signalBattleLockin();
+  }, [battle?.id, battle?.state, remainingTime]);
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
