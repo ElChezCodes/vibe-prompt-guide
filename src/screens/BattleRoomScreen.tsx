@@ -200,7 +200,7 @@ const BattleRoomScreen = () => {
   // ─────────────────────────────────────────────
   useEffect(() => {
     // Only signal when battle is active and lock-in window reached
-    if (!battle || battle.state !== "active" || remainingTime > 15) {
+    if (!battle || battle.state !== "active") {
       return;
     }
 
