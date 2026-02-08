@@ -82,6 +82,7 @@ export function useBattleEndedTrigger(battleId: string | null, remainingTime: nu
       }
     };
 
-    signalBattleEnded();
+    // 🔒 DESACTIVADO TEMPORALMENTE PARA AUDITORÍA
+    // signalBattleEnded();
   }, [battleId, remainingTime]);
 }
