@@ -1,38 +1,49 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const MOCK_BATTLE_DURATION_SEC = 45;
-const LOCK_IN_SEC = 15;
+export interface ArenaBattleView {
+  battle_id: string;
+  arena_id: string;
+  status: "pending" | "active" | "closing" | "completed";
 
-const BATTLE_DURATION_MS = MOCK_BATTLE_DURATION_SEC * 1000;
-
-// Valid battle states (backend-authoritative)
-type BattleState = "pending" | "active" | "closing" | "completed";
-
-export interface BattleData {
-  id: string;
-  state: BattleState;
-  song_a_id: string;
-  song_b_id: string;
   started_at: string | null;
   duration_ms: number;
-  // Backend-authoritative fields
   lockin_at: string | null;
-  sudden_death_active: boolean;
+  resolution_type: string | null;
   winner_song_id: string | null;
+
+  battle_created_at: string;
+
+  song_a_id: string;
+  song_a_title: string;
+  song_a_artist: string;
+  song_a_source: string;
+  song_a_spotify_track_id: string;
+  song_a_duration_ms: number;
+
+  song_b_id: string;
+  song_b_title: string;
+  song_b_artist: string;
+  song_b_source: string;
+  song_b_spotify_track_id: string;
+  song_b_duration_ms: number;
+
+  votes_a: number;
+  votes_b: number;
 }
 
 interface OrchestratorState {
-  battle: BattleData | null;
+  battle: ArenaBattleView | null;
   isRunning: boolean;
 }
 
 interface UseBattleOrchestratorReturn {
-  battle: BattleData | null;
+  battle: ArenaBattleView | null;
   isRunning: boolean;
-  initBattleLoop: (arenaId: string) => Promise<BattleData | null>;
+  initBattleLoop: (arenaId: string) => Promise<ArenaBattleView | null>;
   stopBattleLoop: () => void;
-  getCurrentBattle: () => BattleData | null;
+  getCurrentBattle: () => ArenaBattleView | null;
 }
 
 export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
@@ -41,185 +52,88 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
     isRunning: false,
   });
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const isTransitioningRef = useRef(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const arenaIdRef = useRef<string | null>(null);
-  const isStoppedRef = useRef(false);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const startBattle = useCallback(async (battleId: string): Promise<BattleData | null> => {
-    if (isTransitioningRef.current || isStoppedRef.current) return null;
-    isTransitioningRef.current = true;
-
-    const { error: updateError } = await supabase
-      .from("battles")
-      .update({
-        state: "active",
-        started_at: new Date().toISOString(),
-        duration_ms: BATTLE_DURATION_MS,
-      })
-      .eq("id", battleId)
-      .eq("state", "pending");
-
-    if (updateError) {
-      console.error("[Orchestrator] Failed to start battle:", updateError);
-      isTransitioningRef.current = false;
-      return null;
-    }
-
-    const { data: updatedBattle } = await supabase
-      .from("battles")
-      .select(
-        "id, state, song_a_id, song_b_id, started_at, duration_ms, lockin_at, sudden_death_active, winner_song_id",
-      )
-      .eq("id", battleId)
+  const fetchLatestBattle = useCallback(async (arenaId: string): Promise<ArenaBattleView | null> => {
+    const { data, error } = await supabase
+      .from("arena_live_state")
+      .select("*")
+      .eq("arena_id", arenaId)
+      .order("battle_created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (updatedBattle) {
-      setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
-    }
-
-    isTransitioningRef.current = false;
-    return updatedBattle as BattleData | null;
-  }, []);
-
-  const endBattle = useCallback(async (_battleId: string): Promise<BattleData | null> => {
-    // DISABLED: Frontend no longer ends battles. Backend-authoritative lifecycle pending.
-    // if (isTransitioningRef.current || isStoppedRef.current) return null;
-    // isTransitioningRef.current = true;
-    // const { data: updatedBattle, error } = await supabase.rpc("end_battle", { p_battle_id: battleId });
-    // if (error) {
-    //   console.error("[Orchestrator] Failed to end battle:", error);
-    //   isTransitioningRef.current = false;
-    //   return null;
-    // }
-    // if (updatedBattle) {
-    //   setState((prev) => ({ ...prev, battle: updatedBattle as BattleData }));
-    // }
-    // isTransitioningRef.current = false;
-    // return updatedBattle as BattleData | null;
-    return null;
-  }, []);
-
-  const createPendingBattle = useCallback(async (arenaId: string): Promise<BattleData | null> => {
-    // MVP mock song IDs - stable and intentional
-    const MVP_SONG_A_ID = "11111111-1111-1111-1111-111111111111";
-    const MVP_SONG_B_ID = "22222222-2222-2222-2222-222222222222";
-
-    const { data: newBattle, error } = await supabase
-      .from("battles")
-      .insert({
-        arena_id: arenaId,
-        song_a_id: MVP_SONG_A_ID,
-        song_b_id: MVP_SONG_B_ID,
-        started_at: null,
-      })
-      .select(
-        "id, state, song_a_id, song_b_id, started_at, duration_ms, lockin_at, sudden_death_active, winner_song_id",
-      )
-      .single();
-
     if (error) {
-      console.error("[Orchestrator] Failed to create battle:", error);
+      console.error("[Orchestrator] Failed to fetch arena_live_state:", error);
       return null;
     }
 
-    return newBattle as BattleData;
+    return data as ArenaBattleView | null;
   }, []);
 
-  const scheduleEnd = useCallback(
-    (_battleId: string, _continueLoop: (id: string) => void) => {
-      // DISABLED: Frontend no longer schedules battle end. Backend-authoritative lifecycle pending.
-      // clearTimer();
-      // timerRef.current = setTimeout(() => {
-      //   continueLoop(battleId);
-      // }, BATTLE_DURATION_MS);
-    },
-    [],
-  );
-
-  const continueLoop = useCallback(
-    async (_endingBattleId: string) => {
-      // DISABLED: Frontend no longer continues the battle loop.
-      // Backend is authoritative for battle lifecycle after 'active' state.
-      // This function is preserved for interface compatibility but is a no-op.
-      return;
-    },
-    [],
-  );
+  const stopBattleLoop = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    setState((prev) => ({ ...prev, isRunning: false }));
+  }, []);
 
   const initBattleLoop = useCallback(
-    async (arenaId: string): Promise<BattleData | null> => {
-      arenaIdRef.current = arenaId;
-      isStoppedRef.current = false;
+    async (arenaId: string): Promise<ArenaBattleView | null> => {
+      // Clean up any existing subscription
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
 
+      arenaIdRef.current = arenaId;
       setState((prev) => ({ ...prev, isRunning: true }));
 
-      // Check for existing pending/active battle
-      const { data: existingBattle, error } = await supabase
-        .from("battles")
-        .select(
-          "id, state, song_a_id, song_b_id, started_at, duration_ms, lockin_at, sudden_death_active, winner_song_id",
+      // Initial fetch
+      const battle = await fetchLatestBattle(arenaId);
+      setState((prev) => ({ ...prev, battle }));
+
+      // Subscribe to realtime changes on battles table filtered by arena_id
+      const channel = supabase
+        .channel(`battles:arena_id=eq.${arenaId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "battles",
+            filter: `arena_id=eq.${arenaId}`,
+          },
+          async () => {
+            if (arenaIdRef.current !== arenaId) return;
+            const updated = await fetchLatestBattle(arenaId);
+            setState((prev) => ({ ...prev, battle: updated }));
+          },
         )
-        .eq("arena_id", arenaId)
-        .in("state", ["pending", "active"])
-        .maybeSingle();
+        .subscribe();
 
-      if (error) {
-        console.error("[Orchestrator] Failed to fetch battle:", error);
-      }
+      channelRef.current = channel;
 
-      let currentBattle = existingBattle as BattleData | null;
-
-      // Create new pending battle if none exists
-      if (!currentBattle) {
-        currentBattle = await createPendingBattle(arenaId);
-      }
-
-      if (!currentBattle) {
-        return null;
-      }
-
-      setState((prev) => ({ ...prev, battle: currentBattle }));
-
-      // Start pending battle and schedule end
-      if (currentBattle.state === "pending") {
-        const started = await startBattle(currentBattle.id);
-        if (started) {
-          scheduleEnd(currentBattle.id, continueLoop);
-          return started;
-        }
-      }
-
-      // If already active, just return it (timer should be managed externally or resynced)
-      return currentBattle;
+      return battle;
     },
-    [createPendingBattle, startBattle, scheduleEnd, continueLoop],
+    [fetchLatestBattle],
   );
 
-  const stopBattleLoop = useCallback(() => {
-    isStoppedRef.current = true;
-    clearTimer();
-    setState((prev) => ({ ...prev, isRunning: false }));
-  }, [clearTimer]);
-
-  const getCurrentBattle = useCallback((): BattleData | null => {
+  const getCurrentBattle = useCallback((): ArenaBattleView | null => {
     return state.battle;
   }, [state.battle]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      clearTimer();
-      isStoppedRef.current = true;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [clearTimer]);
+  }, []);
 
   return {
     battle: state.battle,
