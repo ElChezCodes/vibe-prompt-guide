@@ -12,13 +12,6 @@ interface ParticipantData {
   is_host: boolean;
 }
 
-interface BattleData {
-  id: string;
-  state: string;
-  song_a_id: string;
-  song_b_id: string;
-}
-
 interface VoteData {
   song_id: string;
   status: string;
@@ -26,7 +19,7 @@ interface VoteData {
 
 interface StageViewProps {
   arena: ArenaData;
-  battle: BattleData | null;
+  battle: { song_a_id: string; song_b_id: string } | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
-import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
+import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { ensureParticipant } from "@/integrations/supabase/participants";
@@ -41,32 +41,27 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
  * The remainingTime is DISPLAY-ONLY and does not trigger any state changes.
  */
 const getDerivedBattlePhase = (
-  battle: {
-    state: string;
-    sudden_death_active?: boolean;
-    lockin_at?: string | null;
-    winner_song_id?: string | null;
-  } | null,
+  battle: ArenaBattleView | null,
   remainingTime: number,
 ): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
   // FINISHED: Backend says completed or closing
-  if (battle.state === "completed" || battle.state === "closing") {
+  if (battle.status === "completed" || battle.status === "closing") {
     return "FINISHED";
   }
 
   // Only derive phases when battle is active
-  if (battle.state !== "active") {
+  if (battle.status !== "active") {
     return "NORMAL";
   }
 
   // SUDDEN_DEATH: Backend-authoritative flag
-  if (battle.sudden_death_active === true) {
+  if (battle.resolution_type === "sudden_death") {
     return "SUDDEN_DEATH";
   }
 
-  // LOCK_IN: Backend says locked (locked_at is set)
+  // LOCK_IN: Backend says locked (lockin_at is set)
   if (battle.lockin_at !== null && battle.lockin_at !== undefined) {
     return "LOCK_IN";
   }
@@ -108,7 +103,7 @@ const BattleRoomScreen = () => {
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
-      if (!battle || battle.state !== "active" || !participant || !arena) {
+      if (!battle || battle.status !== "active" || !participant || !arena) {
         console.log("[Vote] Blocked - battle not active or missing data");
         return;
       }
@@ -133,7 +128,7 @@ const BattleRoomScreen = () => {
       console.log(`[Vote] Processing vote for Song ${side} (${songId})`);
 
       const { vote, action } = await applyVoteIntent(
-        battle.id,
+        battle.battle_id,
         participant.id,
         songId,
         voteRecord,
@@ -165,7 +160,7 @@ const BattleRoomScreen = () => {
 
   // Reset vote state and sync closure when battle changes
   useEffect(() => {
-    if (battle?.id !== prevBattleIdRef.current) {
+    if (battle?.battle_id !== prevBattleIdRef.current) {
       hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
       lockinTriggeredRef.current = null; // Reset lock-in trigger for new battle
 
@@ -174,13 +169,13 @@ const BattleRoomScreen = () => {
         resetClosure();
       }
 
-      prevBattleIdRef.current = battle?.id ?? null;
+      prevBattleIdRef.current = battle?.battle_id ?? null;
 
-      if (battle?.id) {
-        syncFromBattle(battle.id);
+      if (battle?.battle_id) {
+        syncFromBattle(battle.battle_id);
       }
     }
-  }, [battle?.id, syncFromBattle, resetClosure]);
+  }, [battle?.battle_id, syncFromBattle, resetClosure]);
 
   // Consume resolution result (UI-side only)
   useEffect(() => {
@@ -197,20 +192,20 @@ const BattleRoomScreen = () => {
   // ─────────────────────────────────────────────
   useEffect(() => {
     // Only signal when battle is active and lock-in window reached
-    if (!battle || battle.state !== "active") {
+    if (!battle || battle.status !== "active") {
       return;
     }
 
     // Idempotency: don't signal twice for the same battle
-    if (lockinTriggeredRef.current === battle.id) {
+    if (lockinTriggeredRef.current === battle.battle_id) {
       return;
     }
 
-    lockinTriggeredRef.current = battle.id;
+    lockinTriggeredRef.current = battle.battle_id;
 
     // 🔍 Observability (neutral signal, not a state assertion)
     console.log("[battle-lockin signal]", {
-      battleId: battle.id,
+      battleId: battle.battle_id,
       remainingTime,
       now: Date.now(),
     });
@@ -232,7 +227,7 @@ const BattleRoomScreen = () => {
                 Authorization: `Bearer ${accessToken}`,
               }),
             },
-            body: JSON.stringify({ battle_id: battle.id }),
+            body: JSON.stringify({ battle_id: battle.battle_id }),
           },
         );
 
@@ -248,11 +243,11 @@ const BattleRoomScreen = () => {
     };
 
     signalBattleLockin();
-  }, [battle?.id, battle?.state, remainingTime]);
+  }, [battle?.battle_id, battle?.status, remainingTime]);
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
-    if (!battle || battle.state !== "active") {
+    if (!battle || battle.status !== "active") {
       setRemainingTime(0);
       return;
     }
@@ -273,7 +268,7 @@ const BattleRoomScreen = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [battle?.id, battle?.started_at, battle?.duration_ms, battle?.state]);
+  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms, battle?.status]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -322,8 +317,8 @@ const BattleRoomScreen = () => {
         const currentBattle = await initBattleLoop(arenaId);
 
         // Load existing vote if battle is active
-        if (currentBattle?.state === "active") {
-          const existingVote = await getParticipantVote(currentBattle.id, participantData.id);
+        if (currentBattle?.status === "active") {
+          const existingVote = await getParticipantVote(currentBattle.battle_id, participantData.id);
           if (existingVote) {
             setVoteRecord(existingVote);
           }
@@ -362,7 +357,7 @@ const BattleRoomScreen = () => {
 
   // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
   const isVotingEnabled =
-    battle?.state === "active" &&
+    battle?.status === "active" &&
     (derivedPhase === "NORMAL" || derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH");
 
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
