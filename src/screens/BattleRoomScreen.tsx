@@ -74,7 +74,12 @@ const getDerivedBattlePhase = (
   return "NORMAL";
 };
 
-const getRemainingSecondsFromBattle = (battle: { started_at: string; duration_ms: number }) => {
+const getRemainingSecondsFromBattle = (battle: {
+  started_at: string | null;
+  duration_ms: number;
+}) => {
+  if (!battle.started_at) return 0;
+
   const startedAt = new Date(battle.started_at).getTime();
   const now = Date.now();
   const elapsedMs = now - startedAt;
