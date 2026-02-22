@@ -1,5 +1,6 @@
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
+import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 
 interface ArenaData {
   id: string;
@@ -19,7 +20,7 @@ interface VoteData {
 
 interface StageViewProps {
   arena: ArenaData;
-  battle: { song_a_id: string; song_b_id: string } | null;
+  battle: ArenaBattleView | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
   timer: string;
@@ -27,10 +28,21 @@ interface StageViewProps {
 }
 
 const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
-  // Placeholder values - will be connected to real data later
-  const percentageA = 52;
-  const percentageB = 48;
-  const winnerSide: "A" | "B" | null = null;
+  const votesA = battle?.votes_a ?? 0;
+  const votesB = battle?.votes_b ?? 0;
+  const totalVotes = votesA + votesB;
+
+  const percentageA =
+    totalVotes > 0 ? Math.round((votesA / totalVotes) * 100) : 50;
+
+  const percentageB = 100 - percentageA;
+
+  const winnerSide =
+    battle?.winner_song_id === battle?.song_a_id
+      ? "A"
+      : battle?.winner_song_id === battle?.song_b_id
+        ? "B"
+        : null;
 
   const getTensionIntensity = (): BattleIntensity => {
     if (derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN" || derivedPhase === "SUDDEN_DEATH") {
@@ -63,8 +75,8 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
             <StageSongCard
               position="A"
               songId={battle?.song_a_id ?? ""}
-              songTitle="Blinding Lights"
-              artistName="The Weeknd"
+              songTitle={battle?.song_a_title ?? ""}
+              artistName={battle?.song_a_artist ?? ""}
               currentVote={currentVote}
             />
           </div>
@@ -79,8 +91,8 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
             <StageSongCard
               position="B"
               songId={battle?.song_b_id ?? ""}
-              songTitle="Levitating"
-              artistName="Dua Lipa"
+              songTitle={battle?.song_b_title ?? ""}
+              artistName={battle?.song_b_artist ?? ""}
               currentVote={currentVote}
             />
           </div>
