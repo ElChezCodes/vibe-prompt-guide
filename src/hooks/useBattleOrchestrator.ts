@@ -54,6 +54,17 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const arenaIdRef = useRef<string | null>(null);
+  const voteIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Mergeable fields from realtime payload
+  const MERGE_FIELDS = [
+    "state",
+    "started_at",
+    "duration_ms",
+    "lockin_at",
+    "resolution_type",
+    "winner_song_id",
+  ] as const;
 
   const fetchLatestBattle = useCallback(async (arenaId: string): Promise<ArenaBattleView | null> => {
     const { data, error } = await supabase
@@ -72,26 +83,61 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
     return data as ArenaBattleView | null;
   }, []);
 
+  const fetchVoteCounts = useCallback(async (arenaId: string) => {
+    const { data, error } = await supabase
+      .from("arena_live_state")
+      .select("battle_id, votes_a, votes_b")
+      .eq("arena_id", arenaId)
+      .order("battle_created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[Orchestrator] Failed to fetch vote counts:", error);
+      return;
+    }
+
+    if (!data) return;
+
+    setState((prev) => {
+      if (!prev.battle || prev.battle.battle_id !== data.battle_id) return prev;
+      if (prev.battle.votes_a === data.votes_a && prev.battle.votes_b === data.votes_b) return prev;
+      return {
+        ...prev,
+        battle: { ...prev.battle, votes_a: data.votes_a, votes_b: data.votes_b },
+      };
+    });
+  }, []);
+
+  const clearVoteInterval = useCallback(() => {
+    if (voteIntervalRef.current) {
+      clearInterval(voteIntervalRef.current);
+      voteIntervalRef.current = null;
+    }
+  }, []);
+
   const stopBattleLoop = useCallback(() => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    clearVoteInterval();
     setState((prev) => ({ ...prev, isRunning: false }));
-  }, []);
+  }, [clearVoteInterval]);
 
   const initBattleLoop = useCallback(
     async (arenaId: string): Promise<ArenaBattleView | null> => {
-      // Clean up any existing subscription
+      // Clean up any existing subscription & interval
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+      clearVoteInterval();
 
       arenaIdRef.current = arenaId;
       setState((prev) => ({ ...prev, isRunning: true }));
 
-      // Initial fetch
+      // Initial full fetch
       const battle = await fetchLatestBattle(arenaId);
       setState((prev) => ({ ...prev, battle }));
 
@@ -106,19 +152,51 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
             table: "battles",
             filter: `arena_id=eq.${arenaId}`,
           },
-          async () => {
+          async (payload) => {
             if (arenaIdRef.current !== arenaId) return;
-            const updated = await fetchLatestBattle(arenaId);
-            setState((prev) => ({ ...prev, battle: updated }));
+
+            const newRow = payload.new as Record<string, unknown> | undefined;
+            const eventType = payload.eventType;
+
+            // INSERT (new battle) → full fetch for song metadata
+            if (eventType === "INSERT") {
+              const updated = await fetchLatestBattle(arenaId);
+              setState((prev) => ({ ...prev, battle: updated }));
+              return;
+            }
+
+            // UPDATE (same battle) → merge fields instantly
+            if (eventType === "UPDATE" && newRow) {
+              setState((prev) => {
+                if (!prev.battle) return prev;
+                if (prev.battle.battle_id !== newRow.id) return prev;
+
+                const merged = { ...prev.battle };
+                for (const field of MERGE_FIELDS) {
+                  const dbField = field === "state" ? "state" : field;
+                  if (dbField in newRow) {
+                    (merged as Record<string, unknown>)[field] = newRow[dbField];
+                  }
+                }
+                return { ...prev, battle: merged as ArenaBattleView };
+              });
+            }
           },
         )
         .subscribe();
 
       channelRef.current = channel;
 
+      // Start periodic vote polling (every 2s)
+      voteIntervalRef.current = setInterval(() => {
+        if (arenaIdRef.current === arenaId) {
+          fetchVoteCounts(arenaId);
+        }
+      }, 2000);
+
       return battle;
     },
-    [fetchLatestBattle],
+    [fetchLatestBattle, fetchVoteCounts, clearVoteInterval],
   );
 
   const getCurrentBattle = useCallback((): ArenaBattleView | null => {
@@ -131,6 +209,10 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if (voteIntervalRef.current) {
+        clearInterval(voteIntervalRef.current);
+        voteIntervalRef.current = null;
       }
     };
   }, []);
