@@ -252,7 +252,7 @@ const BattleRoomScreen = () => {
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
-    if (!battle || battle.status !== "active") {
+    if (!battle || !battle.started_at) {
       setRemainingTime(0);
       return;
     }
@@ -265,7 +265,7 @@ const BattleRoomScreen = () => {
       setRemainingTime(seconds);
     };
 
-    updateRemaining(); // initial sync
+    updateRemaining();
 
     const interval = setInterval(updateRemaining, 1000);
 
@@ -273,7 +273,7 @@ const BattleRoomScreen = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms, battle?.status]);
+  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
