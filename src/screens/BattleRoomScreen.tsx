@@ -47,12 +47,12 @@ const getDerivedBattlePhase = (
   if (!battle) return "NORMAL";
 
   // FINISHED: Backend says completed or closing
-  if (battle.status === "completed" || battle.status === "closing") {
+  if (battle.state === "completed" || battle.state === "closing") {
     return "FINISHED";
   }
 
   // Only derive phases when battle is active
-  if (battle.status !== "active") {
+  if (battle.state !== "active") {
     return "NORMAL";
   }
 
@@ -108,7 +108,7 @@ const BattleRoomScreen = () => {
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
-      if (!battle || battle.status !== "active" || !participant || !arena) {
+      if (!battle || battle.state !== "active" || !participant || !arena) {
         console.log("[Vote] Blocked - battle not active or missing data");
         return;
       }
@@ -197,7 +197,7 @@ const BattleRoomScreen = () => {
   // ─────────────────────────────────────────────
   useEffect(() => {
     // Only signal when battle is active and lock-in window reached
-    if (!battle || battle.status !== "active") {
+    if (!battle || battle.state !== "active") {
       return;
     }
 
@@ -248,7 +248,7 @@ const BattleRoomScreen = () => {
     };
 
     signalBattleLockin();
-  }, [battle?.battle_id, battle?.status, remainingTime]);
+  }, [battle?.battle_id, battle?.state, remainingTime]);
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
@@ -322,7 +322,7 @@ const BattleRoomScreen = () => {
         const currentBattle = await initBattleLoop(arenaId);
 
         // Load existing vote if battle is active
-        if (currentBattle?.status === "active") {
+        if (currentBattle?.state === "active") {
           const existingVote = await getParticipantVote(currentBattle.battle_id, participantData.id);
           if (existingVote) {
             setVoteRecord(existingVote);
@@ -360,16 +360,11 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
 
-  // Voting enabled during NORMAL, FINAL_30S, and SUDDEN_DEATH phases
-  const isVotingEnabled =
-    battle?.status === "active" &&
-    (derivedPhase === "NORMAL" || derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH");
+  // Voting enabled exclusively by backend state
+  const isVotingEnabled = battle?.state === "active";
 
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
   const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
-
-  // During Sudden Death, disable voting if user already cast their sudden death vote
-  const isSuddenDeathVotingEnabled = derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote;
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -384,7 +379,7 @@ const BattleRoomScreen = () => {
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
-      {isVotingEnabled && (derivedPhase !== "SUDDEN_DEATH" || isSuddenDeathVotingEnabled) && (
+      {isVotingEnabled && (
         <div className="absolute inset-0 z-50 pointer-events-none">
           {/* Match the layout of StageView's battle arena section */}
           <div className="min-h-dvh w-full flex flex-col">
