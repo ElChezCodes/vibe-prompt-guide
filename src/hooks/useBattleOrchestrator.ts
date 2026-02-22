@@ -5,7 +5,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 export interface ArenaBattleView {
   battle_id: string;
   arena_id: string;
-  status: "pending" | "active" | "closing" | "completed";
+  state: "pending" | "active" | "closing" | "completed";
 
   started_at: string | null;
   duration_ms: number;
