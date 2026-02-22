@@ -99,7 +99,6 @@ const BattleRoomScreen = () => {
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
-  const lockinTriggeredRef = useRef<string | null>(null);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
@@ -167,7 +166,7 @@ const BattleRoomScreen = () => {
   useEffect(() => {
     if (battle?.battle_id !== prevBattleIdRef.current) {
       hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
-      lockinTriggeredRef.current = null; // Reset lock-in trigger for new battle
+      
 
       if (prevBattleIdRef.current !== null) {
         setVoteRecord(null);
@@ -192,63 +191,6 @@ const BattleRoomScreen = () => {
     acknowledgeResult();
   }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
 
-  // ─────────────────────────────────────────────
-  // Signal backend when lock-in window is reached
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    // Only signal when battle is active and lock-in window reached
-    if (!battle || battle.state !== "active") {
-      return;
-    }
-
-    // Idempotency: don't signal twice for the same battle
-    if (lockinTriggeredRef.current === battle.battle_id) {
-      return;
-    }
-
-    lockinTriggeredRef.current = battle.battle_id;
-
-    // 🔍 Observability (neutral signal, not a state assertion)
-    console.log("[battle-lockin signal]", {
-      battleId: battle.battle_id,
-      remainingTime,
-      now: Date.now(),
-    });
-
-    const signalBattleLockin = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
-
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_SUPABASE_URL ?? "https://uuxzjroikbzwaszpgiks.supabase.co"
-          }/functions/v1/battle-lockin`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(accessToken && {
-                Authorization: `Bearer ${accessToken}`,
-              }),
-            },
-            body: JSON.stringify({ battle_id: battle.battle_id }),
-          },
-        );
-
-        // 200 = processed, 409 = already handled — both are success
-        if (response.status === 200 || response.status === 409) {
-          return;
-        }
-
-        console.warn("[BattleRoomScreen] battle-lockin unexpected response:", response.status);
-      } catch (error) {
-        console.warn("[BattleRoomScreen] battle-lockin request failed:", error);
-      }
-    };
-
-    signalBattleLockin();
-  }, [battle?.battle_id, battle?.state, remainingTime]);
 
   // Sync remainingTime from backend battle clock (hardened)
   useEffect(() => {
