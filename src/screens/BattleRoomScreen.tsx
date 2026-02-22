@@ -21,12 +21,6 @@ interface ParticipantData {
   is_host: boolean;
 }
 
-const formatTime = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-};
-
 type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
 
 /**
@@ -42,7 +36,6 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
  */
 const getDerivedBattlePhase = (
   battle: ArenaBattleView | null,
-  remainingTime: number,
 ): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
@@ -66,27 +59,9 @@ const getDerivedBattlePhase = (
     return "LOCK_IN";
   }
 
-  // Display-only phases based on remaining time (no state changes triggered)
-  if (remainingTime <= 0) return "FINISHED";
-  if (remainingTime <= 15) return "LOCK_IN";
-  if (remainingTime <= 30) return "FINAL_30S";
-
   return "NORMAL";
 };
 
-const getRemainingSecondsFromBattle = (battle: {
-  started_at: string | null;
-  duration_ms: number;
-}) => {
-  if (!battle.started_at) return 0;
-
-  const startedAt = new Date(battle.started_at).getTime();
-  const now = Date.now();
-  const elapsedMs = now - startedAt;
-  const remainingMs = battle.duration_ms - elapsedMs;
-
-  return Math.max(0, Math.ceil(remainingMs / 1000));
-};
 
 const BattleRoomScreen = () => {
   const location = useLocation();
@@ -95,7 +70,6 @@ const BattleRoomScreen = () => {
   const [arena, setArena] = useState<ArenaData | null>(null);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [voteRecord, setVoteRecord] = useState<Vote | null>(null);
-  const [remainingTime, setRemainingTime] = useState<number>(0);
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
@@ -192,30 +166,6 @@ const BattleRoomScreen = () => {
   }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
 
 
-  // Sync remainingTime from backend battle clock (hardened)
-  useEffect(() => {
-    if (!battle || !battle.started_at) {
-      setRemainingTime(0);
-      return;
-    }
-
-    let cancelled = false;
-
-    const updateRemaining = () => {
-      if (cancelled) return;
-      const seconds = getRemainingSecondsFromBattle(battle);
-      setRemainingTime(seconds);
-    };
-
-    updateRemaining();
-
-    const interval = setInterval(updateRemaining, 1000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms]);
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -300,7 +250,7 @@ const BattleRoomScreen = () => {
     );
   }
 
-  const derivedPhase = getDerivedBattlePhase(battle, remainingTime);
+  const derivedPhase = getDerivedBattlePhase(battle);
 
   // Voting enabled exclusively by backend state
   const isVotingEnabled = battle?.state === "active";
@@ -316,7 +266,6 @@ const BattleRoomScreen = () => {
         battle={battle}
         participant={participant!}
         currentVote={voteRecord}
-        timer={formatTime(remainingTime)}
         derivedPhase={derivedPhase}
       />
 
