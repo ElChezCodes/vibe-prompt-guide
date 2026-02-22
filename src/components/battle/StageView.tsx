@@ -1,5 +1,6 @@
 import React from "react";
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
+import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 
@@ -24,11 +25,10 @@ interface StageViewProps {
   battle: ArenaBattleView | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
-  timer: string;
   derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
 }
 
-const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhase }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: StageViewProps) => {
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
   const totalVotes = votesA + votesB;
@@ -59,8 +59,8 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
         <TensionBar percentageA={percentageA} percentageB={percentageB} intensity={getTensionIntensity()} />
       </div>
 
-      {/* Timer - Isolated to avoid full re-render on tick */}
-      <TimerDisplay timer={timer} />
+      {/* Timer - Self-contained, re-renders independently */}
+      <BattleTimer battle={battle} />
 
       {/* Battle Arena - Song Cards with VS */}
       <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
@@ -127,18 +127,6 @@ const StageView = ({ arena, battle, participant, currentVote, timer, derivedPhas
     </div>
   );
 };
-
-const TimerDisplay = React.memo(({ timer }: { timer: string }) => (
-  <div className="py-8">
-    <div className="flex items-center justify-center">
-      <span className="text-6xl lg:text-8xl font-semibold text-foreground tracking-widest tabular-nums">
-        {timer}
-      </span>
-    </div>
-  </div>
-));
-
-TimerDisplay.displayName = "TimerDisplay";
 
 // Stage-optimized Song Card (read-only, larger text)
 interface StageSongCardProps {

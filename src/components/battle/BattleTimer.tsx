@@ -1,15 +1,62 @@
+import React, { useState, useEffect } from "react";
+import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
+
 interface BattleTimerProps {
-  time?: string;
+  battle: ArenaBattleView | null;
 }
 
-const BattleTimer = ({ time = "01:23" }: BattleTimerProps) => {
+const getRemainingSecondsFromBattle = (battle: {
+  started_at: string | null;
+  duration_ms: number;
+}) => {
+  if (!battle.started_at) return 0;
+  const startedAt = new Date(battle.started_at).getTime();
+  const now = Date.now();
+  const elapsedMs = now - startedAt;
+  const remainingMs = battle.duration_ms - elapsedMs;
+  return Math.max(0, Math.ceil(remainingMs / 1000));
+};
+
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
+
+const BattleTimer = ({ battle }: BattleTimerProps) => {
+  const [remainingTime, setRemainingTime] = useState<number>(0);
+
+  useEffect(() => {
+    if (!battle || !battle.started_at) {
+      setRemainingTime(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const updateRemaining = () => {
+      if (cancelled) return;
+      setRemainingTime(getRemainingSecondsFromBattle(battle));
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms]);
+
   return (
-    <div className="flex items-center justify-center py-6">
-      <span className="text-3xl font-semibold text-foreground tracking-widest tabular-nums">
-        {time}
-      </span>
+    <div className="py-8">
+      <div className="flex items-center justify-center">
+        <span className="text-6xl lg:text-8xl font-semibold text-foreground tracking-widest tabular-nums">
+          {formatTime(remainingTime)}
+        </span>
+      </div>
     </div>
   );
 };
 
-export default BattleTimer;
+export default React.memo(BattleTimer);
