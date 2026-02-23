@@ -29,6 +29,12 @@ interface StageViewProps {
 }
 
 const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: StageViewProps) => {
+  console.log("[StageView Render]", {
+    battle_id: battle?.battle_id,
+    state: battle?.state,
+    derivedPhase,
+    timestamp: Date.now(),
+  });
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
   const totalVotes = votesA + votesB;

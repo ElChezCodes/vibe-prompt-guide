@@ -37,23 +37,29 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
 const getDerivedBattlePhase = (
   battle: ArenaBattleView | null,
 ): DerivedBattlePhase => {
-  if (!battle) return "NORMAL";
+  if (!battle) {
+    console.log("[DerivedPhase Debug]", { battle_id: null, state: null, lockin_at: null, resolution_type: null, returned_phase: "NORMAL", timestamp: Date.now() });
+    return "NORMAL";
+  }
 
-  // FINISHED ONLY when backend says completed
+  const debugInfo = { battle_id: battle.battle_id, state: battle.state, lockin_at: battle.lockin_at, resolution_type: battle.resolution_type };
+
   if (battle.state === "completed") {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "FINISHED", timestamp: Date.now() });
     return "FINISHED";
   }
 
-  // Sudden Death remains backend-authoritative
   if (battle.resolution_type === "sudden_death") {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
     return "SUDDEN_DEATH";
   }
 
-  // LOCK_IN when backend enters closing or lockin_at exists
   if (battle.state === "closing" || battle.lockin_at) {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", timestamp: Date.now() });
     return "LOCK_IN";
   }
 
+  console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "NORMAL", timestamp: Date.now() });
   return "NORMAL";
 };
 
