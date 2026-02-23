@@ -158,10 +158,54 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
             const newRow = payload.new as Record<string, unknown> | undefined;
             const eventType = payload.eventType;
 
-            // INSERT (new battle) → full fetch for song metadata
-            if (eventType === "INSERT") {
-              const updated = await fetchLatestBattle(arenaId);
-              setState((prev) => ({ ...prev, battle: updated }));
+            // INSERT (new battle) → immediate render from payload, async backfill
+            if (eventType === "INSERT" && newRow) {
+              const newBattleId = newRow.id as string;
+
+              // Build a minimal ArenaBattleView from the raw battles row,
+              // preserving previous song metadata as placeholders until the
+              // full view fetch completes.
+              setState((prev) => {
+                const prevBattle = prev.battle;
+                const minimal: ArenaBattleView = {
+                  battle_id: newBattleId,
+                  arena_id: arenaId,
+                  state: (newRow.state as ArenaBattleView["state"]) ?? "pending",
+                  started_at: (newRow.started_at as string) ?? null,
+                  duration_ms: (newRow.duration_ms as number) ?? 0,
+                  lockin_at: (newRow.lockin_at as string) ?? null,
+                  resolution_type: (newRow.resolution_type as string) ?? null,
+                  winner_song_id: (newRow.winner_song_id as string) ?? null,
+                  battle_created_at: (newRow.created_at as string) ?? new Date().toISOString(),
+                  // Carry over previous song metadata as temporary placeholders
+                  song_a_id: prevBattle?.song_a_id ?? "",
+                  song_a_title: prevBattle?.song_a_title ?? "",
+                  song_a_artist: prevBattle?.song_a_artist ?? "",
+                  song_a_source: prevBattle?.song_a_source ?? "",
+                  song_a_spotify_track_id: prevBattle?.song_a_spotify_track_id ?? "",
+                  song_a_duration_ms: prevBattle?.song_a_duration_ms ?? 0,
+                  song_b_id: prevBattle?.song_b_id ?? "",
+                  song_b_title: prevBattle?.song_b_title ?? "",
+                  song_b_artist: prevBattle?.song_b_artist ?? "",
+                  song_b_source: prevBattle?.song_b_source ?? "",
+                  song_b_spotify_track_id: prevBattle?.song_b_spotify_track_id ?? "",
+                  song_b_duration_ms: prevBattle?.song_b_duration_ms ?? 0,
+                  votes_a: 0,
+                  votes_b: 0,
+                };
+                return { ...prev, battle: minimal };
+              });
+
+              // Non-blocking backfill with full view data (song metadata, etc.)
+              fetchLatestBattle(arenaId).then((full) => {
+                if (!full) return;
+                setState((prev) => {
+                  // Only replace if we're still on the same battle
+                  if (prev.battle?.battle_id !== newBattleId) return prev;
+                  return { ...prev, battle: full };
+                });
+              });
+
               return;
             }
 
