@@ -34,9 +34,7 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
  *
  * The remainingTime is DISPLAY-ONLY and does not trigger any state changes.
  */
-const getDerivedBattlePhase = (
-  battle: ArenaBattleView | null,
-): DerivedBattlePhase => {
+const getDerivedBattlePhase = (battle: ArenaBattleView | null): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
   const debugInfo = { battle_id: battle.battle_id, state: battle.state, resolution_type: battle.resolution_type };
@@ -64,7 +62,6 @@ const getDerivedBattlePhase = (
   return "NORMAL";
 };
 
-
 const BattleRoomScreen = () => {
   const location = useLocation();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
@@ -79,7 +76,6 @@ const BattleRoomScreen = () => {
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
-
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -142,7 +138,6 @@ const BattleRoomScreen = () => {
   useEffect(() => {
     if (battle?.battle_id !== prevBattleIdRef.current) {
       hasFinalizedRef.current = false; // 🔑 RESET OBLIGATORIO
-      
 
       if (prevBattleIdRef.current !== null) {
         setVoteRecord(null);
@@ -166,8 +161,6 @@ const BattleRoomScreen = () => {
     // MVP behavior: acknowledge immediately
     acknowledgeResult();
   }, [hasJustResolved, isDraw, lastWinnerSide, acknowledgeResult]);
-
-
 
   useEffect(() => {
     const loadBattleRoom = async () => {
@@ -264,6 +257,7 @@ const BattleRoomScreen = () => {
     <div className="relative min-h-dvh w-full">
       {/* Presentational layer */}
       <StageView
+        key={battle?.battle_id}
         arena={arena!}
         battle={battle}
         participant={participant!}
