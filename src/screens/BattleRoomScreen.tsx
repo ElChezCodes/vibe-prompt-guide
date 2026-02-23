@@ -37,40 +37,30 @@ type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | 
 const getDerivedBattlePhase = (
   battle: ArenaBattleView | null,
 ): DerivedBattlePhase => {
-  if (!battle) {
-    console.log("[DerivedPhase Debug]", { battle_id: null, state: null, lockin_at: null, resolution_type: null, returned_phase: "NORMAL", timestamp: Date.now() });
-    return "NORMAL";
-  }
+  if (!battle) return "NORMAL";
 
-  const debugInfo = { battle_id: battle.battle_id, state: battle.state, lockin_at: battle.lockin_at, resolution_type: battle.resolution_type };
+  const debugInfo = { battle_id: battle.battle_id, state: battle.state, resolution_type: battle.resolution_type };
 
   if (battle.state === "completed") {
     console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "FINISHED", timestamp: Date.now() });
     return "FINISHED";
   }
 
-  // Deterministic LOCK_IN: use lockin_at timestamp to avoid realtime delay
-  if (battle.state === "active" && battle.lockin_at) {
-    const now = Date.now();
-    const lockinTime = new Date(battle.lockin_at).getTime();
-    if (now >= lockinTime) {
-      console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", lockinTime, client_now: now, timestamp: Date.now() });
-      return "LOCK_IN";
-    }
+  if (battle.state === "closing" && battle.resolution_type === "sudden_death") {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
+    return "SUDDEN_DEATH";
   }
 
-  // Also handle backend 'closing' state directly
   if (battle.state === "closing") {
     console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", timestamp: Date.now() });
     return "LOCK_IN";
   }
 
-  if (battle.resolution_type === "sudden_death") {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
-    return "SUDDEN_DEATH";
+  if (battle.state === "active") {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "NORMAL", timestamp: Date.now() });
+    return "NORMAL";
   }
 
-  console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "NORMAL", timestamp: Date.now() });
   return "NORMAL";
 };
 
@@ -85,28 +75,8 @@ const BattleRoomScreen = () => {
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
-  // Tick counter to force re-render at deterministic phase boundaries
-  const [, setPhaseTick] = useState(0);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
-
-  // Schedule a forced re-render when lockin_at arrives so getDerivedBattlePhase
-  // re-evaluates deterministically without waiting for a realtime event.
-  useEffect(() => {
-    if (!battle?.lockin_at || battle.state !== "active") return;
-
-    const lockinTime = new Date(battle.lockin_at).getTime();
-    const delay = lockinTime - Date.now();
-
-    if (delay <= 0) return; // Already past lockin, phase will be derived on next render
-
-    const timer = setTimeout(() => {
-      console.log("[PhaseTick] Forcing re-render at lockin_at", { battle_id: battle.battle_id, timestamp: Date.now() });
-      setPhaseTick((t) => t + 1);
-    }, delay);
-
-    return () => clearTimeout(timer);
-  }, [battle?.battle_id, battle?.lockin_at, battle?.state]);
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
