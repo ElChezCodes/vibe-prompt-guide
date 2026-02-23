@@ -39,23 +39,18 @@ const getDerivedBattlePhase = (
 ): DerivedBattlePhase => {
   if (!battle) return "NORMAL";
 
-  // FINISHED: Backend says completed or closing
-  if (battle.state === "completed" || battle.state === "closing") {
+  // FINISHED ONLY when backend says completed
+  if (battle.state === "completed") {
     return "FINISHED";
   }
 
-  // Only derive phases when battle is active
-  if (battle.state !== "active") {
-    return "NORMAL";
-  }
-
-  // SUDDEN_DEATH: Backend-authoritative flag
+  // Sudden Death remains backend-authoritative
   if (battle.resolution_type === "sudden_death") {
     return "SUDDEN_DEATH";
   }
 
-  // LOCK_IN: Backend says locked (lockin_at is set)
-  if (battle.lockin_at !== null && battle.lockin_at !== undefined) {
+  // LOCK_IN when backend enters closing or lockin_at exists
+  if (battle.state === "closing" || battle.lockin_at) {
     return "LOCK_IN";
   }
 
