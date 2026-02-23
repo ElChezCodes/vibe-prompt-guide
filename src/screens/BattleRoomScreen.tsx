@@ -49,14 +49,25 @@ const getDerivedBattlePhase = (
     return "FINISHED";
   }
 
+  // Deterministic LOCK_IN: use lockin_at timestamp to avoid realtime delay
+  if (battle.state === "active" && battle.lockin_at) {
+    const now = Date.now();
+    const lockinTime = new Date(battle.lockin_at).getTime();
+    if (now >= lockinTime) {
+      console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", lockinTime, client_now: now, timestamp: Date.now() });
+      return "LOCK_IN";
+    }
+  }
+
+  // Also handle backend 'closing' state directly
+  if (battle.state === "closing") {
+    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", timestamp: Date.now() });
+    return "LOCK_IN";
+  }
+
   if (battle.resolution_type === "sudden_death") {
     console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
     return "SUDDEN_DEATH";
-  }
-
-  if (battle.state === "closing" || battle.lockin_at) {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", timestamp: Date.now() });
-    return "LOCK_IN";
   }
 
   console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "NORMAL", timestamp: Date.now() });
