@@ -85,8 +85,28 @@ const BattleRoomScreen = () => {
   const isVotingRef = useRef(false);
   const prevBattleIdRef = useRef<string | null>(null);
   const hasFinalizedRef = useRef(false);
+  // Tick counter to force re-render at deterministic phase boundaries
+  const [, setPhaseTick] = useState(0);
 
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
+
+  // Schedule a forced re-render when lockin_at arrives so getDerivedBattlePhase
+  // re-evaluates deterministically without waiting for a realtime event.
+  useEffect(() => {
+    if (!battle?.lockin_at || battle.state !== "active") return;
+
+    const lockinTime = new Date(battle.lockin_at).getTime();
+    const delay = lockinTime - Date.now();
+
+    if (delay <= 0) return; // Already past lockin, phase will be derived on next render
+
+    const timer = setTimeout(() => {
+      console.log("[PhaseTick] Forcing re-render at lockin_at", { battle_id: battle.battle_id, timestamp: Date.now() });
+      setPhaseTick((t) => t + 1);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [battle?.battle_id, battle?.lockin_at, battle?.state]);
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
