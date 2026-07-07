@@ -1,0 +1,78 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+"Music Fighter" — a real-time, arena-style music battle app. A host creates an arena, participants join with a code, and songs face off head-to-head while participants vote from their phones. A separate "stage view" renders the battle for a venue display (TV/projector).
+
+This is a **Lovable** project: it is edited both locally and via the Lovable web editor (lovable.dev), and changes from either side sync through this git repo. `.lovable/plan.md` holds the description of the most recently applied Lovable change — treat it as a scratch note, not documentation, and expect it to be overwritten/irrelevant across sessions.
+
+## Business Rules (from project spec, not inferable from code)
+
+- Battle states: pending → active → closing → completed. Backend-only transitions via SQL RPC + cron (run_battle_finalizer_job).
+- Sudden Death: triggered when closing + tie at lock-in. Only sudden_death vote_type accepted; one immutable vote per participant; a prior regular vote can be upgraded once, never downgraded.
+- Draw resolution: if still tied after Sudden Death, current spec (v3.2/v4) sends both songs to the queue in A-B order. Do not implement the older v3.0 tie-break logic (PI level, then random) — it's superseded.
+- Vote types: "regular" (active phase) and "sudden_death" (closing + sudden_death_active). Regular votes can be toggled/switched; sudden_death votes are final once cast.
+- Known open spec ambiguity: passive affinity timing and the k=1.25 affinity cap appear in some docs (Paso 1, PRD) but not others (v3.0, v4 consolidated). Do NOT implement affinity logic without checking with Sergio first — this is unresolved upstream, not a coding decision.
+- Queue tables (songs, queues, playlist_queue, streaming_accounts) exist in Supabase but have zero frontend wiring as of this session — do not assume any of them are connected yet.
+
+## Commands
+
+```sh
+npm i            # install deps (npm; bun.lockb is also present but npm is the primary flow)
+npm run dev      # start Vite dev server on port 8080
+npm run build    # production build
+npm run build:dev  # development-mode build (unminified, useful for debugging bundling issues)
+npm run lint     # eslint .
+npm run preview  # preview a production build
+```
+
+There is no test suite/framework configured in this repo (no jest/vitest/playwright). Do not invent test commands.
+
+TypeScript is configured leniently on purpose (`strict: false`, `noImplicitAny: false`, `strictNullChecks: false` in `tsconfig.json`/`tsconfig.app.json`, and `@typescript-eslint/no-unused-vars` is off) — don't "fix" this repo-wide; match existing looseness rather than introducing stricter typing conventions inconsistently.
+
+## Architecture
+
+### Stack
+
+Vite + React 18 + TypeScript, react-router-dom for routing, shadcn-ui (Radix primitives) + Tailwind for UI (`src/components/ui/*` is generated shadcn boilerplate — treat as vendor code, prefer composing over heavily editing), TanStack Query is wired up (`QueryClientProvider` in `App.tsx`) but most data access currently bypasses it in favor of direct Supabase calls + realtime subscriptions. Supabase is the backend: Postgres + Realtime + RPCs + a single Edge Function + anonymous auth.
+
+Path alias `@/*` → `src/*` (see `vite.config.ts`, `tsconfig.json`, `components.json`).
+
+### Screen flow
+
+Routes in `src/App.tsx` are a mostly-linear flow gated by `useAnonymousAuth` (every visitor gets a Supabase anonymous session before any route renders):
+
+- `/` `SplashScreen` → `/join` `JoinArenaScreen` → `/battle` `BattleRoomScreen` (participant flow, join by arena code)
+- `/create` `CreateArenaScreen` → `/lobby` `ArenaLobbyScreen` (host flow, shows QR/code) → `/connect` `ConnectStreamingScreen` (host connects music streaming)
+- `/stage` `StageViewScreen` — read-only presentational view meant for a venue's big screen, wraps `components/battle/StageView`
+
+Arena/participant identity: `identity_anchors` (via `getOrCreateIdentityAnchor`, backed by `localStorage` + a Supabase anonymous auth session) + `participants` (`ensureParticipant`, idempotent insert-or-fetch keyed by `arena_id` + `identity_anchor_id`) establish who's in an arena and whether they're the host.
+
+### Backend-authoritative battle state machine — the core design invariant
+
+This is the most important architectural rule in the codebase, stated repeatedly in comments across the source: **the frontend never computes votes, winners, timing, or phase transitions — it only derives display state from fields already decided by the backend.** All battle lifecycle logic (lock-in timing, sudden death, winner resolution) lives in SQL (RPCs + a cron job), not in React.
+
+- `battles.state` is the source of truth: `"pending" | "active" | "closing" | "completed"`.
+- Related backend fields consumed read-only by the frontend: `started_at`, `duration_ms`, `lockin_at`, `sudden_death_active`, `resolution_type`, `winner_song_id`, `had_sudden_death`.
+- `src/lib/battleClosureOrchestrator.ts` — pure functions that *derive* display phase/winner from a `BattleData` row (`deriveVotingPhaseFromBattle`, `getWinnerFromBattle`, etc.) plus `emitBattleClosedEvent`/`emitLockinReachedEvent`/`emitSuddenDeathStartedEvent`, which dispatch `window` CustomEvents (`battle:closed`, `battle:lockin_reached`, `battle:sudden_death_started`) that hooks listen for to know when to re-sync from the backend.
+- `src/hooks/useBattleOrchestrator.ts` — owns the live `ArenaBattleView` (a view over `arena_live_state`, a Postgres view joining battle + song + vote-count data). Subscribes to Postgres realtime changes on `battles` filtered by `arena_id`; on INSERT it optimistically renders a minimal row (carrying over previous song metadata as placeholder) then backfills the full view row async; on UPDATE it merges a fixed allowlist of fields (`MERGE_FIELDS`). Vote counts are additionally polled every 2s (realtime isn't relied on for vote tallies).
+- `src/hooks/useBattleClosureOrchestrator.ts` — separate, narrower snapshot (`ClosureStateSnapshot`) fetched straight from `battles` table, used specifically to detect resolution/lock-in/sudden-death and drive `useArenaFlow`.
+- `src/hooks/useArenaFlow.ts` — consumes a resolved battle **exactly once** per `battleId` (idempotency guarded via a ref, not state) to trigger post-battle UI/consequences.
+- `src/hooks/useBattleEndedTrigger.ts` — deliberately a no-op stub, kept only so existing imports don't break. Battle-ended handling has moved entirely server-side (SQL cron + RPC). Don't resurrect logic here — if you need to react to battle end, use the closure-orchestrator/event path instead.
+- `src/screens/BattleRoomScreen.tsx` has its own `getDerivedBattlePhase()` mapping backend state → a UI-only `DerivedBattlePhase` (`NORMAL | FINAL_30S | LOCK_IN | SUDDEN_DEATH | FINISHED`) used purely for rendering (overlays, tension bar intensity) — this is a second, screen-local derivation layered on top of the orchestrators above, not a competing source of truth.
+- `src/integrations/supabase/votes.ts` (`applyVoteIntent`) re-fetches `lockin_at`/`sudden_death_active` from the DB on every vote and enforces phase rules there — the `_isLockedIn` parameter passed in is explicitly ignored/deprecated. RLS rejections are treated as "vote locked" rather than a hard error (`isRlsError`).
+- `supabase/functions/battle-finalizer-cron/index.ts` — an Edge Function invoked on a schedule that calls the `run_battle_finalizer_job` RPC using the service-role key. This repo only contains the Edge Function; the RPC/cron-job definitions and DB schema/migrations live in the Supabase project itself, not in this repo (`supabase/` has no `config.toml` or migrations directory).
+
+When touching anything battle-related: resist adding client-side timers/logic that *decide* outcomes. Timers in the UI (e.g. `BattleTimer`) are display-only countdowns computed from backend `started_at`/`duration_ms` and must never gate voting or transitions themselves — always gate on `battle.state` (or the derived phase built from it).
+
+Note: several files currently contain verbose `console.log` debug instrumentation (`[BattleTimer Debug]`, `[DerivedPhase Debug]`, `[Realtime Debug]`, `[StageView Render]`, etc.) added for diagnosing phase-desync timing issues — see `.lovable/plan.md` for the rationale at the time it was added. Don't treat the presence of heavy logging as the norm to imitate elsewhere; it's task-specific debug scaffolding.
+
+### Supabase integration layout
+
+`src/integrations/supabase/` — one file per concern, all thin wrappers around `supabase-js` calls (no ORM/repository abstraction beyond this):
+- `client.ts` — Supabase client singleton (anon key, safe to expose client-side)
+- `arenas.ts`, `participants.ts`, `identityAnchors.ts`, `votes.ts` — CRUD/RPC calls for each entity
+
+Mutations that need cross-row invariants (creating an arena, resolving battles) go through Postgres RPCs (`create_arena`, `run_battle_finalizer_job`) rather than raw inserts, keeping that logic server-side alongside the battle state machine.
