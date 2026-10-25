@@ -23,8 +23,7 @@ export interface BattleData {
   lockin_at: string | null;
   sudden_death_active: boolean;
   winner_song_id: string | null;
-  had_sudden_death: boolean;
-  is_special_battle: boolean;
+  sudden_death_started_at: string | null;
 }
 
 /**
@@ -45,8 +44,7 @@ export async function fetchBattle(battleId: string): Promise<BattleData | null> 
       lockin_at,
       sudden_death_active,
       winner_song_id,
-      had_sudden_death,
-      is_special_battle
+      sudden_death_started_at
       `,
     )
     .eq("id", battleId)
@@ -127,7 +125,10 @@ export function getWinnerFromBattle(battle: BattleData): {
   }
 
   const isDraw = battle.winner_song_id === null;
-  const bothSongsWin = isDraw && battle.had_sudden_death;
+  // A draw always means both songs got queued (finalize_and_enqueue_battle /
+  // process_battle_lifecycle always insert both songs into playlist_queue on
+  // a tie), so bothSongsWin is just isDraw — no separate signal needed.
+  const bothSongsWin = isDraw;
 
   let winnerSide: "A" | "B" | null = null;
 
