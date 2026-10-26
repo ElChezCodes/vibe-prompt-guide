@@ -96,11 +96,23 @@ export interface Arena {
   created_at: string;
 }
 
+// arena_code is 6 uppercase hex chars (generate_arena_code). Map the
+// look-alikes people actually type (O -> 0, I/L -> 1) and drop anything that
+// can't be part of a code.
+export function normalizeArenaCode(input: string): string {
+  return input
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1')
+    .replace(/[^0-9A-F]/g, '')
+    .slice(0, 6);
+}
+
 export async function resolveArenaByCode(code: string): Promise<string> {
   const { data, error } = await supabase
     .from('arenas')
     .select('id, state')
-    .eq('arena_code', code.toUpperCase())
+    .eq('arena_code', normalizeArenaCode(code))
     .maybeSingle();
 
   if (error) {

@@ -7,7 +7,7 @@ import {
   InputOTPSlot,
   InputOTPSeparator,
 } from "@/components/ui/input-otp";
-import { resolveArenaByCode } from "@/integrations/supabase/arenas";
+import { normalizeArenaCode, resolveArenaByCode } from "@/integrations/supabase/arenas";
 import { getOrCreateIdentityAnchor } from "@/integrations/supabase/identityAnchors";
 
 const JoinArenaScreen = () => {
@@ -47,7 +47,7 @@ const JoinArenaScreen = () => {
             Join an Arena
           </h1>
           <p className="text-text-secondary text-sm text-center">
-            Enter the 6-digit code to join
+            Enter the 6-character code to join
           </p>
         </div>
 
@@ -56,7 +56,7 @@ const JoinArenaScreen = () => {
           <InputOTP
             maxLength={6}
             value={code}
-            onChange={setCode}
+            onChange={(value) => setCode(normalizeArenaCode(value))}
             containerClassName="justify-center"
           >
             <InputOTPGroup>
