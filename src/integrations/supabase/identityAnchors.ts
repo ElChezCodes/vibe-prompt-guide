@@ -1,30 +1,20 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const IDENTITY_ANCHOR_KEY = 'identity_anchor_id';
-
-export interface IdentityAnchor {
-  id: string;
-  created_at: string;
-}
-
+/**
+ * The identity anchor IS the Supabase auth user id (auth.uid()): that's what
+ * participants.identity_anchor_id, votes (fill_vote_fields) and RLS all use.
+ *
+ * This used to insert a random row into `identity_anchors` and cache it in
+ * localStorage, but that id was never read anywhere, and the table's RLS only
+ * allows the `anon` role -- anonymous sign-ins are `authenticated` -- so every
+ * new browser failed here with "Failed to join arena".
+ */
 export async function getOrCreateIdentityAnchor(): Promise<string> {
-  const existing = localStorage.getItem(IDENTITY_ANCHOR_KEY);
-  if (existing) {
-    return existing;
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('No authenticated session');
   }
 
-  const { data, error } = await supabase
-    .from('identity_anchors')
-    .insert({})
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Failed to create identity anchor:', error.message, error);
-    throw error;
-  }
-
-  const anchorId = (data as IdentityAnchor).id;
-  localStorage.setItem(IDENTITY_ANCHOR_KEY, anchorId);
-  return anchorId;
+  return session.user.id;
 }

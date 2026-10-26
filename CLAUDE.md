@@ -54,7 +54,7 @@ Routes in `src/App.tsx` are a mostly-linear flow gated by `useAnonymousAuth` (ev
 - `/create` `CreateArenaScreen` → `/lobby` `ArenaLobbyScreen` (host flow, shows QR/code) → `/connect` `ConnectStreamingScreen` (host connects music streaming)
 - `/stage` `StageViewScreen` — read-only presentational view meant for a venue's big screen, wraps `components/battle/StageView`
 
-Arena/participant identity: `identity_anchors` (via `getOrCreateIdentityAnchor`, backed by `localStorage` + a Supabase anonymous auth session) + `participants` (`ensureParticipant`, idempotent insert-or-fetch keyed by `arena_id` + `identity_anchor_id`) establish who's in an arena and whether they're the host.
+Arena/participant identity: the identity anchor **is the Supabase auth user id** (`auth.uid()`, from the anonymous session; `getOrCreateIdentityAnchor` just returns it). The `identity_anchors` table is vestigial — nothing references it, and its RLS only allows the `anon` role (anonymous sign-ins are `authenticated`), so don't write to it. `participants` (`ensureParticipant`, idempotent insert-or-fetch keyed by `arena_id` + `identity_anchor_id`) establish who's in an arena and whether they're the host.
 
 ### Backend-authoritative battle state machine — the core design invariant
 
