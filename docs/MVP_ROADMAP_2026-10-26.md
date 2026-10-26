@@ -255,8 +255,8 @@ additions (#1, #4 above), each marked where it lands.
 1. **Real Arena state model** — `waiting/active/finished/expired`, `mood`
    persisted and actually read. **Done 2026-10-26** — incl. auto-finish of
    abandoned active arenas (2h idle), cancelled in-flight battles, and
-   Block 5 §6 vote retention (30 days); pending only an in-app two-device
-   realtime check.
+   Block 5 §6 vote retention (30 days). Two-device check passed in-app
+   (guest join, waiting overlay, guest voting/proposals, live "finished").
 2. **Warm-up song system** — Host selects it, plays immediately on Arena
    creation, never competes/votes/scores/queues, stops when battles start.
 3. **Presence tracking infrastructure** — real writes to `last_active_at` on
