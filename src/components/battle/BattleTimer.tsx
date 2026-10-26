@@ -63,10 +63,16 @@ const BattleTimer = ({ battle }: BattleTimerProps) => {
     };
   }, [battle?.battle_id, battle?.started_at, battle?.duration_ms]);
 
+  const isFinal = remainingTime > 0 && remainingTime <= 15;
+
   return (
-    <div className="py-8">
+    <div className="relative py-8">
       <div className="flex items-center justify-center">
-        <span className="text-6xl lg:text-8xl font-semibold text-foreground tracking-widest tabular-nums">
+        <span
+          className={`h-16 lg:h-24 flex items-center px-6 rounded-2xl border bg-secondary/70 backdrop-blur font-arcade text-4xl lg:text-7xl font-black tracking-widest tabular-nums transition-colors duration-300 ${
+            isFinal ? "text-energy-yellow border-energy-yellow/50 animate-pulse" : "text-foreground border-border"
+          }`}
+        >
           {formatTime(remainingTime)}
         </span>
       </div>
