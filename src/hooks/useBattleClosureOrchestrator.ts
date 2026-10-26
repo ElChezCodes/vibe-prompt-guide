@@ -64,7 +64,8 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
       started_at,
       lockin_at,
       sudden_death_active,
-      winner_song_id
+      winner_song_id,
+      resolution_type
       `,
     )
     .eq("id", battleId)
@@ -79,7 +80,8 @@ async function fetchBattleSnapshot(battleId: string): Promise<ClosureStateSnapsh
   const isLockinReached = battle.state === "closing";
   const suddenDeathActive = battle.state === "closing" && battle.sudden_death_active === true;
 
-  const isDraw = resolved && battle.winner_song_id === null;
+  // No winner also happens for resolution_type 'cancelled' (arena ended mid-battle)
+  const isDraw = resolved && battle.resolution_type === "draw";
 
   let winnerSide: "A" | "B" | null = null;
   if (battle.winner_song_id) {
