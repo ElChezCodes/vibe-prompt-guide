@@ -12,6 +12,7 @@ export interface ArenaBattleView {
   lockin_at: string | null;
   resolution_type: string | null;
   winner_song_id: string | null;
+  sudden_death_active: boolean;
 
   battle_created_at: string;
 
@@ -41,6 +42,7 @@ const MERGE_FIELDS = [
   "lockin_at",
   "resolution_type",
   "winner_song_id",
+  "sudden_death_active",
 ] as const;
 
 const pickMergeFields = (battle: ArenaBattleView): Partial<ArenaBattleView> =>
@@ -114,7 +116,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   const fetchVoteCounts = useCallback(async (arenaId: string) => {
     const { data, error } = await supabase
       .from("arena_live_state")
-      .select("battle_id, votes_a, votes_b, status, started_at, duration_ms, lockin_at, resolution_type, winner_song_id")
+      .select("battle_id, votes_a, votes_b, status, started_at, duration_ms, lockin_at, resolution_type, winner_song_id, sudden_death_active")
       .eq("arena_id", arenaId)
       .order("battle_created_at", { ascending: false })
       .limit(1)
@@ -227,6 +229,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
                   lockin_at: (newRow.lockin_at as string) ?? null,
                   resolution_type: (newRow.resolution_type as string) ?? null,
                   winner_song_id: (newRow.winner_song_id as string) ?? null,
+                  sudden_death_active: (newRow.sudden_death_active as boolean) ?? false,
                   battle_created_at: (newRow.created_at as string) ?? new Date().toISOString(),
                   // Carry over previous song metadata as temporary placeholders
                   song_a_id: prevBattle?.song_a_id ?? "",

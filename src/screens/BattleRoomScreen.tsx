@@ -58,7 +58,8 @@ const getDerivedBattlePhase = (battle: ArenaBattleView | null): DerivedBattlePha
     return "FINISHED";
   }
 
-  if (battle.state === "closing" && battle.resolution_type === "sudden_death") {
+  // resolution_type is only set at completion, so it can't detect an ongoing SD
+  if (battle.state === "closing" && battle.sudden_death_active) {
     console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
     return "SUDDEN_DEATH";
   }
@@ -93,7 +94,8 @@ const BattleRoomScreen = () => {
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
-      if (!battle || battle.state !== "active" || !participant || !arena || arena.state !== "active") {
+      const isVotablePhase = battle?.state === "active" || (battle?.state === "closing" && battle?.sudden_death_active);
+      if (!battle || !isVotablePhase || !participant || !arena || arena.state !== "active") {
         console.log("[Vote] Blocked - battle/arena not active or missing data");
         return;
       }
@@ -293,12 +295,19 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(battle);
 
-  // Voting enabled exclusively by backend state (battle AND arena)
-  const isVotingEnabled = battle?.state === "active" && arena?.state === "active";
-  const moodLabel = getMoodLabel(arena?.mood);
-
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
   const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
+
+  // Voting enabled exclusively by backend state (battle AND arena). In Sudden
+  // Death each participant gets one final vote (new, or upgrade of a regular one).
+  const isVotingEnabled =
+    arena?.state === "active" &&
+    (battle?.state === "active" || (derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote));
+  const moodLabel = getMoodLabel(arena?.mood);
+
+  // In Sudden Death the tension bar counts only sudden_death votes, so only
+  // highlight the user's pick once it is a sudden_death vote.
+  const displayedVote = derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote ? null : voteRecord;
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -308,7 +317,7 @@ const BattleRoomScreen = () => {
         arena={arena!}
         battle={battle}
         participant={participant!}
-        currentVote={voteRecord}
+        currentVote={displayedVote}
         derivedPhase={derivedPhase}
       />
 
