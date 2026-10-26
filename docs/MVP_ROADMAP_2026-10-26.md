@@ -271,6 +271,9 @@ additions (#1, #4 above), each marked where it lands.
    audio-feature averages, recalculated on the spec's cadence.
 9. **Passive voting engine** — the affinity-similarity formula, k=1.25 cap,
    30-second freeze/ramp, zero during Sudden Death. Depends on #4 and #8.
+   Only participants with no `votes` row for the battle get a passive vote:
+   voting and then cancelling means abstaining, not "didn't vote"
+   (user decision, 2026-10-26).
 10. **Jukebox Boost mechanic** — the vote behavior only (1 purchase per battle,
     non-cancelable, counts as 1.0 PB). Apply the shared anti-abuse boundary
     (engineering addition #3) here.
