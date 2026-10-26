@@ -60,10 +60,15 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
     return "normal";
   };
 
+  const moodLabel = getMoodLabel(arena.mood);
+
   return (
-    <div className="min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+    <div className="relative min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+      {/* Arena ambient lighting: blue corner left, magenta corner right */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
+
       {/* Tension Bar - Full width at top */}
-      <div className="w-full pt-8 px-8">
+      <div className="relative w-full pt-8 px-8">
         <TensionBar percentageA={percentageA} percentageB={percentageB} intensity={getTensionIntensity()} />
       </div>
 
@@ -71,7 +76,7 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
       <BattleTimer battle={battle} />
 
       {/* Battle Arena - Song Cards with VS */}
-      <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
+      <div className="relative flex-1 flex items-center justify-center px-8 lg:px-16">
         <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
           {/* Song A - Left */}
           <div className="flex-1 max-w-md animate-fade-in-up">
@@ -81,12 +86,16 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songTitle={battle?.song_a_title ?? ""}
               artistName={battle?.song_a_artist ?? ""}
               currentVote={currentVote}
+              tag={moodLabel}
+              isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
             />
           </div>
 
-          {/* VS Indicator */}
+          {/* VS Emblem */}
           <div className="flex-shrink-0 animate-fade-in" style={{ animationDelay: "150ms" }}>
-            <span className="text-4xl lg:text-6xl font-arcade font-black text-muted-foreground tracking-wider">VS</span>
+            <div className="vs-emblem w-16 h-16 lg:w-24 lg:h-24 rounded-full flex items-center justify-center">
+              <span className="text-2xl lg:text-4xl font-arcade font-black tracking-wider vs-text">VS</span>
+            </div>
           </div>
 
           {/* Song B - Right */}
@@ -97,6 +106,8 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songTitle={battle?.song_b_title ?? ""}
               artistName={battle?.song_b_artist ?? ""}
               currentVote={currentVote}
+              tag={moodLabel}
+              isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
             />
           </div>
         </div>
