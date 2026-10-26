@@ -266,6 +266,13 @@ additions (#1, #4 above), each marked where it lands.
    is the first song of the session and sets battle 1's duration. Battle 1
    also falls back to mood-matched library songs instead of "Mock Song A/B"
    when nothing was proposed in the lobby.
+2b. **Functional in-app navigation** — added by user decision 2026-10-26,
+    pulled ahead of #19 (not spec-sourced; Paso_2's closed linear flow still
+    applies, no new Profile/Ranking screens). Arena in the URL so reload/back/
+    shared links work (today `arenaId` only travels in router state), back/exit
+    buttons, Lobby → `/connect` and `/stage`, `/stage` reading the arena from
+    the URL. Functional layer only; visual design is done by the user in
+    Lovable from a handoff prompt.
 3. **Presence tracking infrastructure** — real writes to `last_active_at` on
    every qualifying action (vote, proposal, entering Arena).
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,
