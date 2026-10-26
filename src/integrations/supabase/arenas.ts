@@ -147,7 +147,7 @@ export async function getArena(arenaId: string): Promise<Arena> {
   return data as Arena;
 }
 
-export async function createArena(name: string, mood: ArenaMood): Promise<Arena> {
+export async function createArena(name: string, mood: ArenaMood, warmupSongId: string): Promise<Arena> {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session?.user) {
@@ -160,7 +160,7 @@ export async function createArena(name: string, mood: ArenaMood): Promise<Arena>
 
   // Host is taken from auth.uid() server-side
   const { data: arenaId, error: rpcError } = await supabase
-    .rpc('create_arena', { p_name: normalizedName, p_mood: mood });
+    .rpc('create_arena', { p_name: normalizedName, p_mood: mood, p_warmup_song_id: warmupSongId });
 
   if (rpcError) {
     console.error('Failed to create arena:', rpcError.message, rpcError);
@@ -170,14 +170,17 @@ export async function createArena(name: string, mood: ArenaMood): Promise<Arena>
   return getArena(arenaId);
 }
 
-// Host only. waiting -> active; no-op if already active.
-export async function startArenaBattles(arenaId: string): Promise<void> {
-  const { error } = await supabase.rpc('start_arena_battles', { p_arena_id: arenaId });
+// Host only. waiting -> active, starts the warm-up and creates battle 1
+// (lasting the warm-up's duration). Idempotent: returns the open battle id.
+export async function startArenaBattles(arenaId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('start_arena_battles', { p_arena_id: arenaId });
 
   if (error) {
     console.error('Failed to start arena battles:', error.message, error);
     throw error;
   }
+
+  return data as string;
 }
 
 // Host only. waiting|active -> finished.
@@ -188,4 +191,57 @@ export async function endArena(arenaId: string): Promise<void> {
     console.error('Failed to end arena:', error.message, error);
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Warm-up song (see supabase/sql/warmup_song_2026-10-26.sql). Chosen at
+// creation, silent in the lobby, starts on Start Battles and is the first
+// song of the session: battle 1 lasts its duration. Never competes.
+// ---------------------------------------------------------------------------
+
+export interface WarmupSuggestion {
+  id: string;
+  title: string;
+  artist: string;
+  duration_ms: number;
+  matches_mood: boolean;
+}
+
+// Curated library (MVP), the mood's matches first
+export async function getWarmupSuggestions(mood: ArenaMood, query: string): Promise<WarmupSuggestion[]> {
+  const { data, error } = await supabase.rpc('get_warmup_suggestions', { p_mood: mood, p_query: query });
+
+  if (error) {
+    console.error('Failed to load warm-up suggestions:', error.message, error);
+    throw error;
+  }
+
+  return (data ?? []) as WarmupSuggestion[];
+}
+
+export interface ArenaWarmup {
+  song_id: string;
+  title: string;
+  artist: string;
+  duration_ms: number;
+  // Set by start_arena_battles; null while the lobby is silent
+  started_at: string | null;
+  // Host only (the provisional playback device), null for everyone else
+  audio_storage_path: string | null;
+}
+
+export async function getArenaWarmup(arenaId: string): Promise<ArenaWarmup | null> {
+  const { data, error } = await supabase.rpc('get_arena_warmup', { p_arena_id: arenaId });
+
+  if (error) {
+    console.error('Failed to load arena warm-up:', error.message, error);
+    throw error;
+  }
+
+  return ((data ?? [])[0] as ArenaWarmup) ?? null;
+}
+
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 }

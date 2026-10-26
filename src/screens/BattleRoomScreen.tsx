@@ -5,6 +5,7 @@ import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supaba
 import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
+import { useArenaWarmup } from "@/hooks/useArenaWarmup";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
@@ -149,6 +150,13 @@ const BattleRoomScreen = () => {
   const roleIntent = location.state?.role_intent as "host" | "participant" | undefined;
 
   const { hasJustResolved, lastWinnerSide, isDraw, acknowledgeResult } = useArenaFlow(arenaId ?? "", closureState);
+
+  // Warm-up: first song of the session; the host's browser plays it for now
+  const { warmup, isWarmupPlaying, needsTap, resumeWarmup } = useArenaWarmup(
+    arenaId,
+    arena?.state,
+    !!participant?.is_host,
+  );
 
   // Reset vote state and sync closure when battle changes
   useEffect(() => {
@@ -378,6 +386,26 @@ const BattleRoomScreen = () => {
           <div className="px-6 py-4 rounded-xl bg-black/80 text-white text-center">
             <p className="text-2xl font-arcade font-black tracking-widest">ARENA FINISHED</p>
             <p className="mt-1 text-sm text-white/70">Thanks for playing</p>
+          </div>
+        </div>
+      )}
+
+      {/* Warm-up now playing (display-only window from warmup_started_at) */}
+      {warmup && isWarmupPlaying && (
+        <div className="absolute top-2 left-2 z-[55] max-w-[60%]">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80">
+            <span className="flex-shrink-0">♪ Warm-up</span>
+            <span className="truncate text-white">
+              {warmup.title} · {warmup.artist}
+            </span>
+            {participant?.is_host && needsTap && (
+              <button
+                onClick={resumeWarmup}
+                className="flex-shrink-0 px-2 py-0.5 rounded bg-primary text-primary-foreground font-medium"
+              >
+                Play
+              </button>
+            )}
           </div>
         </div>
       )}

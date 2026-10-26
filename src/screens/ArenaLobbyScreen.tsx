@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { QrCode, Swords, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { Arena, getArena, getMoodLabel, startArenaBattles } from "@/integrations/supabase/arenas";
+import { QrCode, Swords, Loader2, Music } from "lucide-react";
+import {
+  Arena,
+  ArenaWarmup,
+  formatDuration,
+  getArena,
+  getArenaWarmup,
+  getMoodLabel,
+  startArenaBattles,
+} from "@/integrations/supabase/arenas";
 
 function hashStringToUint32(input: string) {
   let hash = 2166136261;
@@ -23,6 +30,7 @@ const ArenaLobbyScreen = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [arena, setArena] = useState<Arena | null>(null);
+  const [warmup, setWarmup] = useState<ArenaWarmup | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   
   const arenaId = location.state?.arenaId as string | undefined;
@@ -33,6 +41,9 @@ const ArenaLobbyScreen = () => {
     getArena(arenaId)
       .then(setArena)
       .catch(() => setErrorMessage("Failed to load arena"));
+    getArenaWarmup(arenaId)
+      .then(setWarmup)
+      .catch(() => setWarmup(null));
   }, [arenaId]);
 
   // Join resolves against arenas.arena_code, so display exactly that
@@ -49,30 +60,14 @@ const ArenaLobbyScreen = () => {
     setErrorMessage("");
     
     try {
-      // Backend transition waiting -> active; battles can't be created before it
-      if (arena.state === "waiting") {
-        await startArenaBattles(arenaId);
-      }
-
-      const { data, error } = await supabase.functions.invoke('create-battle', {
-        body: { arena_id: arenaId }
-      });
-
-      if (error) {
-        console.error('Failed to create battle:', error);
-        setErrorMessage("Failed to start battles");
-        return;
-      }
-
-      if (!data?.battle_id) {
-        console.error('No battle_id returned from create-battle');
-        return;
-      }
+      // Backend: waiting -> active, warm-up starts, battle 1 created (or the
+      // open battle returned when re-entering)
+      const battleId = await startArenaBattles(arenaId);
 
       navigate("/battle", { 
         state: { 
           arenaId, 
-          battleId: data.battle_id,
+          battleId,
           role_intent: "host" 
         } 
       });
@@ -109,6 +104,25 @@ const ArenaLobbyScreen = () => {
             {isClosed ? "This arena has ended" : "Share the code with your guests"}
           </p>
         </div>
+
+        {/* Warm-up: silent in the lobby, starts with the first battle */}
+        {warmup && (
+          <div
+            className="w-full flex items-center gap-3 bg-surface rounded-xl border border-border/50 px-4 py-3 animate-fade-in-up"
+            style={{ animationDelay: "25ms" }}
+          >
+            <Music className="w-5 h-5 flex-shrink-0 text-primary" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Warm-up song · starts with the first battle</p>
+              <p className="text-sm font-medium text-foreground truncate">
+                {warmup.title} · {warmup.artist}
+              </p>
+            </div>
+            <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
+              {formatDuration(warmup.duration_ms)}
+            </span>
+          </div>
+        )}
 
         {/* Arena Code Block */}
         <div 

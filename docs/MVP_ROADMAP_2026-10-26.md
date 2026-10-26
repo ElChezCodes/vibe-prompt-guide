@@ -65,10 +65,13 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   changes battle rules — *Backend_Block_2 §2*. **Done for UX (step 1)** —
   required at creation, shown in Lobby/Battle Room/Stage View; system-proposal
   sourcing use waits on step 13.
-- **Warm-up song**: Host-selected, plays immediately on Arena creation, arena is
-  "never silent," never competes/votes/scores/queues, stops when Host starts
-  battles — *Backend_Block_2 §3-4, Backend_Block_3 §1, Backend_Block_4 §2*.
-  **Not started** — no schema field, no flow, nothing.
+- **Warm-up song**: Host-selected, never competes/votes/scores/queues —
+  *Backend_Block_2 §3, Backend_Block_3 §1*. **Done (step 2, 2026-10-26)** —
+  with a user decision overriding *Backend_Block_2 §4 / Backend_Block_4 §2*:
+  silent lobby; it starts on Start Battles and keeps playing as the first song
+  of the session, battle 1 lasting its duration. See
+  `supabase/sql/warmup_song_2026-10-26.sql`. Real audio via the host's browser
+  (curated MP3s) until Spotify; post-warm-up playback is step 18.
 - Battle states `init → normal → final_30s → sudden_death → finished` —
   *Backend_Block_2 §5, Paso_3 §3.2*. **Partial** — real implementation uses
   `pending/active/closing/completed`; conceptually close but `final_30s` isn't a
@@ -257,8 +260,12 @@ additions (#1, #4 above), each marked where it lands.
    abandoned active arenas (2h idle), cancelled in-flight battles, and
    Block 5 §6 vote retention (30 days). Two-device check passed in-app
    (guest join, waiting overlay, guest voting/proposals, live "finished").
-2. **Warm-up song system** — Host selects it, plays immediately on Arena
-   creation, never competes/votes/scores/queues, stops when battles start.
+2. **Warm-up song system** — Host selects it (mood-based suggestions), never
+   competes/votes/scores/queues. **Done 2026-10-26**, per the user's
+   definition (overrides Block 2 §4): silent lobby, starts on Start Battles,
+   is the first song of the session and sets battle 1's duration. Battle 1
+   also falls back to mood-matched library songs instead of "Mock Song A/B"
+   when nothing was proposed in the lobby.
 3. **Presence tracking infrastructure** — real writes to `last_active_at` on
    every qualifying action (vote, proposal, entering Arena).
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,

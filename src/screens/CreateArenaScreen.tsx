@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { createArena, ARENA_MOODS, ArenaMood } from "@/integrations/supabase/arenas";
+import {
+  createArena,
+  formatDuration,
+  getWarmupSuggestions,
+  ARENA_MOODS,
+  ArenaMood,
+  WarmupSuggestion,
+} from "@/integrations/supabase/arenas";
 
 const MOOD_GROUPS = Array.from(new Set(ARENA_MOODS.map((m) => m.group)));
 
@@ -10,13 +17,37 @@ const CreateArenaScreen = () => {
   const navigate = useNavigate();
   const [arenaName, setArenaName] = useState("");
   const [mood, setMood] = useState<ArenaMood | null>(null);
+  const [warmupQuery, setWarmupQuery] = useState("");
+  const [warmupSuggestions, setWarmupSuggestions] = useState<WarmupSuggestion[]>([]);
+  const [warmup, setWarmup] = useState<WarmupSuggestion | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  // Warm-up suggestions follow the chosen mood (MVP: curated library only)
+  useEffect(() => {
+    if (!mood) {
+      setWarmupSuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    getWarmupSuggestions(mood, warmupQuery)
+      .then((rows) => {
+        if (!cancelled) setWarmupSuggestions(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setWarmupSuggestions([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mood, warmupQuery]);
+
   const handleCreateArena = async () => {
-    if (!mood) return;
+    if (!mood || !warmup) return;
     setIsCreating(true);
     try {
-      const result = await createArena(arenaName, mood);
+      const result = await createArena(arenaName, mood, warmup.id);
       console.log('Arena created:', result);
       navigate("/lobby", { state: { arenaId: result.id, arenaName: result.name } });
     } catch (error) {
@@ -91,6 +122,62 @@ const CreateArenaScreen = () => {
           </div>
         </div>
 
+        {/* Warm-up song - required; silent until Start Battles, then it is the
+            first song of the session and sets battle 1's duration */}
+        {mood && (
+          <div
+            className="w-full animate-fade-in-up"
+            style={{ animationDelay: "90ms" }}
+          >
+            <p className="text-sm text-muted-foreground text-center mb-1">
+              Pick the warm-up song
+            </p>
+            <p className="text-xs text-muted-foreground/70 text-center mb-3">
+              It starts playing when you start battles and lasts the whole first battle
+            </p>
+            <Input
+              type="text"
+              placeholder="Search songs or artists"
+              value={warmupQuery}
+              onChange={(e) => setWarmupQuery(e.target.value)}
+              disabled={isCreating}
+              className="w-full h-10 mb-2 bg-surface border-border/50 focus:border-primary/50"
+            />
+            <div className="max-h-60 overflow-y-auto pr-1 space-y-1">
+              {warmupSuggestions.map((song) => (
+                <button
+                  key={song.id}
+                  type="button"
+                  onClick={() => setWarmup(song)}
+                  disabled={isCreating}
+                  aria-pressed={warmup?.id === song.id}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors ${
+                    warmup?.id === song.id
+                      ? "border-primary bg-primary/15"
+                      : "border-border/50 bg-surface hover:border-primary/40"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                  </div>
+                  {song.matches_mood && (
+                    <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-primary/15 text-[10px] text-foreground">
+                      Fits mood
+                    </span>
+                  )}
+                  <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {formatDuration(song.duration_ms)}
+                  </span>
+                </button>
+              ))}
+              {warmupSuggestions.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No songs found</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Create Arena Button */}
         <div 
           className="w-full animate-fade-in-up" 
@@ -98,7 +185,7 @@ const CreateArenaScreen = () => {
         >
           <Button
             onClick={handleCreateArena}
-            disabled={isCreating || !mood}
+            disabled={isCreating || !mood || !warmup}
             className="w-full h-12 text-lg font-semibold"
           >
             {isCreating ? "Creating..." : "Create Arena"}
