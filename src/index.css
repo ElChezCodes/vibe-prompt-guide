@@ -182,4 +182,33 @@
   .text-glow-b {
     text-shadow: 0 0 10px hsl(var(--song-b) / 0.8);
   }
+
+  /* Battle Room arena lighting: calm, never competes with content */
+  .arena-ambient {
+    background:
+      radial-gradient(ellipse 60% 50% at 0% 40%, hsl(var(--song-a) / 0.12), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 100% 40%, hsl(var(--song-b) / 0.12), transparent 70%),
+      radial-gradient(ellipse 80% 40% at 50% 100%, hsl(var(--secondary)), transparent 70%);
+  }
+
+  .glow-energy {
+    box-shadow: 0 0 8px hsl(var(--foreground) / 0.9), 0 0 16px hsl(var(--energy-yellow) / 0.6);
+  }
+
+  .vs-emblem {
+    background: radial-gradient(circle, hsl(var(--secondary)) 55%, hsl(var(--background)));
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    box-shadow:
+      -6px 0 18px hsl(var(--song-a) / 0.5),
+      6px 0 18px hsl(var(--song-b) / 0.5),
+      inset 0 0 12px hsl(var(--energy-yellow) / 0.25);
+  }
+
+  .vs-text {
+    background: linear-gradient(90deg, hsl(var(--song-a)), hsl(var(--energy-yellow)), hsl(var(--song-b)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }

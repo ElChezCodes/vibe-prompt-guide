@@ -1,4 +1,5 @@
 import React from "react";
+import { Music } from "lucide-react";
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
@@ -60,10 +61,15 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
     return "normal";
   };
 
+  const moodLabel = getMoodLabel(arena.mood);
+
   return (
-    <div className="min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+    <div className="relative min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+      {/* Arena ambient lighting: blue corner left, magenta corner right */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
+
       {/* Tension Bar - Full width at top */}
-      <div className="w-full pt-8 px-8">
+      <div className="relative w-full pt-8 px-8">
         <TensionBar percentageA={percentageA} percentageB={percentageB} intensity={getTensionIntensity()} />
       </div>
 
@@ -71,7 +77,7 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
       <BattleTimer battle={battle} />
 
       {/* Battle Arena - Song Cards with VS */}
-      <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
+      <div className="relative flex-1 flex items-center justify-center px-8 lg:px-16">
         <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
           {/* Song A - Left */}
           <div className="flex-1 max-w-md animate-fade-in-up">
@@ -81,12 +87,16 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songTitle={battle?.song_a_title ?? ""}
               artistName={battle?.song_a_artist ?? ""}
               currentVote={currentVote}
+              tag={moodLabel}
+              isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
             />
           </div>
 
-          {/* VS Indicator */}
+          {/* VS Emblem */}
           <div className="flex-shrink-0 animate-fade-in" style={{ animationDelay: "150ms" }}>
-            <span className="text-4xl lg:text-6xl font-arcade font-black text-muted-foreground tracking-wider">VS</span>
+            <div className="vs-emblem w-16 h-16 lg:w-24 lg:h-24 rounded-full flex items-center justify-center">
+              <span className="text-2xl lg:text-4xl font-arcade font-black tracking-wider vs-text">VS</span>
+            </div>
           </div>
 
           {/* Song B - Right */}
@@ -97,6 +107,8 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songTitle={battle?.song_b_title ?? ""}
               artistName={battle?.song_b_artist ?? ""}
               currentVote={currentVote}
+              tag={moodLabel}
+              isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
             />
           </div>
         </div>
@@ -148,46 +160,60 @@ interface StageSongCardProps {
   songTitle: string;
   artistName: string;
   currentVote?: VoteData | null;
+  tag?: string | null;
+  isWinner?: boolean;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, currentVote }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, currentVote, tag, isWinner }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote
   const isSelected = currentVote?.status === "active" && currentVote?.song_id === songId;
+  const lit = isSelected || isWinner;
 
   return (
     <div
       className={`
         relative w-full aspect-square rounded-2xl overflow-hidden
-        bg-surface border-2 transition-all duration-200
-        ${isA ? "border-song-a/30" : "border-song-b/30"}
-        ${isSelected ? (isA ? "border-song-a ring-2 ring-song-a/50" : "border-song-b ring-2 ring-song-b/50") : ""}
+        bg-secondary border-2 transition-all duration-300 ease-out
+        ${isA ? "border-song-a/40" : "border-song-b/40"}
+        ${lit ? (isA ? "border-song-a glow-a scale-[1.02]" : "border-song-b glow-b scale-[1.02]") : ""}
       `}
     >
-      {/* Album art placeholder */}
-      <div className="absolute inset-0 bg-gradient-to-br from-secondary/50 to-background/50" />
-
-      {/* Song info overlay */}
-      <div className="absolute inset-0 flex flex-col items-center justify-end p-6 lg:p-8">
-        <div
-          className={`
-          w-full text-center
-          ${isA ? "text-song-a" : "text-song-b"}
-        `}
-        >
-          <h3 className="text-2xl lg:text-4xl font-bold truncate mb-2">{songTitle}</h3>
-          <p className="text-lg lg:text-2xl text-muted-foreground truncate">{artistName}</p>
-        </div>
+      {/* Artwork placeholder: side-tinted gradient + music glyph */}
+      <div
+        className={`absolute inset-0 bg-gradient-to-b ${isA ? "from-song-a/25" : "from-song-b/25"} via-secondary to-background`}
+      />
+      <div className="absolute inset-0 flex items-center justify-center pb-16">
+        <Music className={`w-16 h-16 lg:w-24 lg:h-24 opacity-40 ${isA ? "text-song-a" : "text-song-b"}`} />
       </div>
 
-      {/* Side indicator glow */}
-      <div
-        className={`
-        absolute inset-0 pointer-events-none
-        ${isA ? "shadow-[inset_0_0_60px_rgba(59,130,246,0.1)]" : "shadow-[inset_0_0_60px_rgba(236,72,153,0.1)]"}
-      `}
-      />
+      {/* Top pill: mood / genre */}
+      <div className="absolute top-3 inset-x-3 flex items-center justify-between">
+        <span
+          className={`px-2.5 py-1 rounded-full text-[10px] lg:text-xs font-semibold uppercase tracking-wider border bg-background/70 backdrop-blur ${
+            isA ? "text-song-a border-song-a/40" : "text-song-b border-song-b/40"
+          }`}
+        >
+          {tag || (isA ? "Blue corner" : "Pink corner")}
+        </span>
+        {isSelected && (
+          <span
+            className={`px-2 py-1 rounded-full text-[10px] lg:text-xs font-bold uppercase tracking-wider ${
+              isA ? "bg-song-a text-song-a-foreground" : "bg-song-b text-song-b-foreground"
+            }`}
+          >
+            Your vote
+          </span>
+        )}
+      </div>
+
+      {/* Song info */}
+      <div className="absolute inset-x-0 bottom-0 p-4 lg:p-8 bg-gradient-to-t from-background via-background/80 to-transparent">
+        <h3 className="text-xl lg:text-4xl font-semibold text-foreground truncate">{songTitle || "—"}</h3>
+        <p className="text-sm lg:text-2xl text-text-secondary truncate mt-1">{artistName}</p>
+        <div className={`mt-3 h-1 w-12 rounded-full ${isA ? "bg-song-a" : "bg-song-b"}`} />
+      </div>
     </div>
   );
 };

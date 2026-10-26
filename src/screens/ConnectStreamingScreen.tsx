@@ -200,7 +200,7 @@ const ConnectStreamingScreen = () => {
         )}
 
         {/* Dev helper - hidden in production */}
-        {process.env.NODE_ENV === "development" && connectionState === "not_connected" && (
+        {import.meta.env.DEV && connectionState === "not_connected" && (
           <button
             onClick={simulateError}
             className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
