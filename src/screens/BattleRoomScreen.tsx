@@ -7,6 +7,19 @@ import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrat
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
+import ActionStrip from "@/components/battle/ActionStrip";
+import { endArena, getMoodLabel } from "@/integrations/supabase/arenas";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type ScreenState = "loading" | "error" | "ready";
 
@@ -14,6 +27,7 @@ interface ArenaData {
   id: string;
   name: string;
   state: string;
+  mood: string | null;
 }
 
 interface ParticipantData {
@@ -79,8 +93,8 @@ const BattleRoomScreen = () => {
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
-      if (!battle || battle.state !== "active" || !participant || !arena) {
-        console.log("[Vote] Blocked - battle not active or missing data");
+      if (!battle || battle.state !== "active" || !participant || !arena || arena.state !== "active") {
+        console.log("[Vote] Blocked - battle/arena not active or missing data");
         return;
       }
 
@@ -126,7 +140,7 @@ const BattleRoomScreen = () => {
 
       isVotingRef.current = false;
     },
-    [battle, participant, voteRecord],
+    [battle, participant, voteRecord, arena],
   );
 
   const arenaId = location.state?.arenaId as string | undefined;
@@ -186,7 +200,7 @@ const BattleRoomScreen = () => {
         // Fetch arena data
         const { data: arenaData, error: arenaError } = await supabase
           .from("arenas")
-          .select("id, name, state")
+          .select("id, name, state, mood")
           .eq("id", arenaId)
           .single();
 
@@ -229,6 +243,38 @@ const BattleRoomScreen = () => {
     };
   }, [arenaId, roleIntent, initBattleLoop, stopBattleLoop]);
 
+  // Arena state is backend-owned (start_arena_battles / end_arena); follow it live
+  useEffect(() => {
+    if (!arenaId) return;
+
+    const channel = supabase
+      .channel(`arenas:id=eq.${arenaId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "arenas", filter: `id=eq.${arenaId}` },
+        (payload) => {
+          const row = payload.new as Partial<ArenaData>;
+          setArena((prev) => (prev ? { ...prev, state: row.state ?? prev.state, mood: row.mood ?? prev.mood } : prev));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [arenaId]);
+
+  const handleEndArena = async () => {
+    if (!arena) return;
+    try {
+      await endArena(arena.id);
+      // Realtime UPDATE will also arrive; set eagerly from the confirmed RPC result
+      setArena((prev) => (prev ? { ...prev, state: "finished" } : prev));
+    } catch {
+      // logged in endArena; arena state stays as the backend reports it
+    }
+  };
+
   if (screenState === "loading") {
     return (
       <div className="min-h-dvh w-full flex items-center justify-center bg-background">
@@ -247,8 +293,9 @@ const BattleRoomScreen = () => {
 
   const derivedPhase = getDerivedBattlePhase(battle);
 
-  // Voting enabled exclusively by backend state
-  const isVotingEnabled = battle?.state === "active";
+  // Voting enabled exclusively by backend state (battle AND arena)
+  const isVotingEnabled = battle?.state === "active" && arena?.state === "active";
+  const moodLabel = getMoodLabel(arena?.mood);
 
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
   const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
@@ -304,6 +351,56 @@ const BattleRoomScreen = () => {
 
             <div className="h-16 lg:h-24" />
           </div>
+        </div>
+      )}
+
+      {/* Arena-level status (backend arenas.state) */}
+      {arena?.state === "waiting" && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+          <div className="px-6 py-4 rounded-xl bg-black/70 text-white text-center">
+            <p className="text-xl font-bold">Waiting for the host to start battles</p>
+            {moodLabel && <p className="mt-1 text-sm text-white/70">Tonight's mood: {moodLabel}</p>}
+          </div>
+        </div>
+      )}
+
+      {arena?.state === "finished" && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="px-6 py-4 rounded-xl bg-black/80 text-white text-center">
+            <p className="text-2xl font-arcade font-black tracking-widest">ARENA FINISHED</p>
+            <p className="mt-1 text-sm text-white/70">Thanks for playing</p>
+          </div>
+        </div>
+      )}
+
+      {participant?.is_host && (arena?.state === "waiting" || arena?.state === "active") && (
+        <div className="absolute top-2 right-2 z-[55]">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white">
+                End Arena
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>End this arena?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Battles stop and no more votes or proposals are accepted. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleEndArena}>End Arena</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
+      {/* Proposals allowed in waiting and active (Block 2 §8); RLS enforces it too */}
+      {(arena?.state === "waiting" || arena?.state === "active") && derivedPhase !== "SUDDEN_DEATH" && (
+        <div className="absolute bottom-0 inset-x-0 z-[55]">
+          <ActionStrip arenaId={arena.id} />
         </div>
       )}
 

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { QrCode, Swords, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Arena, getArena, getMoodLabel, startArenaBattles } from "@/integrations/supabase/arenas";
 
 function hashStringToUint32(input: string) {
   let hash = 2166136261;
@@ -21,26 +22,45 @@ const ArenaLobbyScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [arena, setArena] = useState<Arena | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
   
   const arenaId = location.state?.arenaId as string | undefined;
-  const arenaName = location.state?.arenaName as string | undefined;
+  const arenaName = arena?.name ?? (location.state?.arenaName as string | undefined);
 
-  const arenaCode = arenaId 
-    ? arenaId.replace(/-/g, '').slice(0, 6).toUpperCase().replace(/(.{3})(.{3})/, '$1 $2')
+  useEffect(() => {
+    if (!arenaId) return;
+    getArena(arenaId)
+      .then(setArena)
+      .catch(() => setErrorMessage("Failed to load arena"));
+  }, [arenaId]);
+
+  // Join resolves against arenas.arena_code, so display exactly that
+  const arenaCode = arena?.arena_code
+    ? arena.arena_code.replace(/(.{3})(.{3})/, '$1 $2')
     : '';
+  const moodLabel = getMoodLabel(arena?.mood);
+  const isClosed = arena?.state === "finished" || arena?.state === "expired";
 
   const handleEnterBattle = async () => {
-    if (!arenaId || isLoading) return;
+    if (!arenaId || !arena || isClosed || isLoading) return;
     
     setIsLoading(true);
+    setErrorMessage("");
     
     try {
+      // Backend transition waiting -> active; battles can't be created before it
+      if (arena.state === "waiting") {
+        await startArenaBattles(arenaId);
+      }
+
       const { data, error } = await supabase.functions.invoke('create-battle', {
         body: { arena_id: arenaId }
       });
 
       if (error) {
         console.error('Failed to create battle:', error);
+        setErrorMessage("Failed to start battles");
         return;
       }
 
@@ -57,7 +77,8 @@ const ArenaLobbyScreen = () => {
         } 
       });
     } catch (err) {
-      console.error('Error calling create-battle:', err);
+      console.error('Error starting battles:', err);
+      setErrorMessage("Failed to start battles");
     } finally {
       setIsLoading(false);
     }
@@ -79,8 +100,13 @@ const ArenaLobbyScreen = () => {
           <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
             {arenaName || "Arena Created"}
           </h1>
+          {moodLabel && (
+            <p className="inline-block mb-2 px-3 py-1 rounded-full bg-primary/15 text-sm text-foreground">
+              {moodLabel}
+            </p>
+          )}
           <p className="text-muted-foreground">
-            Share the code with your guests
+            {isClosed ? "This arena has ended" : "Share the code with your guests"}
           </p>
         </div>
 
@@ -142,9 +168,13 @@ const ArenaLobbyScreen = () => {
         </div>
 
         {/* Primary Action - Enter Battle */}
+        {errorMessage && (
+          <p className="text-sm text-destructive">{errorMessage}</p>
+        )}
+
         <Button
           onClick={handleEnterBattle}
-          disabled={isLoading}
+          disabled={isLoading || !arena || isClosed}
           className="w-full h-12 text-lg font-semibold animate-fade-in-up"
           style={{ animationDelay: "200ms" }}
         >
@@ -153,7 +183,7 @@ const ArenaLobbyScreen = () => {
           ) : (
             <Swords className="w-5 h-5 mr-2" />
           )}
-          {isLoading ? "Creating Battle..." : "Enter Battle"}
+          {isLoading ? "Creating Battle..." : arena?.state === "waiting" ? "Start Battles" : "Enter Battle"}
         </Button>
       </div>
     </div>

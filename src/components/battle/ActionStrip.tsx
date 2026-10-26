@@ -3,7 +3,11 @@ import { Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProposeSongModal from "./ProposeSongModal";
 
-const ActionStrip = () => {
+interface ActionStripProps {
+  arenaId: string;
+}
+
+const ActionStrip = ({ arenaId }: ActionStripProps) => {
   const [isProposeSongOpen, setIsProposeSongOpen] = useState(false);
 
   return (
@@ -19,9 +23,10 @@ const ActionStrip = () => {
         </Button>
       </div>
 
-      <ProposeSongModal 
-        open={isProposeSongOpen} 
-        onOpenChange={setIsProposeSongOpen} 
+      <ProposeSongModal
+        open={isProposeSongOpen}
+        onOpenChange={setIsProposeSongOpen}
+        arenaId={arenaId}
       />
     </div>
   );

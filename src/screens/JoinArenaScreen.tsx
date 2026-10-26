@@ -14,6 +14,7 @@ const JoinArenaScreen = () => {
   const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const isCodeComplete = code.length === 6;
 
@@ -21,6 +22,7 @@ const JoinArenaScreen = () => {
     if (!isCodeComplete || isJoining) return;
 
     setIsJoining(true);
+    setErrorMessage("");
 
     try {
       const resolvedArenaId = await resolveArenaByCode(code);
@@ -30,6 +32,7 @@ const JoinArenaScreen = () => {
       navigate("/battle", { state: { arenaId: resolvedArenaId, role_intent: "participant" } });
     } catch (error) {
       console.error('Failed to join arena:', error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to join arena");
       setIsJoining(false);
     }
   };
@@ -81,6 +84,10 @@ const JoinArenaScreen = () => {
             {isJoining ? "Joining..." : "Enter Arena"}
           </Button>
         </div>
+
+        {errorMessage && (
+          <p className="text-sm text-destructive text-center">{errorMessage}</p>
+        )}
 
         {/* Helper Text */}
         <p 

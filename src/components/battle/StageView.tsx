@@ -3,11 +3,13 @@ import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
+import { getMoodLabel } from "@/integrations/supabase/arenas";
 
 interface ArenaData {
   id: string;
   name: string;
   state: string;
+  mood?: string | null;
 }
 
 interface ParticipantData {
@@ -100,8 +102,13 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
         </div>
       </div>
 
-      {/* Spacer for bottom balance */}
-      <div className="h-16 lg:h-24" />
+      {/* Bottom balance spacer, carries arena name + mood */}
+      <div className="h-16 lg:h-24 flex items-center justify-center">
+        <p className="text-sm lg:text-base text-muted-foreground">
+          {arena.name}
+          {getMoodLabel(arena.mood) && <span> · {getMoodLabel(arena.mood)}</span>}
+        </p>
+      </div>
 
       {derivedPhase === "LOCK_IN" && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">

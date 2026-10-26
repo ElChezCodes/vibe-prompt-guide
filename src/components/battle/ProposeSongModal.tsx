@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Music, X } from "lucide-react";
 import {
   Dialog,
@@ -9,39 +9,88 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProposeSongModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  arenaId: string;
 }
 
-// Placeholder song data for UI demonstration
-const placeholderSongs = [
-  { id: '1', title: 'Song Title One', artist: 'Artist A' },
-  { id: '2', title: 'Song Title Two', artist: 'Artist B' },
-  { id: '3', title: 'Song Title Three', artist: 'Artist C' },
-  { id: '4', title: 'Song Title Four', artist: 'Artist D' },
-  { id: '5', title: 'Song Title Five', artist: 'Artist E' },
-];
+interface SongResult {
+  id: string;
+  title: string;
+  artist: string;
+}
 
-const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
+const ProposeSongModal = ({ open, onOpenChange, arenaId }: ProposeSongModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  const [results, setResults] = useState<SongResult[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Show placeholder results only when there's a search query
   const showResults = searchQuery.length > 0;
+
+  useEffect(() => {
+    if (!showResults) {
+      setResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      // Server-side: this arena's songs + the curated library (songs table
+      // has no client SELECT policy by design)
+      const { data, error } = await supabase.rpc("search_songs", {
+        p_arena_id: arenaId,
+        p_query: searchQuery,
+      });
+
+      if (cancelled) return;
+      if (error) {
+        console.error("[ProposeSongModal] song search failed:", error);
+        setResults([]);
+        return;
+      }
+      setResults(data ?? []);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery, showResults, arenaId]);
 
   const handleSelect = (songId: string) => {
     setSelectedSongId(songId);
   };
 
-  const handleSubmit = () => {
-    if (selectedSongId) {
-      // TODO: Send proposal to backend
-      setSearchQuery("");
-      setSelectedSongId(null);
-      onOpenChange(false);
+  const handleSubmit = async () => {
+    if (!selectedSongId || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const { error } = await supabase.from("queues").insert({
+      arena_id: arenaId,
+      song_id: selectedSongId,
+      queue_type: "waiting",
+      position: 0,
+      priority: 1,
+    });
+
+    if (error) {
+      // Unique violation (queues_arena_song_unique) means it's already
+      // queued -- treat as a harmless no-op, not a failure to surface.
+      if (error.code !== "23505") {
+        console.error("[ProposeSongModal] proposal insert failed:", error);
+        setIsSubmitting(false);
+        return;
+      }
     }
+
+    setIsSubmitting(false);
+    setSearchQuery("");
+    setSelectedSongId(null);
+    onOpenChange(false);
   };
 
   const handleClose = () => {
@@ -94,7 +143,7 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
             // Search results
             <ScrollArea className="h-full">
               <div className="space-y-2 pr-4">
-                {placeholderSongs.map((song) => (
+                {results.map((song) => (
                   <div
                     key={song.id}
                     onClick={() => handleSelect(song.id)}
@@ -132,10 +181,10 @@ const ProposeSongModal = ({ open, onOpenChange }: ProposeSongModalProps) => {
         <div className="flex-shrink-0 pt-2">
           <Button
             onClick={handleSubmit}
-            disabled={!selectedSongId}
+            disabled={!selectedSongId || isSubmitting}
             className="w-full h-12 text-base font-semibold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40"
           >
-            Propose Song
+            {isSubmitting ? "Proposing..." : "Propose Song"}
           </Button>
         </div>
       </DialogContent>
