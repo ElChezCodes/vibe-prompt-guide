@@ -33,6 +33,39 @@ export interface ArenaBattleView {
   votes_b: number;
 }
 
+// Mergeable fields from realtime payload / backend reads
+const MERGE_FIELDS = [
+  "state",
+  "started_at",
+  "duration_ms",
+  "lockin_at",
+  "resolution_type",
+  "winner_song_id",
+] as const;
+
+const pickMergeFields = (battle: ArenaBattleView): Partial<ArenaBattleView> =>
+  Object.fromEntries(MERGE_FIELDS.map((f) => [f, battle[f]])) as Partial<ArenaBattleView>;
+
+const STATE_RANK: Record<string, number> = { pending: 0, active: 1, closing: 2, completed: 3 };
+
+// arena_live_state exposes battles.state as `status`; ArenaBattleView (and
+// every consumer) reads `state`.
+const normalizeViewRow = (row: Record<string, unknown> | null): ArenaBattleView | null =>
+  row ? ({ ...row, state: (row.state ?? row.status) as ArenaBattleView["state"] } as ArenaBattleView) : null;
+
+// Battle state only moves forward, so a read that started before a realtime
+// UPDATE arrived must not roll the backend-decided fields back.
+const mergeBackendFields = (current: ArenaBattleView, incoming: ArenaBattleView): ArenaBattleView => {
+  if ((STATE_RANK[incoming.state] ?? -1) < (STATE_RANK[current.state] ?? -1)) return current;
+  const merged = { ...current };
+  for (const field of MERGE_FIELDS) {
+    if (field in incoming) {
+      (merged as Record<string, unknown>)[field] = incoming[field];
+    }
+  }
+  return merged;
+};
+
 interface OrchestratorState {
   battle: ArenaBattleView | null;
   isRunning: boolean;
@@ -55,16 +88,8 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const arenaIdRef = useRef<string | null>(null);
   const voteIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Mergeable fields from realtime payload
-  const MERGE_FIELDS = [
-    "state",
-    "started_at",
-    "duration_ms",
-    "lockin_at",
-    "resolution_type",
-    "winner_song_id",
-  ] as const;
+  const battleIdRef = useRef<string | null>(null);
+  battleIdRef.current = state.battle?.battle_id ?? null;
 
   const fetchLatestBattle = useCallback(async (arenaId: string): Promise<ArenaBattleView | null> => {
     const { data, error } = await supabase
@@ -80,13 +105,16 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       return null;
     }
 
-    return data as ArenaBattleView | null;
+    return normalizeViewRow(data);
   }, []);
 
+  // Polled every 2s: vote tallies, plus a backstop for missed realtime events
+  // (state changes that happened before the channel subscribed, or a missed
+  // INSERT of the next battle).
   const fetchVoteCounts = useCallback(async (arenaId: string) => {
     const { data, error } = await supabase
       .from("arena_live_state")
-      .select("battle_id, votes_a, votes_b")
+      .select("battle_id, votes_a, votes_b, status, started_at, duration_ms, lockin_at, resolution_type, winner_song_id")
       .eq("arena_id", arenaId)
       .order("battle_created_at", { ascending: false })
       .limit(1)
@@ -99,15 +127,29 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
 
     if (!data) return;
 
+    if (data.battle_id !== battleIdRef.current) {
+      const full = await fetchLatestBattle(arenaId);
+      if (!full || arenaIdRef.current !== arenaId) return;
+      setState((prev) => (prev.battle?.battle_id === full.battle_id ? prev : { ...prev, battle: full }));
+      return;
+    }
+
+    const polled = normalizeViewRow(data);
+
     setState((prev) => {
       if (!prev.battle || prev.battle.battle_id !== data.battle_id) return prev;
-      if (prev.battle.votes_a === data.votes_a && prev.battle.votes_b === data.votes_b) return prev;
+      const merged = mergeBackendFields(prev.battle, polled);
+      const unchanged =
+        MERGE_FIELDS.every((f) => merged[f] === prev.battle[f]) &&
+        prev.battle.votes_a === data.votes_a &&
+        prev.battle.votes_b === data.votes_b;
+      if (unchanged) return prev;
       return {
         ...prev,
-        battle: { ...prev.battle, votes_a: data.votes_a, votes_b: data.votes_b },
+        battle: { ...merged, votes_a: data.votes_a, votes_b: data.votes_b },
       };
     });
-  }, []);
+  }, [fetchLatestBattle]);
 
   const clearVoteInterval = useCallback(() => {
     if (voteIntervalRef.current) {
@@ -211,7 +253,9 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
                 setState((prev) => {
                   // Only replace if we're still on the same battle
                   if (prev.battle?.battle_id !== newBattleId) return prev;
-                  return { ...prev, battle: full };
+                  // Full row for song metadata; backend fields only if not older
+                  // than what realtime already merged
+                  return { ...prev, battle: mergeBackendFields({ ...full, ...pickMergeFields(prev.battle) }, full) };
                 });
               });
 
