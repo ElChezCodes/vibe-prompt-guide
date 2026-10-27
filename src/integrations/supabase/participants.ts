@@ -9,53 +9,21 @@ export interface Participant {
   created_at: string;
 }
 
+// Entering the arena (Battle Room, host Lobby) is the (re-)join and counts as
+// activity: enter_arena inserts or fetches the row, clears a previous "Leave
+// arena" and stamps last_active_at server-side. identity/is_host are decided
+// by the backend from auth.uid(); the args are kept for existing callers.
 export async function ensureParticipant(
   arena_id: string,
-  identity_anchor_id: string,
-  is_host: boolean
+  _identity_anchor_id: string,
+  _is_host: boolean
 ): Promise<Participant> {
-  // Check if participant already exists (idempotent)
-  const { data: existing } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('arena_id', arena_id)
-    .eq('identity_anchor_id', identity_anchor_id)
-    .maybeSingle();
-
-  if (existing) {
-    // Re-entering after "Salir de la arena" is the explicit re-join
-    if (existing.left_at) {
-      const { data: rejoined, error } = await supabase
-        .from('participants')
-        .update({ left_at: null })
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Failed to re-join arena:', error.message, error);
-        throw error;
-      }
-
-      return rejoined as Participant;
-    }
-
-    return existing as Participant;
-  }
-
-  // Insert new participant
   const { data, error } = await supabase
-    .from('participants')
-    .insert({
-      arena_id,
-      identity_anchor_id,
-      is_host,
-    })
-    .select()
+    .rpc('enter_arena', { p_arena_id: arena_id })
     .single();
 
   if (error) {
-    console.error('Failed to create participant:', error.message, error);
+    console.error('Failed to enter arena:', error.message, error);
     throw error;
   }
 

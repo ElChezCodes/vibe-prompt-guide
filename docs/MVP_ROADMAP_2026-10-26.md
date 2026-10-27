@@ -82,8 +82,9 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - ACTIVO / PASIVO / INACTIVO, 5-minute activity window, transition rules
   (including the "re-entering between battles starts next battle as ACTIVO" edge
   case) — *PRD §5, Paso_1_Definitivo §3, v3.2 §1.2, Backend docs reference it
-  throughout*. **Not started** — `participants.last_active_at` exists as a
-  column; nothing computes or transitions a state anywhere.
+  throughout*. **Partial** — `participants.last_active_at` is written
+  server-side on every qualifying action (step 3); nothing computes or
+  transitions a state yet (step 4).
 
 ### C. Voting
 - Active voting (1 vote/user/battle, last-vote-counts, toggle/switch) — *PRD
@@ -279,6 +280,13 @@ additions (#1, #4 above), each marked where it lands.
     design is done by the user in Lovable from a handoff prompt.
 3. **Presence tracking infrastructure** — real writes to `last_active_at` on
    every qualifying action (vote, proposal, entering Arena).
+   **Done 2026-10-26** (`supabase/sql/presence_tracking_2026-10-26.sql`).
+   Server-side only: `enter_arena` RPC (every Battle Room / host Lobby entry,
+   incl. reloads and returning from other tabs), AFTER triggers on votes
+   (cast/switch/toggle-off; never passive) and queues (proposals), and the
+   host's Start battles. A guard trigger pins `last_active_at`/`joined_at` for
+   client roles. User decisions: host counts like everyone + Start counts;
+   toggling off counts; heartbeat is NOT activity (v4 §1.3).
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,
    including the "re-enters between battles → starts next as ACTIVO" edge case.
 5. **Host Spotify OAuth** — PKCE flow, encrypted token storage/refresh, device
