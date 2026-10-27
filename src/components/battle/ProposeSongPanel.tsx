@@ -59,6 +59,8 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
           setResults([]);
           if (err instanceof SpotifyHostError && err.code === "host_spotify_unavailable") {
             setNotice("Search is unavailable: the host's Spotify isn't connected");
+          } else {
+            setNotice(err instanceof Error ? err.message : String(err));
           }
         });
     }, SEARCH_DEBOUNCE_MS);

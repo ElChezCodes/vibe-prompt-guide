@@ -869,6 +869,10 @@ Deno.serve(async (req) => {
   } catch (err) {
     if (err instanceof HttpError) return json({ error: err.code, message: err.message }, err.status);
     console.error("[spotify-host]", err);
+    // An unhandled Spotify API answer: say what Spotify said instead of a bare 500
+    if (err instanceof PlaybackError) {
+      return json({ error: "spotify_api_error", message: `Spotify ${err.status}: ${err.message}` }, 502);
+    }
     return json({ error: "internal_error" }, 500);
   }
 });

@@ -24,6 +24,7 @@ const CreateArenaScreen = () => {
   const [mood, setMood] = useState<ArenaMood | null>(null);
   const [warmupQuery, setWarmupQuery] = useState("");
   const [warmupResults, setWarmupResults] = useState<SpotifyTrack[]>([]);
+  const [warmupError, setWarmupError] = useState("");
   const [warmup, setWarmup] = useState<SpotifyTrack | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -49,6 +50,7 @@ const CreateArenaScreen = () => {
   // suggestions: Spotify has no recommendations for new apps)
   useEffect(() => {
     const query = warmupQuery.trim();
+    setWarmupError("");
     if (!spotify || !query) {
       setWarmupResults([]);
       return;
@@ -60,8 +62,10 @@ const CreateArenaScreen = () => {
         .then((rows) => {
           if (!cancelled) setWarmupResults(rows);
         })
-        .catch(() => {
-          if (!cancelled) setWarmupResults([]);
+        .catch((err) => {
+          if (cancelled) return;
+          setWarmupResults([]);
+          setWarmupError(err instanceof Error ? err.message : String(err));
         });
     }, SEARCH_DEBOUNCE_MS);
 
@@ -203,7 +207,8 @@ const CreateArenaScreen = () => {
                   disabled={isCreating}
                 />
               ))}
-              {spotify && warmupQuery.trim() && warmupResults.length === 0 && (
+              {warmupError && <p className="text-sm text-destructive text-center py-2">{warmupError}</p>}
+              {spotify && warmupQuery.trim() && warmupResults.length === 0 && !warmupError && (
                 <p className="text-sm text-muted-foreground text-center py-4">No songs found</p>
               )}
             </div>
