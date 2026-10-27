@@ -267,7 +267,7 @@ additions (#1, #4 above), each marked where it lands.
    also falls back to mood-matched library songs instead of "Mock Song A/B"
    when nothing was proposed in the lobby.
 2b. **Functional in-app navigation** — added by user decision 2026-10-26,
-    pulled ahead of #19. **Built 2026-10-26** (pending in-app verification).
+    pulled ahead of #19. **Done 2026-10-26**, verified in-app (host + guest checklist).
     User decision: Paso_2 §3's closed flow ("no back/menus") applies only
     inside the Battle Room; the rest is an app shell with a bottom tab bar
     (Home · Propose · Arena · Ranking · Profile), Ranking/Profile as
