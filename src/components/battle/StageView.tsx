@@ -64,7 +64,7 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
   const moodLabel = getMoodLabel(arena.mood);
 
   return (
-    <div className="relative min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+    <div className="relative min-h-dvh w-full flex flex-col space-bg overflow-hidden">
       {/* Arena ambient lighting: blue corner left, magenta corner right */}
       <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
 
@@ -124,13 +124,13 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
 
       {derivedPhase === "LOCK_IN" && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-          <div className="px-6 py-3 rounded-xl bg-black/70 text-white text-2xl font-bold tracking-widest">LOCK IN</div>
+          <div className="px-6 py-3 rounded-xl neon-panel text-energy-yellow text-2xl font-arcade font-black tracking-widest">LOCK IN</div>
         </div>
       )}
 
       {derivedPhase === "SUDDEN_DEATH" && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-          <div className="px-6 py-3 rounded-xl bg-gradient-to-r from-song-a/80 to-song-b/80 text-white text-2xl font-arcade font-black tracking-widest animate-pulse">
+          <div className="px-6 py-3 rounded-xl bg-gradient-to-r from-song-a/80 to-song-b/80 text-foreground text-2xl font-arcade font-black tracking-widest animate-pulse">
             SUDDEN DEATH
           </div>
         </div>
