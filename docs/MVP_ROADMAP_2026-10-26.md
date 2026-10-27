@@ -404,8 +404,8 @@ additions (#1, #4 above), each marked where it lands.
    6, when they aren't connected). Never for taste profiling, affinity or
    passive votes (policy III.13). Needs `playlist-read-private` (re-consent)
    and each user in the dashboard's User Management while in dev mode (5
-   users max). Placement (here or with step 6's search) decided before
-   building.
+   users max). **Built in this step 7** (user decision 2026-10-27), after
+   step 6's host-token search exists.
 8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
    sync" (top tracks/artists/genres/audio features from Spotify). Affinity
    comes from Music Fighter's own data instead; definition pending.
