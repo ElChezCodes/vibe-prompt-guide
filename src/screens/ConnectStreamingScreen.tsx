@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Music, Check, AlertCircle, ChevronRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Music, Check, AlertCircle, ChevronRight, ArrowLeft } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
+import ScreenMessage from "@/components/nav/ScreenMessage";
+import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
+import { arenaPath } from "@/lib/arenaRoutes";
 
 type ConnectionState = "not_connected" | "connected" | "error";
 
@@ -33,7 +36,11 @@ const providers: Provider[] = [
   },
 ];
 
+// Host only, reached from the lobby (connection itself is still mocked until
+// Spotify OAuth, roadmap step 5)
 const ConnectStreamingScreen = () => {
+  const navigate = useNavigate();
+  const { code, isHost, status } = useArenaFromRoute();
   const [connectionState, setConnectionState] = useState<ConnectionState>("not_connected");
 
   const handleConnect = () => {
@@ -54,8 +61,22 @@ const ConnectStreamingScreen = () => {
     setConnectionState("error");
   };
 
+  if (status === "loading") return <ScreenMessage message="Loading..." showHomeButton={false} />;
+  if (status === "not_found") return <ScreenMessage message="Arena not found" isError />;
+  if (status === "error") return <ScreenMessage message="Failed to load arena" isError />;
+  if (!isHost) return <Navigate to={arenaPath(code, "battle")} replace />;
+
+  const lobbyPath = arenaPath(code, "lobby");
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+    <div className="relative min-h-[calc(100dvh-4rem)] bg-background flex flex-col items-center justify-center p-6">
+      <button
+        onClick={() => navigate(lobbyPath)}
+        className="absolute top-4 left-4 flex items-center gap-1 p-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Lobby
+      </button>
       <div className="w-full max-w-md space-y-8">
         {/* Not Connected State */}
         {connectionState === "not_connected" && (
@@ -159,8 +180,8 @@ const ConnectStreamingScreen = () => {
               className="space-y-3 animate-fade-in"
               style={{ animationDelay: "0.2s" }}
             >
-              <Button asChild className="w-full h-12 text-base font-semibold">
-                <Link to="/stage">Go to Stage View</Link>
+              <Button className="w-full h-12 text-base font-semibold" onClick={() => navigate(lobbyPath)}>
+                Back to Lobby
               </Button>
               <Button
                 variant="ghost"

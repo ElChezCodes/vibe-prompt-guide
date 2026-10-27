@@ -1,8 +1,15 @@
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay, { BattleState } from "@/components/battle/BattleStateOverlay";
+import ScreenMessage from "@/components/nav/ScreenMessage";
+import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
 
+// Venue display, opened from a shared link (/a/:code/stage). Read-only, no
+// buttons. The arena comes from the URL; battle data is still placeholder
+// until roadmap step 19.
 const StageViewScreen = () => {
+  const { arena, status } = useArenaFromRoute();
+
   // Placeholder battle state - will be connected to real data later
   // Using type assertion since this will be replaced with real state
   const battleState = 'NORMAL' as BattleState;
@@ -18,8 +25,21 @@ const StageViewScreen = () => {
     }
   };
 
+  if (status === "loading") return <ScreenMessage message="Loading..." showHomeButton={false} />;
+  if (status !== "ready") return <ScreenMessage message="Arena not found" isError showHomeButton={false} />;
+
   return (
     <div className="min-h-dvh w-full flex flex-col bg-background overflow-hidden">
+      {/* Arena + how to join */}
+      <div className="w-full pt-6 px-8 flex items-center justify-between text-muted-foreground">
+        <span className="text-xl lg:text-2xl font-semibold text-foreground">{arena.name}</span>
+        <span className="text-lg lg:text-2xl">
+          {arena.state === "finished"
+            ? "Arena finished"
+            : <>Join with code <span className="font-mono font-bold text-foreground tracking-widest">{arena.arena_code}</span></>}
+        </span>
+      </div>
+
       {/* Tension Bar - Full width at top */}
       <div className="w-full pt-8 px-8">
         <TensionBar 

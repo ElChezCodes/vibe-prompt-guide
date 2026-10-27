@@ -1,76 +1,75 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
-import { QrCode, Swords, Loader2, Music } from "lucide-react";
+import { Swords, Loader2, Music, Monitor, Link2, Plug } from "lucide-react";
 import {
-  Arena,
   ArenaWarmup,
   formatDuration,
-  getArena,
   getArenaWarmup,
   getMoodLabel,
   startArenaBattles,
 } from "@/integrations/supabase/arenas";
+import { ensureParticipant } from "@/integrations/supabase/participants";
+import { supabase } from "@/integrations/supabase/client";
+import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
+import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
+import EndArenaButton from "@/components/arena/EndArenaButton";
+import ScreenMessage from "@/components/nav/ScreenMessage";
+import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
 
-function hashStringToUint32(input: string) {
-  let hash = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function qrCellOn(arenaId: string, index: number) {
-  return (hashStringToUint32(`${arenaId}:${index}`) % 100) < 50;
-}
-
+// Host's arena panel: code/QR, Stage View, music connection, start/enter
+// battles, End Arena. Non-hosts are sent to the Battle Room.
 const ArenaLobbyScreen = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const { code, arena, setArena, isHost, status } = useArenaFromRoute();
+  const refreshCurrentArena = useRefreshCurrentArena();
   const [isLoading, setIsLoading] = useState(false);
-  const [arena, setArena] = useState<Arena | null>(null);
   const [warmup, setWarmup] = useState<ArenaWarmup | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  
-  const arenaId = location.state?.arenaId as string | undefined;
-  const arenaName = arena?.name ?? (location.state?.arenaName as string | undefined);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const arenaId = arena?.id;
+  const isOpen = arena?.state === "waiting" || arena?.state === "active";
 
   useEffect(() => {
-    if (!arenaId) return;
-    getArena(arenaId)
-      .then(setArena)
-      .catch(() => setErrorMessage("Failed to load arena"));
+    if (!arenaId || !isHost) return;
     getArenaWarmup(arenaId)
       .then(setWarmup)
       .catch(() => setWarmup(null));
-  }, [arenaId]);
+  }, [arenaId, isHost]);
+
+  // The host is in the arena from the lobby on, so it becomes their current
+  // arena ("Back to your arena", Arena tab) before battles start
+  useEffect(() => {
+    if (!arenaId || !isHost || !isOpen) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      ensureParticipant(arenaId, session.user.id, true)
+        .then(() => refreshCurrentArena())
+        .catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arenaId, isHost, isOpen]);
 
   // Join resolves against arenas.arena_code, so display exactly that
   const arenaCode = arena?.arena_code
     ? arena.arena_code.replace(/(.{3})(.{3})/, '$1 $2')
     : '';
   const moodLabel = getMoodLabel(arena?.mood);
-  const isClosed = arena?.state === "finished" || arena?.state === "expired";
+  const isClosed = !isOpen;
 
   const handleEnterBattle = async () => {
     if (!arenaId || !arena || isClosed || isLoading) return;
-    
+
     setIsLoading(true);
     setErrorMessage("");
-    
+
     try {
       // Backend: waiting -> active, warm-up starts, battle 1 created (or the
       // open battle returned when re-entering)
-      const battleId = await startArenaBattles(arenaId);
-
-      navigate("/battle", { 
-        state: { 
-          arenaId, 
-          battleId,
-          role_intent: "host" 
-        } 
-      });
+      await startArenaBattles(arenaId);
+      navigate(arenaPath(code, "battle"));
     } catch (err) {
       console.error('Error starting battles:', err);
       setErrorMessage("Failed to start battles");
@@ -79,21 +78,27 @@ const ArenaLobbyScreen = () => {
     }
   };
 
-  if (!arenaId) {
-    return (
-      <div className="min-h-dvh w-full flex items-center justify-center bg-background">
-        <p className="text-destructive">No arena data</p>
-      </div>
-    );
-  }
+  const handleCopyStageLink = async () => {
+    try {
+      await navigator.clipboard.writeText(stageUrl(code));
+      setLinkCopied(true);
+    } catch {
+      setLinkCopied(false);
+    }
+  };
+
+  if (status === "loading") return <ScreenMessage message="Loading..." showHomeButton={false} />;
+  if (status === "not_found") return <ScreenMessage message="Arena not found" isError />;
+  if (status === "error") return <ScreenMessage message="Failed to load arena" isError />;
+  if (!isHost) return <Navigate to={arenaPath(code, "battle")} replace />;
 
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-6 py-12">
+    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         {/* Header */}
         <div className="text-center animate-fade-in-up">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-            {arenaName || "Arena Created"}
+            {arena.name || "Arena Created"}
           </h1>
           {moodLabel && (
             <p className="inline-block mb-2 px-3 py-1 rounded-full bg-primary/15 text-sm text-foreground">
@@ -125,7 +130,7 @@ const ArenaLobbyScreen = () => {
         )}
 
         {/* Arena Code Block */}
-        <div 
+        <div
           className="w-full bg-surface rounded-xl border border-border/50 p-6 text-center animate-fade-in-up"
           style={{ animationDelay: "50ms" }}
         >
@@ -135,70 +140,72 @@ const ArenaLobbyScreen = () => {
           </p>
         </div>
 
-        {/* QR Code Block */}
-        <div 
-          className="bg-surface rounded-xl border border-border/50 p-6 text-center animate-fade-in-up"
-          style={{ animationDelay: "100ms" }}
-        >
-          <p className="text-sm text-muted-foreground mb-4">Scan to join</p>
-          <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center">
-            <div className="w-40 h-40 relative">
-              <QrCode className="w-full h-full text-background" strokeWidth={0.5} />
-              <div className="absolute inset-4 grid grid-cols-7 grid-rows-7 gap-1">
-                {Array.from({ length: 49 }).map((_, i) => {
-                  const on = qrCellOn(arenaId, i);
-                  return (
-                    <div
-                      key={i}
-                      className={`rounded-sm ${on ? "bg-background" : "bg-transparent"}`}
-                    />
-                  );
-                })}
-              </div>
+        {/* QR Code Block: opens /join/:code */}
+        {!isClosed && (
+          <div
+            className="bg-surface rounded-xl border border-border/50 p-6 text-center animate-fade-in-up"
+            style={{ animationDelay: "100ms" }}
+          >
+            <p className="text-sm text-muted-foreground mb-4">Scan to join</p>
+            <div className="mx-auto bg-white rounded-lg p-4">
+              <QRCodeSVG value={joinUrl(arena.arena_code)} size={176} />
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Next Steps Guidance */}
-        <div 
-          className="w-full bg-surface/50 rounded-xl border border-border/30 p-5 animate-fade-in-up"
-          style={{ animationDelay: "150ms" }}
-        >
-          <p className="text-sm font-medium text-foreground mb-3">Next steps</p>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <span className="text-primary">•</span>
-              Ask guests to join using the code or QR
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary">•</span>
-              Display the Stage View on the venue screen
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary">•</span>
-              Connect your music account to start battles
-            </li>
-          </ul>
-        </div>
+        {/* Venue screen + music connection */}
+        {!isClosed && (
+          <div className="w-full grid grid-cols-1 gap-3 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
+            <Button variant="outline" onClick={() => window.open(stageUrl(code), "_blank", "noopener")}>
+              <Monitor className="w-4 h-4 mr-2" />
+              Open Stage View
+            </Button>
+            <Button variant="outline" onClick={handleCopyStageLink}>
+              <Link2 className="w-4 h-4 mr-2" />
+              {linkCopied ? "Stage link copied" : "Copy Stage View link"}
+            </Button>
+            <Button variant="outline" onClick={() => navigate(arenaPath(code, "connect"))}>
+              <Plug className="w-4 h-4 mr-2" />
+              Connect music account
+            </Button>
+          </div>
+        )}
 
         {/* Primary Action - Enter Battle */}
         {errorMessage && (
           <p className="text-sm text-destructive">{errorMessage}</p>
         )}
 
-        <Button
-          onClick={handleEnterBattle}
-          disabled={isLoading || !arena || isClosed}
-          className="w-full h-12 text-lg font-semibold animate-fade-in-up"
-          style={{ animationDelay: "200ms" }}
-        >
-          {isLoading ? (
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-          ) : (
-            <Swords className="w-5 h-5 mr-2" />
-          )}
-          {isLoading ? "Creating Battle..." : arena?.state === "waiting" ? "Start Battles" : "Enter Battle"}
-        </Button>
+        {isClosed ? (
+          <Button variant="outline" onClick={() => navigate("/")} className="w-full h-12">
+            Back to start
+          </Button>
+        ) : (
+          <>
+            <Button
+              onClick={handleEnterBattle}
+              disabled={isLoading}
+              className="w-full h-12 text-lg font-semibold animate-fade-in-up"
+              style={{ animationDelay: "200ms" }}
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              ) : (
+                <Swords className="w-5 h-5 mr-2" />
+              )}
+              {isLoading ? "Creating Battle..." : arena.state === "waiting" ? "Start Battles" : "Enter Battle"}
+            </Button>
+
+            <EndArenaButton
+              arenaId={arena.id}
+              onEnded={() => setArena((prev) => (prev ? { ...prev, state: "finished" } : prev))}
+            >
+              <Button variant="ghost" className="w-full text-muted-foreground hover:text-destructive">
+                End Arena
+              </Button>
+            </EndArenaButton>
+          </>
+        )}
       </div>
     </div>
   );

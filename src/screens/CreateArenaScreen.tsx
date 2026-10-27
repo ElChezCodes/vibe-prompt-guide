@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { arenaPath } from "@/lib/arenaRoutes";
 import {
   createArena,
   formatDuration,
@@ -49,7 +51,8 @@ const CreateArenaScreen = () => {
     try {
       const result = await createArena(arenaName, mood, warmup.id);
       console.log('Arena created:', result);
-      navigate("/lobby", { state: { arenaId: result.id, arenaName: result.name } });
+      // replace: browser back must not land on the filled form (duplicate arena)
+      navigate(arenaPath(result.arena_code, "lobby"), { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Failed to create arena:', message, error);
@@ -58,7 +61,14 @@ const CreateArenaScreen = () => {
   };
 
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-6 py-12">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6 py-12">
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground"
+        aria-label="Back"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         {/* Header */}
         <div className="text-center animate-fade-in-up">

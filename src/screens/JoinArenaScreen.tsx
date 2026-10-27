@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   InputOTP,
@@ -9,10 +10,14 @@ import {
 } from "@/components/ui/input-otp";
 import { normalizeArenaCode, resolveArenaByCode } from "@/integrations/supabase/arenas";
 import { getOrCreateIdentityAnchor } from "@/integrations/supabase/identityAnchors";
+import { arenaPath } from "@/lib/arenaRoutes";
 
 const JoinArenaScreen = () => {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
+  // /join/:code is what the lobby QR encodes: prefilled, joins straight away
+  const { code: codeParam } = useParams();
+  const [code, setCode] = useState(() => normalizeArenaCode(codeParam ?? ""));
+  const autoJoinedRef = useRef(false);
   const [isJoining, setIsJoining] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -20,16 +25,18 @@ const JoinArenaScreen = () => {
 
   const handleJoinArena = async () => {
     if (!isCodeComplete || isJoining) return;
+    autoJoinedRef.current = true;
 
     setIsJoining(true);
     setErrorMessage("");
 
     try {
-      const resolvedArenaId = await resolveArenaByCode(code);
+      await resolveArenaByCode(code);
       await getOrCreateIdentityAnchor();
 
-      // Navigate to battle with role_intent - participant registration happens there
-      navigate("/battle", { state: { arenaId: resolvedArenaId, role_intent: "participant" } });
+      // Participant registration happens in the Battle Room (host-ness from arenas.host_id)
+      // replace: back from the battle must not re-trigger the /join/:code auto-join
+      navigate(arenaPath(code, "battle"), { replace: true });
     } catch (error) {
       console.error('Failed to join arena:', error);
       setErrorMessage(error instanceof Error ? error.message : "Failed to join arena");
@@ -38,8 +45,20 @@ const JoinArenaScreen = () => {
   };
 
 
+  useEffect(() => {
+    if (codeParam && isCodeComplete && !autoJoinedRef.current) handleJoinArena();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeParam]);
+
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-center bg-background px-6">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6">
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground"
+        aria-label="Back"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
       <div className="flex flex-col items-center gap-8 max-w-sm w-full">
         {/* Title */}
         <div className="flex flex-col items-center gap-2 animate-fade-in-up">

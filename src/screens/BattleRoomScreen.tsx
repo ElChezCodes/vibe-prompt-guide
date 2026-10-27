@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
@@ -9,26 +9,22 @@ import { useArenaWarmup } from "@/hooks/useArenaWarmup";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
-import { endArena, getMoodLabel } from "@/integrations/supabase/arenas";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { getMoodLabel, normalizeArenaCode } from "@/integrations/supabase/arenas";
+import EndArenaButton from "@/components/arena/EndArenaButton";
+import ScreenMessage from "@/components/nav/ScreenMessage";
+import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
+import { arenaPath } from "@/lib/arenaRoutes";
 
-type ScreenState = "loading" | "error" | "ready";
+// "ended": the arena was already finished when opened (no joining possible)
+type ScreenState = "loading" | "error" | "ready" | "ended";
 
 interface ArenaData {
   id: string;
   name: string;
   state: string;
   mood: string | null;
+  arena_code: string;
+  host_id: string | null;
 }
 
 interface ParticipantData {
@@ -79,7 +75,10 @@ const getDerivedBattlePhase = (battle: ArenaBattleView | null): DerivedBattlePha
 };
 
 const BattleRoomScreen = () => {
-  const location = useLocation();
+  const navigate = useNavigate();
+  // The arena travels in the URL (/a/:code/battle), never in router state
+  const { code = "" } = useParams();
+  const refreshCurrentArena = useRefreshCurrentArena();
   const [screenState, setScreenState] = useState<ScreenState>("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [arena, setArena] = useState<ArenaData | null>(null);
@@ -146,8 +145,7 @@ const BattleRoomScreen = () => {
     [battle, participant, voteRecord, arena],
   );
 
-  const arenaId = location.state?.arenaId as string | undefined;
-  const roleIntent = location.state?.role_intent as "host" | "participant" | undefined;
+  const arenaId = arena?.id;
 
   const { hasJustResolved, lastWinnerSide, isDraw, acknowledgeResult } = useArenaFlow(arenaId ?? "", closureState);
 
@@ -189,12 +187,6 @@ const BattleRoomScreen = () => {
   useEffect(() => {
     const loadBattleRoom = async () => {
       try {
-        if (!arenaId) {
-          setErrorMessage("No arena ID provided");
-          setScreenState("error");
-          return;
-        }
-
         // Get current auth session for identity
         const {
           data: { session },
@@ -208,11 +200,12 @@ const BattleRoomScreen = () => {
         const identityAnchorId = session.user.id;
 
         // Fetch arena data
+        // Expired arenas are hidden by RLS, so they also land in "not found"
         const { data: arenaData, error: arenaError } = await supabase
           .from("arenas")
-          .select("id, name, state, mood")
-          .eq("id", arenaId)
-          .single();
+          .select("id, name, state, mood, arena_code, host_id")
+          .eq("arena_code", normalizeArenaCode(code))
+          .maybeSingle();
 
         if (arenaError || !arenaData) {
           console.error("Failed to fetch arena:", arenaError);
@@ -221,16 +214,25 @@ const BattleRoomScreen = () => {
           return;
         }
 
-        // Register participant based on role_intent (idempotent)
-        const isHost = roleIntent === "host";
-        const participantData = await ensureParticipant(arenaId, identityAnchorId, isHost);
+        // Joining a finished arena is rejected by RLS; just say it's over
+        if (arenaData.state === "finished") {
+          setArena(arenaData);
+          setScreenState("ended");
+          return;
+        }
+
+        // Entering is the (re-)join: idempotent, clears a previous "Leave arena".
+        // Host-ness is the arena's host_id (RLS enforces the same rule).
+        const isHost = arenaData.host_id === identityAnchorId;
+        const participantData = await ensureParticipant(arenaData.id, identityAnchorId, isHost);
+        refreshCurrentArena();
 
         setArena(arenaData);
         setParticipant(participantData);
         setScreenState("ready");
 
         // Initialize battle loop via orchestrator
-        const currentBattle = await initBattleLoop(arenaId);
+        const currentBattle = await initBattleLoop(arenaData.id);
 
         // Load existing vote if battle is active
         if (currentBattle?.state === "active") {
@@ -251,7 +253,8 @@ const BattleRoomScreen = () => {
     return () => {
       stopBattleLoop();
     };
-  }, [arenaId, roleIntent, initBattleLoop, stopBattleLoop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, initBattleLoop, stopBattleLoop]);
 
   // Arena state is backend-owned (start_arena_battles / end_arena); follow it live
   useEffect(() => {
@@ -274,16 +277,11 @@ const BattleRoomScreen = () => {
     };
   }, [arenaId]);
 
-  const handleEndArena = async () => {
-    if (!arena) return;
-    try {
-      await endArena(arena.id);
-      // Realtime UPDATE will also arrive; set eagerly from the confirmed RPC result
-      setArena((prev) => (prev ? { ...prev, state: "finished" } : prev));
-    } catch {
-      // logged in endArena; arena state stays as the backend reports it
-    }
-  };
+  // A finished arena stops being anyone's current arena (tabs, Home shortcut)
+  useEffect(() => {
+    if (arena?.state === "finished") refreshCurrentArena();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arena?.state]);
 
   if (screenState === "loading") {
     return (
@@ -294,11 +292,11 @@ const BattleRoomScreen = () => {
   }
 
   if (screenState === "error") {
-    return (
-      <div className="min-h-dvh w-full flex items-center justify-center bg-background">
-        <p className="text-destructive">{errorMessage}</p>
-      </div>
-    );
+    return <ScreenMessage message={errorMessage} isError />;
+  }
+
+  if (screenState === "ended") {
+    return <ScreenMessage message="This arena has ended" />;
   }
 
   const derivedPhase = getDerivedBattlePhase(battle);
@@ -386,13 +384,40 @@ const BattleRoomScreen = () => {
           <div className="px-6 py-4 rounded-xl bg-black/80 text-white text-center">
             <p className="text-2xl font-arcade font-black tracking-widest">ARENA FINISHED</p>
             <p className="mt-1 text-sm text-white/70">Thanks for playing</p>
+            <button
+              onClick={() => navigate("/")}
+              className="mt-4 px-4 py-2 rounded-md bg-white/10 border border-white/20 text-sm hover:bg-white/20"
+            >
+              Back to start
+            </button>
           </div>
+        </div>
+      )}
+
+      {/* Way out of the battle without leaving the arena (Paso_2 §3 keeps the
+          battle itself menu-free; this only switches to the app zone) */}
+      {arena?.state !== "finished" && (
+        <div className="absolute top-2 left-2 z-[55] flex gap-2">
+          <button
+            onClick={() => navigate("/")}
+            className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white"
+          >
+            ← App
+          </button>
+          {participant?.is_host && (
+            <button
+              onClick={() => navigate(arenaPath(arena.arena_code, "lobby"))}
+              className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white"
+            >
+              Lobby
+            </button>
+          )}
         </div>
       )}
 
       {/* Warm-up now playing (display-only window from warmup_started_at) */}
       {warmup && isWarmupPlaying && (
-        <div className="absolute top-2 left-2 z-[55] max-w-[60%]">
+        <div className="absolute top-11 left-2 z-[55] max-w-[60%]">
           <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80">
             <span className="flex-shrink-0">♪ Warm-up</span>
             <span className="truncate text-white">
@@ -412,25 +437,15 @@ const BattleRoomScreen = () => {
 
       {participant?.is_host && (arena?.state === "waiting" || arena?.state === "active") && (
         <div className="absolute top-2 right-2 z-[55]">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white">
-                End Arena
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>End this arena?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Battles stop and no more votes or proposals are accepted. This can't be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleEndArena}>End Arena</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {/* Realtime UPDATE will also arrive; set eagerly from the confirmed RPC result */}
+          <EndArenaButton
+            arenaId={arena.id}
+            onEnded={() => setArena((prev) => (prev ? { ...prev, state: "finished" } : prev))}
+          >
+            <button className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white">
+              End Arena
+            </button>
+          </EndArenaButton>
         </div>
       )}
 

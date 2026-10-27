@@ -267,12 +267,16 @@ additions (#1, #4 above), each marked where it lands.
    also falls back to mood-matched library songs instead of "Mock Song A/B"
    when nothing was proposed in the lobby.
 2b. **Functional in-app navigation** — added by user decision 2026-10-26,
-    pulled ahead of #19 (not spec-sourced; Paso_2's closed linear flow still
-    applies, no new Profile/Ranking screens). Arena in the URL so reload/back/
-    shared links work (today `arenaId` only travels in router state), back/exit
-    buttons, Lobby → `/connect` and `/stage`, `/stage` reading the arena from
-    the URL. Functional layer only; visual design is done by the user in
-    Lovable from a handoff prompt.
+    pulled ahead of #19. **Built 2026-10-26** (pending in-app verification).
+    User decision: Paso_2 §3's closed flow ("no back/menus") applies only
+    inside the Battle Room; the rest is an app shell with a bottom tab bar
+    (Home · Propose · Arena · Ranking · Profile), Ranking/Profile as
+    placeholders. Arena in the URL (`/a/:code/...`), `/join/:code` + real QR,
+    Lobby → Connect/Stage, End Arena in Lobby and Battle Room, "← App" out of
+    the battle without leaving the arena, explicit "Leave arena"
+    (`participants.left_at`), backend-owned current arena, propose song both
+    in-battle and on its own screen sharing `queues.proposed_by`. Visual
+    design is done by the user in Lovable from a handoff prompt.
 3. **Presence tracking infrastructure** — real writes to `last_active_at` on
    every qualifying action (vote, proposal, entering Arena).
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,

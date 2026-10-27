@@ -147,6 +147,55 @@ export async function getArena(arenaId: string): Promise<Arena> {
   return data as Arena;
 }
 
+// Arena from a URL code (/a/:code/...). Expired arenas are hidden by RLS, so
+// they come back as null like an unknown code.
+export async function getArenaByCode(code: string): Promise<Arena | null> {
+  const { data, error } = await supabase
+    .from('arenas')
+    .select('*')
+    .eq('arena_code', normalizeArenaCode(code))
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to fetch arena by code:', error.message, error);
+    throw error;
+  }
+
+  return (data as Arena) ?? null;
+}
+
+// The caller's current arena: most recent open arena they are in and haven't
+// left ("Salir de la arena"). See supabase/sql/navigation_2026-10-26.sql.
+export interface CurrentArena {
+  arena_id: string;
+  arena_code: string;
+  name: string;
+  state: ArenaState;
+  is_host: boolean;
+}
+
+export async function getCurrentArena(): Promise<CurrentArena | null> {
+  const { data, error } = await supabase.rpc('get_current_arena');
+
+  if (error) {
+    console.error('Failed to load current arena:', error.message, error);
+    throw error;
+  }
+
+  return ((data ?? [])[0] as CurrentArena) ?? null;
+}
+
+// Explicit exit (Paso_2 §4.1). Never ends the arena, even for the host;
+// re-entering the arena (ensureParticipant) clears it.
+export async function leaveArena(arenaId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_arena', { p_arena_id: arenaId });
+
+  if (error) {
+    console.error('Failed to leave arena:', error.message, error);
+    throw error;
+  }
+}
+
 export async function createArena(name: string, mood: ArenaMood, warmupSongId: string): Promise<Arena> {
   const { data: { session } } = await supabase.auth.getSession();
 
