@@ -68,6 +68,10 @@
     --energy-yellow: 45 100% 65%;
     --energy-orange: 32 100% 55%;
 
+    /* Space backdrop (nav mockups): deep violet nebula + neon violet accents */
+    --nebula: 262 70% 22%;
+    --nebula-glow: 270 90% 65%;
+
     --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 112 100% 71%;
@@ -124,6 +128,10 @@
 
     --energy-yellow: 45 100% 65%;
     --energy-orange: 32 100% 55%;
+
+    /* Space backdrop (nav mockups): deep violet nebula + neon violet accents */
+    --nebula: 262 70% 22%;
+    --nebula-glow: 270 90% 65%;
 
     --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
@@ -210,5 +218,136 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* ===== Navigation identity: dark space + neon (nav mockups) ===== */
+
+  /* Static starfield + nebula. Stars never move (no constant particles). */
+  .space-bg {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(1px 1px at 24px 36px, hsl(var(--foreground) / 0.75), transparent 60%),
+      radial-gradient(1px 1px at 132px 84px, hsl(var(--foreground) / 0.45), transparent 60%),
+      radial-gradient(1.5px 1.5px at 198px 168px, hsl(var(--song-a) / 0.8), transparent 60%),
+      radial-gradient(1px 1px at 72px 196px, hsl(var(--foreground) / 0.55), transparent 60%),
+      radial-gradient(1.5px 1.5px at 236px 44px, hsl(var(--song-b) / 0.7), transparent 60%),
+      radial-gradient(1px 1px at 168px 236px, hsl(var(--energy-yellow) / 0.5), transparent 60%),
+      radial-gradient(ellipse 90% 55% at 20% -5%, hsl(var(--nebula) / 0.9), transparent 70%),
+      radial-gradient(ellipse 70% 50% at 105% 35%, hsl(var(--song-b) / 0.12), transparent 70%),
+      radial-gradient(ellipse 70% 50% at -5% 80%, hsl(var(--song-a) / 0.12), transparent 70%);
+    background-size:
+      260px 260px, 260px 260px, 260px 260px, 260px 260px, 260px 260px, 260px 260px,
+      100% 100%, 100% 100%, 100% 100%;
+    background-attachment: fixed;
+  }
+
+  /* Glass panel with a blue -> violet -> magenta neon edge */
+  .neon-panel {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(hsl(var(--card) / 0.82), hsl(var(--card) / 0.82)) padding-box,
+      linear-gradient(135deg, hsl(var(--song-a) / 0.65), hsl(var(--nebula-glow) / 0.45), hsl(var(--song-b) / 0.65)) border-box;
+    box-shadow:
+      -8px 0 28px -14px hsl(var(--song-a) / 0.55),
+      8px 0 28px -14px hsl(var(--song-b) / 0.55);
+    backdrop-filter: blur(8px);
+  }
+
+  /* Quieter surface for rows inside panels */
+  .neon-row {
+    background: hsl(var(--secondary) / 0.7);
+    border: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  .neon-row-selected {
+    background: hsl(var(--primary) / 0.12);
+    border: 1px solid hsl(var(--primary) / 0.8);
+    box-shadow: 0 0 16px -4px hsl(var(--primary) / 0.6);
+  }
+
+  /* Outline button with neon edge */
+  .neon-outline {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(hsl(var(--secondary) / 0.85), hsl(var(--secondary) / 0.85)) padding-box,
+      linear-gradient(90deg, hsl(var(--song-a) / 0.8), hsl(var(--song-b) / 0.8)) border-box;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 22px -4px hsl(var(--primary) / 0.65), inset 0 1px 0 hsl(var(--foreground) / 0.25);
+  }
+
+  .glow-destructive {
+    box-shadow: 0 0 18px -6px hsl(var(--destructive) / 0.7);
+  }
+
+  .icon-glow-primary {
+    filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.85));
+  }
+
+  .text-glow-primary {
+    text-shadow: 0 0 12px hsl(var(--primary) / 0.7);
+  }
+
+  /* Arcade screen titles (CHOOSE YOUR AVATAR style) */
+  .neon-heading {
+    font-family: Orbitron, sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--energy-yellow));
+    text-shadow: 0 0 14px hsl(var(--energy-yellow) / 0.45), 0 2px 0 hsl(var(--energy-orange) / 0.6);
+  }
+
+  .neon-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--song-a));
+    text-shadow: 0 0 8px hsl(var(--song-a) / 0.5);
+  }
+
+  /* MUSIC FIGHTER logo: chrome blue over fire */
+  .logo-music {
+    background: linear-gradient(180deg, hsl(var(--foreground)) 10%, hsl(var(--song-a)) 60%, hsl(var(--nebula-glow)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 14px hsl(var(--song-a) / 0.55));
+  }
+
+  .logo-fighter {
+    background: linear-gradient(180deg, hsl(var(--energy-yellow)) 15%, hsl(var(--energy-orange)) 55%, hsl(var(--destructive)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 14px hsl(var(--energy-orange) / 0.55));
+  }
+
+  /* Bottom tab bar: dark glass with a neon top edge */
+  .tabbar-glass {
+    background: hsl(var(--background) / 0.88);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid transparent;
+    border-image: linear-gradient(90deg, hsl(var(--song-a) / 0.6), hsl(var(--nebula-glow) / 0.5), hsl(var(--song-b) / 0.6)) 1;
+  }
+
+  /* Discreet Battle Room HUD buttons */
+  .hud-chip {
+    background: hsl(var(--background) / 0.6);
+    border: 1px solid hsl(var(--foreground) / 0.18);
+    color: hsl(var(--foreground) / 0.85);
+    backdrop-filter: blur(6px);
+  }
+
+  .hud-chip:hover {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--song-a) / 0.6);
+  }
+
+  .hud-chip-danger:hover {
+    color: hsl(var(--destructive));
+    border-color: hsl(var(--destructive) / 0.6);
   }
 }

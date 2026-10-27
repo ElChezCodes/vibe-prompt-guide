@@ -80,6 +80,10 @@ export default {
           yellow: "hsl(var(--energy-yellow))",
           orange: "hsl(var(--energy-orange))",
         },
+        nebula: {
+          DEFAULT: "hsl(var(--nebula))",
+          glow: "hsl(var(--nebula-glow))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
