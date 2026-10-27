@@ -395,8 +395,17 @@ additions (#1, #4 above), each marked where it lands.
    back (Design Guidelines). Before building it, check the Developer Policy
    on using the host's token to serve searches to their guests.
 7. **TO BE REDEFINED (2026-10-27)** — was "Participant Spotify OAuth".
-   Participants no longer connect Spotify; what replaces it (if anything) is
-   decided with the user before this step.
+   Participants no longer connect Spotify *for affinity/passive voting*.
+   Since step 5 any user can connect Spotify from Profile, but only to host
+   their own arenas. **New use requested by the user 2026-10-27 (not built):**
+   a guest who has connected their own Spotify can use it **in someone else's
+   arena only to propose songs** — picking from their own playlists and
+   searching with their own account (falling back to the host's token, step
+   6, when they aren't connected). Never for taste profiling, affinity or
+   passive votes (policy III.13). Needs `playlist-read-private` (re-consent)
+   and each user in the dashboard's User Management while in dev mode (5
+   users max). Placement (here or with step 6's search) decided before
+   building.
 8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
    sync" (top tracks/artists/genres/audio features from Spotify). Affinity
    comes from Music Fighter's own data instead; definition pending.

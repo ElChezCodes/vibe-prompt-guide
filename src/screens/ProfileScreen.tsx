@@ -3,6 +3,7 @@ import { Lock, LogOut, Swords, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { leaveArena } from "@/integrations/supabase/arenas";
 import { useCurrentArena, useRefreshCurrentArena } from "@/hooks/useCurrentArena";
+import SpotifyConnectionPanel from "@/components/streaming/SpotifyConnectionPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,9 @@ import {
 
 // Profile / achievements are placeholders (step 2b is navigation only). The
 // functional part is "Leave arena": the explicit exit (Paso_2 §4.1), distinct
-// from just browsing away from the Battle Room.
+// from just browsing away from the Battle Room. Anyone can connect Spotify
+// here: it belongs to the user and is what lets them host their own arenas
+// (it is not used in other people's arenas).
 const ProfileScreen = () => {
   const navigate = useNavigate();
   const { data: current } = useCurrentArena();
@@ -62,6 +65,15 @@ const ProfileScreen = () => {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground text-center">Coming soon</p>
+      </div>
+
+      {/* Spotify: needed to host your own arenas */}
+      <div
+        className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
+        style={{ animationDelay: "125ms" }}
+      >
+        <p className="neon-label">Your Spotify · to host your own arenas</p>
+        <SpotifyConnectionPanel returnTo="/profile" />
       </div>
 
       {current && (
