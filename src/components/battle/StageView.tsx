@@ -89,11 +89,12 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
               songTitle={battle?.song_a_title ?? ""}
               artistName={battle?.song_a_artist ?? ""}
               artworkUrl={battle?.song_a_artwork_url}
+              source={battle?.song_a_source}
+              trackId={battle?.song_a_spotify_track_id}
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
             />
-            <SpotifyLink source={battle?.song_a_source} trackId={battle?.song_a_spotify_track_id} />
           </div>
 
           {/* VS Emblem */}
@@ -111,11 +112,12 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
               songTitle={battle?.song_b_title ?? ""}
               artistName={battle?.song_b_artist ?? ""}
               artworkUrl={battle?.song_b_artwork_url}
+              source={battle?.song_b_source}
+              trackId={battle?.song_b_spotify_track_id}
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
             />
-            <SpotifyLink source={battle?.song_b_source} trackId={battle?.song_b_spotify_track_id} />
           </div>
         </div>
       </div>
@@ -159,23 +161,48 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
   );
 };
 
-// Spotify attribution under each card (logo + "Open Spotify" link back,
-// Developer Policy II.4). Outside the card's square so the Battle Room's vote
-// hit areas (same square + an h-8 gap, pointer-events off) don't cover it.
-// Curated-library songs have placeholder ids: no link.
-const SpotifyLink = ({ source, trackId }: { source?: string; trackId?: string }) => (
-  <div className="h-8 flex items-center justify-center">
-    {source === "spotify" && trackId && (
-      <a
-        href={`https://open.spotify.com/track/${trackId}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
-      >
-        <SpotifyIcon />
-        Open Spotify
-      </a>
+// Fixed-height footer under each card. The Battle Room's vote hit areas are
+// the card's square plus a gap of this same height (STAGE_CARD_FOOTER_CLASS,
+// pointer-events off), so the "Open Spotify" link stays clickable.
+export const STAGE_CARD_FOOTER_CLASS = "h-16 lg:h-24";
+
+// With Spotify artwork the square is the artwork alone (Spotify: artwork
+// uncropped and never covered), so title/artist move here, next to the
+// Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
+// Curated-library songs (placeholder ids, no artwork) keep the text inside
+// the card and get no link.
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isA }: {
+  source?: string;
+  trackId?: string;
+  songTitle: string;
+  artistName: string;
+  showInfo: boolean;
+  isSelected: boolean;
+  isA: boolean;
+}) => (
+  <div className={`${STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
+    {showInfo && (
+      <>
+        <p className="w-full text-sm lg:text-2xl font-semibold text-foreground truncate">{songTitle || "—"}</p>
+        <p className="w-full text-xs lg:text-lg text-text-secondary truncate">{artistName}</p>
+      </>
     )}
+    <div className="mt-0.5 flex items-center gap-2">
+      {source === "spotify" && trackId && (
+        <a
+          href={`https://open.spotify.com/track/${trackId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
+        >
+          <SpotifyIcon className="h-3.5 w-3.5" />
+          Open Spotify
+        </a>
+      )}
+      {showInfo && isSelected && (
+        <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>Your vote</span>
+      )}
+    </div>
   </div>
 );
 
@@ -186,12 +213,14 @@ interface StageSongCardProps {
   songTitle: string;
   artistName: string;
   artworkUrl?: string | null;
+  source?: string;
+  trackId?: string;
   currentVote?: VoteData | null;
   tag?: string | null;
   isWinner?: boolean;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, currentVote, tag, isWinner }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, tag, isWinner }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote
@@ -199,56 +228,67 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, cu
   const lit = isSelected || isWinner;
 
   return (
-    <div
-      className={`
-        relative w-full aspect-square rounded-2xl overflow-hidden
-        bg-secondary border-2 transition-all duration-300 ease-out
-        ${isA ? "border-song-a/40" : "border-song-b/40"}
-        ${lit ? (isA ? "border-song-a glow-a scale-[1.02]" : "border-song-b glow-b scale-[1.02]") : ""}
-      `}
-    >
-      {/* Artwork placeholder: side-tinted gradient + music glyph */}
+    <>
       <div
-        className={`absolute inset-0 bg-gradient-to-b ${isA ? "from-song-a/25" : "from-song-b/25"} via-secondary to-background`}
-      />
-      {artworkUrl ? (
-        // Spotify artwork: whole (object-contain), between the pill and the song info, never covered
-        <div className="absolute inset-x-3 top-12 bottom-24 lg:bottom-36 flex items-center justify-center">
-          <img src={artworkUrl} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center pb-16">
-          <Music className={`w-16 h-16 lg:w-24 lg:h-24 opacity-40 ${isA ? "text-song-a" : "text-song-b"}`} />
-        </div>
-      )}
+        className={`
+          relative w-full aspect-square rounded-2xl overflow-hidden
+          bg-secondary border-2 transition-all duration-300 ease-out
+          ${isA ? "border-song-a/40" : "border-song-b/40"}
+          ${lit ? (isA ? "border-song-a glow-a scale-[1.02]" : "border-song-b glow-b scale-[1.02]") : ""}
+        `}
+      >
+        {artworkUrl ? (
+          // Spotify artwork: the whole square, object-contain, nothing on top
+          <img src={artworkUrl} alt="" className="absolute inset-0 w-full h-full object-contain bg-black" />
+        ) : (
+          <>
+            {/* Artwork placeholder: side-tinted gradient + music glyph */}
+            <div
+              className={`absolute inset-0 bg-gradient-to-b ${isA ? "from-song-a/25" : "from-song-b/25"} via-secondary to-background`}
+            />
+            <div className="absolute inset-0 flex items-center justify-center pb-16">
+              <Music className={`w-16 h-16 lg:w-24 lg:h-24 opacity-40 ${isA ? "text-song-a" : "text-song-b"}`} />
+            </div>
 
-      {/* Top pill: mood / genre */}
-      <div className="absolute top-3 inset-x-3 flex items-center justify-between">
-        <span
-          className={`px-2.5 py-1 rounded-full text-[10px] lg:text-xs font-semibold uppercase tracking-wider border bg-background/70 backdrop-blur ${
-            isA ? "text-song-a border-song-a/40" : "text-song-b border-song-b/40"
-          }`}
-        >
-          {tag || (isA ? "Blue corner" : "Pink corner")}
-        </span>
-        {isSelected && (
-          <span
-            className={`px-2 py-1 rounded-full text-[10px] lg:text-xs font-bold uppercase tracking-wider ${
-              isA ? "bg-song-a text-song-a-foreground" : "bg-song-b text-song-b-foreground"
-            }`}
-          >
-            Your vote
-          </span>
+            {/* Top pill: mood / genre */}
+            <div className="absolute top-3 inset-x-3 flex items-center justify-between">
+              <span
+                className={`px-2.5 py-1 rounded-full text-[10px] lg:text-xs font-semibold uppercase tracking-wider border bg-background/70 backdrop-blur ${
+                  isA ? "text-song-a border-song-a/40" : "text-song-b border-song-b/40"
+                }`}
+              >
+                {tag || (isA ? "Blue corner" : "Pink corner")}
+              </span>
+              {isSelected && (
+                <span
+                  className={`px-2 py-1 rounded-full text-[10px] lg:text-xs font-bold uppercase tracking-wider ${
+                    isA ? "bg-song-a text-song-a-foreground" : "bg-song-b text-song-b-foreground"
+                  }`}
+                >
+                  Your vote
+                </span>
+              )}
+            </div>
+
+            {/* Song info */}
+            <div className="absolute inset-x-0 bottom-0 p-4 lg:p-8 bg-gradient-to-t from-background via-background/80 to-transparent">
+              <h3 className="text-xl lg:text-4xl font-semibold text-foreground truncate">{songTitle || "—"}</h3>
+              <p className="text-sm lg:text-2xl text-text-secondary truncate mt-1">{artistName}</p>
+              <div className={`mt-3 h-1 w-12 rounded-full ${isA ? "bg-song-a" : "bg-song-b"}`} />
+            </div>
+          </>
         )}
       </div>
-
-      {/* Song info */}
-      <div className="absolute inset-x-0 bottom-0 p-4 lg:p-8 bg-gradient-to-t from-background via-background/80 to-transparent">
-        <h3 className="text-xl lg:text-4xl font-semibold text-foreground truncate">{songTitle || "—"}</h3>
-        <p className="text-sm lg:text-2xl text-text-secondary truncate mt-1">{artistName}</p>
-        <div className={`mt-3 h-1 w-12 rounded-full ${isA ? "bg-song-a" : "bg-song-b"}`} />
-      </div>
-    </div>
+      <StageCardFooter
+        source={source}
+        trackId={trackId}
+        songTitle={songTitle}
+        artistName={artistName}
+        showInfo={!!artworkUrl}
+        isSelected={isSelected}
+        isA={isA}
+      />
+    </>
   );
 };
 

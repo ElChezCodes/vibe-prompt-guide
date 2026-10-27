@@ -9,7 +9,7 @@ import { useArenaWarmup } from "@/hooks/useArenaWarmup";
 import { useArenaPlayback } from "@/hooks/useArenaPlayback";
 import { PAUSE_REASON_LABELS, resumeSpotifyArena } from "@/integrations/supabase/spotify";
 import { ensureParticipant } from "@/integrations/supabase/participants";
-import StageView from "@/components/battle/StageView";
+import StageView, { STAGE_CARD_FOOTER_CLASS } from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
 import { getMoodLabel, normalizeArenaCode } from "@/integrations/supabase/arenas";
 import EndArenaButton from "@/components/arena/EndArenaButton";
@@ -370,8 +370,8 @@ const BattleRoomScreen = () => {
                     role="button"
                     aria-label="Vote for Song A"
                   />
-                  {/* StageView's "Open Spotify" row stays clickable */}
-                  <div className="h-8" />
+                  {/* StageView's card footer ("Open Spotify") stays clickable */}
+                  <div className={STAGE_CARD_FOOTER_CLASS} />
                 </div>
 
                 {/* VS spacer */}
@@ -385,7 +385,7 @@ const BattleRoomScreen = () => {
                     role="button"
                     aria-label="Vote for Song B"
                   />
-                  <div className="h-8" />
+                  <div className={STAGE_CARD_FOOTER_CLASS} />
                 </div>
               </div>
             </div>
