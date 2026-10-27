@@ -14,7 +14,7 @@ import { getOrCreateIdentityAnchor } from "@/integrations/supabase/identityAncho
 import { arenaPath } from "@/lib/arenaRoutes";
 
 const SLOT_CLASS =
-  "h-14 w-12 text-xl font-bold font-mono bg-card/80 border-song-a/40 text-foreground first:border-l";
+  "h-14 w-12 text-xl font-bold font-mono bg-card/80 border-song-a/40 text-foreground";
 
 const JoinArenaScreen = () => {
   const navigate = useNavigate();
@@ -76,7 +76,6 @@ const JoinArenaScreen = () => {
             value={code}
             onChange={(value) => setCode(normalizeArenaCode(value))}
             containerClassName="justify-center"
-            disabled={isJoining}
           >
             <InputOTPGroup>
               <InputOTPSlot index={0} className={SLOT_CLASS} />
