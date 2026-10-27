@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   InputOTP,
@@ -8,9 +8,13 @@ import {
   InputOTPSlot,
   InputOTPSeparator,
 } from "@/components/ui/input-otp";
+import BackButton from "@/components/nav/BackButton";
 import { normalizeArenaCode, resolveArenaByCode } from "@/integrations/supabase/arenas";
 import { getOrCreateIdentityAnchor } from "@/integrations/supabase/identityAnchors";
 import { arenaPath } from "@/lib/arenaRoutes";
+
+const SLOT_CLASS =
+  "h-14 w-12 text-xl font-bold font-mono bg-card/80 border-song-a/40 text-foreground first:border-l";
 
 const JoinArenaScreen = () => {
   const navigate = useNavigate();
@@ -51,43 +55,39 @@ const JoinArenaScreen = () => {
   }, [codeParam]);
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6">
-      <button
-        onClick={() => navigate("/")}
-        className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground"
-        aria-label="Back"
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </button>
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-6">
+      <BackButton onClick={() => navigate("/")} />
       <div className="flex flex-col items-center gap-8 max-w-sm w-full">
         {/* Title */}
         <div className="flex flex-col items-center gap-2 animate-fade-in-up">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Join an Arena
-          </h1>
+          <h1 className="neon-heading text-2xl text-center">Join Arena</h1>
           <p className="text-text-secondary text-sm text-center">
             Enter the 6-character code to join
           </p>
         </div>
 
         {/* Arena Code Input */}
-        <div className="animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+        <div
+          className="neon-panel rounded-2xl px-4 py-6 w-full flex justify-center animate-fade-in-up"
+          style={{ animationDelay: "100ms" }}
+        >
           <InputOTP
             maxLength={6}
             value={code}
             onChange={(value) => setCode(normalizeArenaCode(value))}
             containerClassName="justify-center"
+            disabled={isJoining}
           >
             <InputOTPGroup>
-              <InputOTPSlot index={0} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
-              <InputOTPSlot index={1} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
-              <InputOTPSlot index={2} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
+              <InputOTPSlot index={0} className={SLOT_CLASS} />
+              <InputOTPSlot index={1} className={SLOT_CLASS} />
+              <InputOTPSlot index={2} className={SLOT_CLASS} />
             </InputOTPGroup>
-            <InputOTPSeparator className="text-muted-foreground" />
+            <InputOTPSeparator className="text-song-b" />
             <InputOTPGroup>
-              <InputOTPSlot index={3} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
-              <InputOTPSlot index={4} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
-              <InputOTPSlot index={5} className="h-14 w-12 text-xl font-bold bg-surface border-border" />
+              <InputOTPSlot index={3} className={SLOT_CLASS.replace("song-a", "song-b")} />
+              <InputOTPSlot index={4} className={SLOT_CLASS.replace("song-a", "song-b")} />
+              <InputOTPSlot index={5} className={SLOT_CLASS.replace("song-a", "song-b")} />
             </InputOTPGroup>
           </InputOTP>
         </div>
@@ -96,10 +96,11 @@ const JoinArenaScreen = () => {
         <div className="w-full animate-fade-in-up" style={{ animationDelay: "200ms" }}>
           <Button
             size="lg"
-            className="w-full text-base font-semibold"
+            className="w-full h-12 text-base font-bold"
             disabled={!isCodeComplete || isJoining}
             onClick={handleJoinArena}
           >
+            {isJoining && <Loader2 className="w-5 h-5 animate-spin" />}
             {isJoining ? "Joining..." : "Enter Arena"}
           </Button>
         </div>
@@ -113,7 +114,7 @@ const JoinArenaScreen = () => {
           className="text-muted-foreground text-xs text-center animate-fade-in-up"
           style={{ animationDelay: "300ms" }}
         >
-          Ask the host for the arena code
+          {isJoining ? "Getting you into the arena..." : "Ask the host for the arena code"}
         </p>
       </div>
     </div>

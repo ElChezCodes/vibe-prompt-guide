@@ -350,4 +350,12 @@
     color: hsl(var(--destructive));
     border-color: hsl(var(--destructive) / 0.6);
   }
+
+  .icon-glow-a {
+    filter: drop-shadow(0 0 8px hsl(var(--song-a) / 0.85));
+  }
+
+  .icon-glow-b {
+    filter: drop-shadow(0 0 8px hsl(var(--song-b) / 0.85));
+  }
 }
