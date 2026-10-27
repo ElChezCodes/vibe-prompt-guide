@@ -21,10 +21,10 @@ const AppShell = () => {
   ];
 
   return (
-    <div className="min-h-dvh w-full bg-background pb-16">
+    <div className="min-h-dvh w-full space-bg pb-16">
       <Outlet />
 
-      <nav className="fixed bottom-0 inset-x-0 z-50 h-16 border-t border-border bg-background/95">
+      <nav className="fixed bottom-0 inset-x-0 z-50 h-16 tabbar-glass">
         <div className="mx-auto max-w-md h-full grid grid-cols-5">
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <NavLink
@@ -32,13 +32,29 @@ const AppShell = () => {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-1 text-xs ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                `relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium tracking-wide transition-colors ${
+                  isActive ? "text-primary text-glow-primary" : "text-muted-foreground hover:text-song-a"
                 }`
               }
             >
-              <Icon className="w-5 h-5" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      className="absolute top-0 h-0.5 w-8 rounded-full bg-primary glow-primary"
+                    />
+                  )}
+                  <span
+                    className={`flex items-center justify-center w-9 h-7 rounded-lg transition-colors ${
+                      isActive ? "bg-primary/15" : ""
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? "icon-glow-primary" : ""}`} />
+                  </span>
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
         </div>

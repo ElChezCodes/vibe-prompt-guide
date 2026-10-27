@@ -13,13 +13,15 @@ const ScreenMessage = ({ message, isError = false, showHomeButton = true }: Scre
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-center gap-4 bg-background px-6">
-      <p className={isError ? "text-destructive text-center" : "text-muted-foreground text-center"}>{message}</p>
-      {showHomeButton && (
-        <Button variant="outline" onClick={() => navigate("/")}>
-          Back to start
-        </Button>
-      )}
+    <div className="min-h-dvh w-full flex flex-col items-center justify-center space-bg px-6">
+      <div className="neon-panel rounded-2xl px-8 py-7 flex flex-col items-center gap-5 max-w-sm w-full animate-fade-in">
+        <p className={`text-center ${isError ? "text-destructive font-medium" : "text-text-secondary"}`}>{message}</p>
+        {showHomeButton && (
+          <Button variant="neon" className="w-full" onClick={() => navigate("/")}>
+            Back to start
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
