@@ -93,19 +93,19 @@ const ArenaLobbyScreen = () => {
   if (!isHost) return <Navigate to={arenaPath(code, "battle")} replace />;
 
   return (
-    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6 py-12">
+    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         {/* Header */}
         <div className="text-center animate-fade-in-up">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+          <h1 className="neon-heading text-2xl md:text-3xl mb-3 break-words">
             {arena.name || "Arena Created"}
           </h1>
           {moodLabel && (
-            <p className="inline-block mb-2 px-3 py-1 rounded-full bg-primary/15 text-sm text-foreground">
+            <p className="inline-block mb-2 px-3 py-1 rounded-full border border-song-b/50 bg-song-b/10 text-sm text-foreground">
               {moodLabel}
             </p>
           )}
-          <p className="text-muted-foreground">
+          <p className="text-text-secondary">
             {isClosed ? "This arena has ended" : "Share the code with your guests"}
           </p>
         </div>
@@ -113,10 +113,10 @@ const ArenaLobbyScreen = () => {
         {/* Warm-up: silent in the lobby, starts with the first battle */}
         {warmup && (
           <div
-            className="w-full flex items-center gap-3 bg-surface rounded-xl border border-border/50 px-4 py-3 animate-fade-in-up"
+            className="w-full flex items-center gap-3 neon-panel rounded-xl px-4 py-3 animate-fade-in-up"
             style={{ animationDelay: "25ms" }}
           >
-            <Music className="w-5 h-5 flex-shrink-0 text-primary" />
+            <Music className="w-5 h-5 flex-shrink-0 text-primary icon-glow-primary" />
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground">Warm-up song · starts with the first battle</p>
               <p className="text-sm font-medium text-foreground truncate">
@@ -131,11 +131,11 @@ const ArenaLobbyScreen = () => {
 
         {/* Arena Code Block */}
         <div
-          className="w-full bg-surface rounded-xl border border-border/50 p-6 text-center animate-fade-in-up"
+          className="w-full neon-panel rounded-2xl p-6 text-center animate-fade-in-up"
           style={{ animationDelay: "50ms" }}
         >
-          <p className="text-sm text-muted-foreground mb-3">Arena Code</p>
-          <p className="text-4xl md:text-5xl font-bold text-foreground tracking-[0.3em] font-mono">
+          <p className="neon-label mb-3">Arena Code</p>
+          <p className="text-4xl md:text-5xl font-bold text-foreground tracking-[0.3em] font-mono text-glow-a">
             {arenaCode}
           </p>
         </div>
@@ -143,12 +143,13 @@ const ArenaLobbyScreen = () => {
         {/* QR Code Block: opens /join/:code */}
         {!isClosed && (
           <div
-            className="bg-surface rounded-xl border border-border/50 p-6 text-center animate-fade-in-up"
+            className="neon-panel rounded-2xl p-6 text-center animate-fade-in-up"
             style={{ animationDelay: "100ms" }}
           >
-            <p className="text-sm text-muted-foreground mb-4">Scan to join</p>
-            <div className="mx-auto bg-white rounded-lg p-4">
-              <QRCodeSVG value={joinUrl(arena.arena_code)} size={176} />
+            <p className="neon-label mb-4">Scan to join</p>
+            {/* QR stays black on white with a quiet zone so phones read it */}
+            <div className="mx-auto bg-white rounded-xl p-4">
+              <QRCodeSVG value={joinUrl(arena.arena_code)} size={176} marginSize={1} />
             </div>
           </div>
         )}
@@ -156,15 +157,15 @@ const ArenaLobbyScreen = () => {
         {/* Venue screen + music connection */}
         {!isClosed && (
           <div className="w-full grid grid-cols-1 gap-3 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-            <Button variant="outline" onClick={() => window.open(stageUrl(code), "_blank", "noopener")}>
+            <Button variant="neon" className="h-11 justify-start" onClick={() => window.open(stageUrl(code), "_blank", "noopener")}>
               <Monitor className="w-4 h-4 mr-2" />
               Open Stage View
             </Button>
-            <Button variant="outline" onClick={handleCopyStageLink}>
+            <Button variant="neon" className="h-11 justify-start" onClick={handleCopyStageLink}>
               <Link2 className="w-4 h-4 mr-2" />
               {linkCopied ? "Stage link copied" : "Copy Stage View link"}
             </Button>
-            <Button variant="outline" onClick={() => navigate(arenaPath(code, "connect"))}>
+            <Button variant="neon" className="h-11 justify-start" onClick={() => navigate(arenaPath(code, "connect"))}>
               <Plug className="w-4 h-4 mr-2" />
               Connect music account
             </Button>
@@ -177,7 +178,7 @@ const ArenaLobbyScreen = () => {
         )}
 
         {isClosed ? (
-          <Button variant="outline" onClick={() => navigate("/")} className="w-full h-12">
+          <Button variant="neon" onClick={() => navigate("/")} className="w-full h-12">
             Back to start
           </Button>
         ) : (
@@ -185,7 +186,7 @@ const ArenaLobbyScreen = () => {
             <Button
               onClick={handleEnterBattle}
               disabled={isLoading}
-              className="w-full h-12 text-lg font-semibold animate-fade-in-up"
+              className="w-full h-12 text-lg font-bold animate-fade-in-up"
               style={{ animationDelay: "200ms" }}
             >
               {isLoading ? (
@@ -200,7 +201,7 @@ const ArenaLobbyScreen = () => {
               arenaId={arena.id}
               onEnded={() => setArena((prev) => (prev ? { ...prev, state: "finished" } : prev))}
             >
-              <Button variant="ghost" className="w-full text-muted-foreground hover:text-destructive">
+              <Button variant="ghost" className="w-full border border-destructive/40 text-destructive/90 hover:bg-destructive/10 hover:text-destructive">
                 End Arena
               </Button>
             </EndArenaButton>

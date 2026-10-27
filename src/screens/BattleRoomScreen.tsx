@@ -285,8 +285,8 @@ const BattleRoomScreen = () => {
 
   if (screenState === "loading") {
     return (
-      <div className="min-h-dvh w-full flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-dvh w-full flex items-center justify-center space-bg">
+        <p className="neon-label animate-pulse">Loading arena...</p>
       </div>
     );
   }
@@ -372,21 +372,26 @@ const BattleRoomScreen = () => {
       {/* Arena-level status (backend arenas.state) */}
       {arena?.state === "waiting" && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-          <div className="px-6 py-4 rounded-xl bg-black/70 text-white text-center">
-            <p className="text-xl font-bold">Waiting for the host to start battles</p>
-            {moodLabel && <p className="mt-1 text-sm text-white/70">Tonight's mood: {moodLabel}</p>}
+          <div className="mx-6 px-6 py-5 rounded-2xl neon-panel text-center animate-fade-in">
+            <p className="neon-label mb-2">Get ready</p>
+            <p className="text-xl font-bold text-foreground">Waiting for the host to start battles</p>
+            {moodLabel && (
+              <p className="mt-2 text-sm text-text-secondary">
+                Tonight's mood: <span className="text-song-b font-medium">{moodLabel}</span>
+              </p>
+            )}
           </div>
         </div>
       )}
 
       {arena?.state === "finished" && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="px-6 py-4 rounded-xl bg-black/80 text-white text-center">
-            <p className="text-2xl font-arcade font-black tracking-widest">ARENA FINISHED</p>
-            <p className="mt-1 text-sm text-white/70">Thanks for playing</p>
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-background/75 backdrop-blur-sm">
+          <div className="mx-6 px-8 py-7 rounded-2xl neon-panel text-center animate-scale-in">
+            <p className="neon-heading text-2xl">Arena Finished</p>
+            <p className="mt-2 text-sm text-text-secondary">Thanks for playing</p>
             <button
               onClick={() => navigate("/")}
-              className="mt-4 px-4 py-2 rounded-md bg-white/10 border border-white/20 text-sm hover:bg-white/20"
+              className="mt-5 w-full h-11 px-4 rounded-md bg-primary text-primary-foreground text-sm font-bold glow-primary hover:bg-primary/90 transition-colors"
             >
               Back to start
             </button>
@@ -400,14 +405,14 @@ const BattleRoomScreen = () => {
         <div className="absolute top-2 left-2 z-[55] flex gap-2">
           <button
             onClick={() => navigate("/")}
-            className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white"
+            className="hud-chip px-3 py-1 rounded-full text-xs font-medium transition-colors"
           >
             ← App
           </button>
           {participant?.is_host && (
             <button
               onClick={() => navigate(arenaPath(arena.arena_code, "lobby"))}
-              className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white"
+              className="hud-chip px-3 py-1 rounded-full text-xs font-medium transition-colors"
             >
               Lobby
             </button>
@@ -418,15 +423,15 @@ const BattleRoomScreen = () => {
       {/* Warm-up now playing (display-only window from warmup_started_at) */}
       {warmup && isWarmupPlaying && (
         <div className="absolute top-11 left-2 z-[55] max-w-[60%]">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80">
-            <span className="flex-shrink-0">♪ Warm-up</span>
-            <span className="truncate text-white">
+          <div className="hud-chip flex items-center gap-2 px-3 py-1 rounded-full text-xs border-primary/50">
+            <span className="flex-shrink-0 text-primary font-semibold">♪ Warm-up</span>
+            <span className="truncate text-foreground">
               {warmup.title} · {warmup.artist}
             </span>
             {participant?.is_host && needsTap && (
               <button
                 onClick={resumeWarmup}
-                className="flex-shrink-0 px-2 py-0.5 rounded bg-primary text-primary-foreground font-medium"
+                className="flex-shrink-0 px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-bold glow-primary"
               >
                 Play
               </button>
@@ -442,7 +447,7 @@ const BattleRoomScreen = () => {
             arenaId={arena.id}
             onEnded={() => setArena((prev) => (prev ? { ...prev, state: "finished" } : prev))}
           >
-            <button className="px-3 py-1 rounded-md bg-black/50 border border-white/20 text-xs text-white/80 hover:text-white">
+            <button className="hud-chip hud-chip-danger px-3 py-1 rounded-full text-xs font-medium transition-colors">
               End Arena
             </button>
           </EndArenaButton>
@@ -459,7 +464,7 @@ const BattleRoomScreen = () => {
       {/* Sudden Death vote submitted confirmation */}
       {derivedPhase === "SUDDEN_DEATH" && hasSuddenDeathVote && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-          <div className="px-4 py-2 rounded-lg bg-primary/20 border border-primary/40 text-primary text-sm font-medium">
+          <div className="px-4 py-2 rounded-full bg-primary/15 border border-primary/60 text-primary text-sm font-bold glow-primary">
             Vote submitted
           </div>
         </div>

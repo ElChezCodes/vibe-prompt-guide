@@ -82,12 +82,12 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
     <div className="h-full flex flex-col gap-4">
       {/* Search Input */}
       <div className="relative flex-shrink-0">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-song-a" />
         <Input
           placeholder="Search for a song..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-11 h-12 bg-secondary/50 border-border/50 text-foreground placeholder:text-muted-foreground rounded-xl focus:ring-primary"
+          className="pl-11 h-12 bg-secondary/80 border-song-a/40 text-foreground placeholder:text-muted-foreground rounded-xl focus-visible:ring-song-a"
         />
         {searchQuery && (
           <button
@@ -105,20 +105,26 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
           myProposals.length === 0 ? (
             // Empty state
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-5">
-                <Music className="h-10 w-10 text-muted-foreground" />
+              <div className="w-20 h-20 rounded-full neon-outline flex items-center justify-center mb-5">
+                <Music className="h-9 w-9 text-song-b icon-glow-b" />
               </div>
-              <p className="text-muted-foreground text-sm">You haven't proposed any song yet</p>
+              <p className="text-text-secondary text-sm">You haven't proposed any song yet</p>
+              <p className="mt-1 text-muted-foreground text-xs">Search above to send one into the queue</p>
             </div>
           ) : (
             // My proposals still waiting in the queue
             <ScrollArea className="h-full">
-              <p className="text-xs text-muted-foreground mb-2">Your proposals in the queue</p>
+              <p className="neon-label mb-3">Your proposals in the queue</p>
               <div className="space-y-2 pr-4">
                 {myProposals.map((proposal) => (
-                  <div key={proposal.queue_id} className="p-3 rounded-xl bg-secondary/50">
-                    <p className="text-sm font-medium text-foreground truncate">{proposal.title}</p>
-                    <p className="text-muted-foreground text-xs truncate">{proposal.artist}</p>
+                  <div key={proposal.queue_id} className="flex items-center gap-3 p-3 rounded-xl neon-row">
+                    <div className="w-9 h-9 rounded-lg bg-song-a/10 flex items-center justify-center flex-shrink-0">
+                      <Music className="h-4 w-4 text-song-a" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{proposal.title}</p>
+                      <p className="text-muted-foreground text-xs truncate">{proposal.artist}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -135,16 +141,16 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
                   className={`
                     p-3 rounded-xl cursor-pointer transition-all duration-200
                     ${selectedSongId === song.id
-                      ? 'bg-primary/15 ring-1 ring-primary'
-                      : 'bg-secondary/50 hover:bg-secondary/80'
+                      ? 'neon-row-selected'
+                      : 'neon-row hover:border-song-a/60'
                     }
                   `}
                   role="button"
                   aria-pressed={selectedSongId === song.id}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0">
-                      <Music className={`h-5 w-5 ${selectedSongId === song.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedSongId === song.id ? "bg-primary/15" : "bg-muted/60"}`}>
+                      <Music className={`h-5 w-5 ${selectedSongId === song.id ? 'text-primary icon-glow-primary' : 'text-song-b'}`} />
                     </div>
                     <div className="min-w-0">
                       <p className={`text-sm font-medium truncate ${selectedSongId === song.id ? 'text-primary' : 'text-foreground'}`}>
@@ -162,14 +168,14 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
         )}
       </div>
 
-      {notice && <p className="flex-shrink-0 text-sm text-center text-muted-foreground">{notice}</p>}
+      {notice && <p className="flex-shrink-0 text-sm text-center text-song-a">{notice}</p>}
 
       {/* Submit Button */}
       <div className="flex-shrink-0 pt-2">
         <Button
           onClick={handleSubmit}
           disabled={!selectedSongId || isSubmitting}
-          className="w-full h-12 text-base font-semibold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40"
+          className="w-full h-12 text-base font-bold rounded-xl disabled:opacity-40"
         >
           {isSubmitting ? "Proposing..." : "Propose Song"}
         </Button>

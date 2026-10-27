@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Music, Check, AlertCircle, ChevronRight, ArrowLeft } from "lucide-react";
+import { Music, Check, AlertCircle, ChevronRight } from "lucide-react";
+import BackButton from "@/components/nav/BackButton";
 import { Navigate, useNavigate } from "react-router-dom";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
@@ -69,24 +70,18 @@ const ConnectStreamingScreen = () => {
   const lobbyPath = arenaPath(code, "lobby");
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] bg-background flex flex-col items-center justify-center p-6">
-      <button
-        onClick={() => navigate(lobbyPath)}
-        className="absolute top-4 left-4 flex items-center gap-1 p-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Lobby
-      </button>
+    <div className="relative min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center p-6 pt-20">
+      <BackButton onClick={() => navigate(lobbyPath)} label="Lobby" />
       <div className="w-full max-w-md space-y-8">
         {/* Not Connected State */}
         {connectionState === "not_connected" && (
           <div className="space-y-8 animate-fade-in">
             {/* Header */}
             <div className="text-center space-y-3" style={{ animationDelay: "0.1s" }}>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="neon-heading text-xl leading-snug">
                 Connect your music account
               </h1>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-text-secondary text-sm">
                 Connect your music account to control what plays during battles.
               </p>
             </div>
@@ -102,15 +97,15 @@ const ConnectStreamingScreen = () => {
                     w-full flex items-center justify-between p-4 rounded-xl
                     border transition-all duration-200
                     ${provider.enabled
-                      ? "bg-surface border-border hover:border-primary/50 hover:bg-surface/80 cursor-pointer"
-                      : "bg-surface/50 border-border/50 cursor-not-allowed opacity-50"
+                      ? "neon-panel hover:brightness-125 cursor-pointer"
+                      : "neon-row cursor-not-allowed opacity-50"
                     }
                   `}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`
                       w-10 h-10 rounded-lg flex items-center justify-center
-                      ${provider.enabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}
+                      ${provider.enabled ? "bg-primary/15 text-primary icon-glow-primary" : "bg-muted text-muted-foreground"}
                     `}>
                       {provider.icon}
                     </div>
@@ -124,7 +119,7 @@ const ConnectStreamingScreen = () => {
                     </div>
                   </div>
                   {provider.enabled && (
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    <ChevronRight className="w-5 h-5 text-song-a" />
                   )}
                 </button>
               ))}
@@ -145,17 +140,17 @@ const ConnectStreamingScreen = () => {
           <div className="space-y-8 animate-fade-in">
             {/* Header */}
             <div className="text-center space-y-3">
-              <div className="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 mx-auto rounded-full bg-primary/15 glow-primary flex items-center justify-center mb-4">
                 <Check className="w-8 h-8 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="neon-heading text-xl leading-snug">
                 Music account connected
               </h1>
             </div>
 
             {/* Connected Account Card */}
             <div 
-              className="bg-surface border border-border rounded-xl p-4 animate-fade-in"
+              className="neon-panel rounded-xl p-4 animate-fade-in"
               style={{ animationDelay: "0.1s" }}
             >
               <div className="flex items-center justify-between">
@@ -180,7 +175,7 @@ const ConnectStreamingScreen = () => {
               className="space-y-3 animate-fade-in"
               style={{ animationDelay: "0.2s" }}
             >
-              <Button className="w-full h-12 text-base font-semibold" onClick={() => navigate(lobbyPath)}>
+              <Button className="w-full h-12 text-base font-bold" onClick={() => navigate(lobbyPath)}>
                 Back to Lobby
               </Button>
               <Button
@@ -202,7 +197,7 @@ const ConnectStreamingScreen = () => {
               <div className="w-16 h-16 mx-auto rounded-full bg-destructive/20 flex items-center justify-center mb-4">
                 <AlertCircle className="w-8 h-8 text-destructive" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="neon-heading text-xl leading-snug">
                 Something went wrong
               </h1>
               <p className="text-muted-foreground text-sm">

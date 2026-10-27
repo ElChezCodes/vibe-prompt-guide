@@ -16,9 +16,9 @@ interface ProposeSongModalProps {
 const ProposeSongModal = ({ open, onOpenChange, arenaId }: ProposeSongModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-border/50 max-w-md mx-auto h-[80vh] flex flex-col gap-4">
+      <DialogContent className="neon-panel max-w-md mx-auto h-[80vh] flex flex-col gap-4 rounded-2xl">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="text-foreground text-xl font-semibold">
+          <DialogTitle className="neon-heading text-xl">
             Propose a Song
           </DialogTitle>
         </DialogHeader>
