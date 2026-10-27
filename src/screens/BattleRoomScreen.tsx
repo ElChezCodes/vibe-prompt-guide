@@ -6,6 +6,8 @@ import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchest
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { useArenaWarmup } from "@/hooks/useArenaWarmup";
+import { useArenaPlayback } from "@/hooks/useArenaPlayback";
+import { PAUSE_REASON_LABELS, resumeSpotifyArena } from "@/integrations/supabase/spotify";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
@@ -154,12 +156,22 @@ const BattleRoomScreen = () => {
 
   const { hasJustResolved, lastWinnerSide, isDraw, acknowledgeResult } = useArenaFlow(arenaId ?? "", closureState);
 
-  // Warm-up: first song of the session; the host's browser plays it for now
-  const { warmup, isWarmupPlaying, needsTap, resumeWarmup } = useArenaWarmup(
-    arenaId,
-    arena?.state,
-    !!participant?.is_host,
-  );
+  // Warm-up: first track of the arena's Spotify playlist (host's device)
+  const { warmup, isWarmupPlaying } = useArenaWarmup(arenaId, arena?.state);
+
+  // Arena pause is decided server-side (Spotify watcher); display only
+  const playback = useArenaPlayback(arenaId, arena?.state === "active");
+  const isPaused = !!playback?.paused_at;
+  const [resumeError, setResumeError] = useState("");
+  const handleResume = async () => {
+    if (!arenaId) return;
+    setResumeError("");
+    try {
+      await resumeSpotifyArena(arenaId);
+    } catch (err) {
+      setResumeError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   // Reset vote state and sync closure when battle changes
   useEffect(() => {
@@ -313,6 +325,7 @@ const BattleRoomScreen = () => {
   // Death each participant gets one final vote (new, or upgrade of a regular one).
   const isVotingEnabled =
     arena?.state === "active" &&
+    !isPaused &&
     (battle?.state === "active" || (derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote));
   const moodLabel = getMoodLabel(arena?.mood);
 
@@ -434,14 +447,28 @@ const BattleRoomScreen = () => {
             <span className="truncate text-foreground">
               {warmup.title} · {warmup.artist}
             </span>
-            {participant?.is_host && needsTap && (
+          </div>
+        </div>
+      )}
+
+      {/* Arena paused (Spotify device/playback): battle clock frozen, votes closed */}
+      {isPaused && (
+        <div className="absolute inset-x-0 top-20 z-[60] flex justify-center px-4">
+          <div className="neon-panel rounded-2xl px-4 py-3 text-center max-w-sm">
+            <p className="font-bold text-foreground">Arena paused</p>
+            <p className="text-sm text-muted-foreground">
+              {PAUSE_REASON_LABELS[playback.pause_reason] ?? "Spotify isn't playing"}. It resumes by itself when the
+              music is back.
+            </p>
+            {participant?.is_host && (
               <button
-                onClick={resumeWarmup}
-                className="flex-shrink-0 px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-bold glow-primary"
+                onClick={handleResume}
+                className="mt-2 px-3 py-1 rounded-full bg-primary text-primary-foreground text-sm font-bold"
               >
-                Play
+                Resume on Spotify
               </button>
             )}
+            {resumeError && <p className="mt-1 text-xs text-destructive">{resumeError}</p>}
           </div>
         </div>
       )}

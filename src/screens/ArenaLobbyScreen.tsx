@@ -18,7 +18,23 @@ import EndArenaButton from "@/components/arena/EndArenaButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
-import { getMyStreamingConnection, StreamingConnectionSummary } from "@/integrations/supabase/spotify";
+import {
+  getMyStreamingConnection,
+  PAUSE_REASON_LABELS,
+  resumeSpotifyArena,
+  SpotifyHostError,
+  StreamingConnectionSummary,
+} from "@/integrations/supabase/spotify";
+import { useArenaPlayback } from "@/hooks/useArenaPlayback";
+
+// What the host can do about each Start refusal (codes from spotify-host)
+const START_ERRORS: Record<string, string> = {
+  spotify_not_connected: "Connect your Spotify Premium account first",
+  spotify_not_premium: "Spotify Premium is required to play the arena's playlist",
+  no_device: "Open Spotify on the device that will play (phone, speaker, TV...) and pick it in Spotify settings",
+  warmup_not_spotify: "This arena was created before Spotify; create a new arena",
+  spotify_revoked: "Spotify access was removed; connect again",
+};
 
 // Host's arena panel: code/QR, Stage View, music connection, start/enter
 // battles, End Arena. Non-hosts are sent to the Battle Room.
@@ -37,6 +53,8 @@ const ArenaLobbyScreen = () => {
   const isOpen = arena?.state === "waiting" || arena?.state === "active";
   // Backend-computed presence counts (display only)
   const presence = useArenaPresence(arenaId, isHost && isOpen);
+  // Spotify playback / arena pause (decided server-side)
+  const playback = useArenaPlayback(arenaId, isHost && arena?.state === "active");
 
   useEffect(() => {
     if (!arenaId || !isHost) return;
@@ -79,13 +97,17 @@ const ArenaLobbyScreen = () => {
     setErrorMessage("");
 
     try {
-      // Backend: waiting -> active, warm-up starts, battle 1 created (or the
-      // open battle returned when re-entering)
+      // Backend: private playlist + warm-up on the host's device, then
+      // waiting -> active and battle 1 (or the open battle when re-entering)
       await startArenaBattles(arenaId);
       navigate(arenaPath(code, "battle"));
     } catch (err) {
       console.error('Error starting battles:', err);
-      setErrorMessage("Failed to start battles");
+      setErrorMessage(
+        err instanceof SpotifyHostError
+          ? START_ERRORS[err.code] ?? err.message
+          : "Failed to start battles",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -197,6 +219,50 @@ const ArenaLobbyScreen = () => {
                   }`
                 : "Connect Spotify"}
             </Button>
+          </div>
+        )}
+
+        {/* Spotify playback of the running arena */}
+        {arena.state === "active" && playback && (
+          <div className="w-full neon-panel rounded-xl px-4 py-3 text-sm">
+            {playback.paused_at ? (
+              <>
+                <p className="font-bold text-foreground">Arena paused</p>
+                <p className="text-muted-foreground">
+                  {PAUSE_REASON_LABELS[playback.pause_reason] ?? "Spotify isn't playing"}. It resumes by itself when
+                  the music is back.
+                </p>
+                <Button
+                  variant="neon"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() =>
+                    resumeSpotifyArena(arena.id).catch((err) =>
+                      setErrorMessage(
+                        err instanceof SpotifyHostError ? START_ERRORS[err.code] ?? err.message : String(err),
+                      ),
+                    )
+                  }
+                >
+                  Resume on Spotify
+                </Button>
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                Spotify{playback.device_name ? ` · ${playback.device_name}` : ""}
+                {playback.is_playing ? " · playing" : ""}
+              </p>
+            )}
+            {playback.playlist_url && (
+              <a
+                href={playback.playlist_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-xs font-bold uppercase text-[#1DB954]"
+              >
+                Open playlist in Spotify
+              </a>
+            )}
           </div>
         )}
 

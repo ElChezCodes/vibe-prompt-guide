@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createSpotifyArena, startSpotifyArena } from '@/integrations/supabase/spotify';
 
 // Backend-authoritative (see supabase/sql/arena_state_model_2026-10-26.sql).
 // Transitions happen only via RPCs: create_arena -> waiting,
@@ -196,40 +197,18 @@ export async function leaveArena(arenaId: string): Promise<void> {
   }
 }
 
-export async function createArena(name: string, mood: ArenaMood, warmupSongId: string): Promise<Arena> {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session?.user) {
-    throw new Error('No authenticated session');
-  }
-
-  const trimmed = name.trim();
-  const normalizedName =
-    trimmed.length > 0 ? trimmed : 'Test Arena';
-
-  // Host is taken from auth.uid() server-side
-  const { data: arenaId, error: rpcError } = await supabase
-    .rpc('create_arena', { p_name: normalizedName, p_mood: mood, p_warmup_song_id: warmupSongId });
-
-  if (rpcError) {
-    console.error('Failed to create arena:', rpcError.message, rpcError);
-    throw rpcError;
-  }
-
+// Host is the caller; the warm-up is a Spotify track the Edge Function
+// re-reads from Spotify (createSpotifyArena), so Spotify must be connected
+export async function createArena(name: string, mood: ArenaMood, warmupTrackId: string): Promise<Arena> {
+  const arenaId = await createSpotifyArena(name, mood, warmupTrackId);
   return getArena(arenaId);
 }
 
-// Host only. waiting -> active, starts the warm-up and creates battle 1
-// (lasting the warm-up's duration). Idempotent: returns the open battle id.
+// Host only. Creates the arena's private Spotify playlist with the warm-up
+// first, plays it on the host's device, then waiting -> active and battle 1
+// (lasting the warm-up). Idempotent: returns the open battle id.
 export async function startArenaBattles(arenaId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('start_arena_battles', { p_arena_id: arenaId });
-
-  if (error) {
-    console.error('Failed to start arena battles:', error.message, error);
-    throw error;
-  }
-
-  return data as string;
+  return startSpotifyArena(arenaId);
 }
 
 // Host only. waiting|active -> finished.
@@ -244,29 +223,9 @@ export async function endArena(arenaId: string): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // Warm-up song (see supabase/sql/warmup_song_2026-10-26.sql). Chosen at
-// creation, silent in the lobby, starts on Start Battles and is the first
-// song of the session: battle 1 lasts its duration. Never competes.
+// creation (Spotify search), silent in the lobby, first track of the arena's
+// Spotify playlist from Start: battle 1 lasts its duration. Never competes.
 // ---------------------------------------------------------------------------
-
-export interface WarmupSuggestion {
-  id: string;
-  title: string;
-  artist: string;
-  duration_ms: number;
-  matches_mood: boolean;
-}
-
-// Curated library (MVP), the mood's matches first
-export async function getWarmupSuggestions(mood: ArenaMood, query: string): Promise<WarmupSuggestion[]> {
-  const { data, error } = await supabase.rpc('get_warmup_suggestions', { p_mood: mood, p_query: query });
-
-  if (error) {
-    console.error('Failed to load warm-up suggestions:', error.message, error);
-    throw error;
-  }
-
-  return (data ?? []) as WarmupSuggestion[];
-}
 
 export interface ArenaWarmup {
   song_id: string;
@@ -275,8 +234,8 @@ export interface ArenaWarmup {
   duration_ms: number;
   // Set by start_arena_battles; null while the lobby is silent
   started_at: string | null;
-  // Host only (the provisional playback device), null for everyone else
-  audio_storage_path: string | null;
+  spotify_track_id: string | null;
+  artwork_url: string | null;
 }
 
 export async function getArenaWarmup(arenaId: string): Promise<ArenaWarmup | null> {

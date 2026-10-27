@@ -103,3 +103,92 @@ export async function getMyStreamingConnection(): Promise<StreamingConnectionSum
   if (error) throw error;
   return (data as StreamingConnectionSummary) ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Step 6: arenas on Spotify (supabase/sql/spotify_playback_2026-10-27.sql).
+// The Playback Provider runs in spotify-host; this is how the app asks it.
+// ---------------------------------------------------------------------------
+
+export interface SpotifyTrack {
+  spotify_track_id: string;
+  title: string;
+  artist: string;
+  duration_ms: number;
+  artwork_url: string | null;
+  spotify_url: string;
+}
+
+// In an arena the arena host's token searches (guests never connect Spotify);
+// without one (Create Arena) the caller's own
+export async function searchSpotifyTracks(query: string, arenaId?: string): Promise<SpotifyTrack[]> {
+  const { tracks } = await callSpotifyHost<{ tracks: SpotifyTrack[] }>({
+    action: 'search',
+    query,
+    arena_id: arenaId ?? null,
+  });
+  return tracks ?? [];
+}
+
+// The function re-reads the track from Spotify: the client only sends its id
+export async function createSpotifyArena(name: string, mood: string, trackId: string): Promise<string> {
+  const { arena_id } = await callSpotifyHost<{ arena_id: string }>({
+    action: 'create_arena',
+    name,
+    mood,
+    track_id: trackId,
+  });
+  return arena_id;
+}
+
+export async function proposeSpotifyTrack(arenaId: string, trackId: string): Promise<'proposed' | 'already_queued'> {
+  const { result } = await callSpotifyHost<{ result: 'proposed' | 'already_queued' }>({
+    action: 'propose',
+    arena_id: arenaId,
+    track_id: trackId,
+  });
+  return result;
+}
+
+// Host: playlist + warm-up on the device, then waiting -> active (idempotent
+// for a running arena). Errors carry a code: spotify_not_connected,
+// spotify_not_premium, no_device, warmup_not_spotify, ...
+export async function startSpotifyArena(arenaId: string): Promise<string> {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const { battle_id } = await callSpotifyHost<{ battle_id: string }>({
+    action: 'start_arena',
+    arena_id: arenaId,
+    // Playlist name date in the host's own time zone
+    local_date: `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${String(now.getFullYear()).slice(2)}`,
+  });
+  return battle_id;
+}
+
+export const resumeSpotifyArena = (arenaId: string) =>
+  callSpotifyHost<{ resumed: boolean }>({ action: 'resume_arena', arena_id: arenaId });
+
+export type PauseReason = 'device_lost' | 'playback_paused' | 'off_playlist' | 'spotify_disconnected';
+
+export interface ArenaPlayback {
+  paused_at: string | null;
+  pause_reason: PauseReason | null;
+  is_playing: boolean;
+  expected_until: string | null;
+  checked_at: string | null;
+  // Host only
+  device_name: string | null;
+  playlist_url: string | null;
+}
+
+export async function getArenaPlayback(arenaId: string): Promise<ArenaPlayback | null> {
+  const { data, error } = await supabase.rpc('get_arena_playback', { p_arena_id: arenaId });
+  if (error) throw error;
+  return ((data ?? [])[0] as ArenaPlayback) ?? null;
+}
+
+export const PAUSE_REASON_LABELS: Record<PauseReason, string> = {
+  device_lost: "The host's Spotify device is gone",
+  playback_paused: 'Spotify was paused',
+  off_playlist: "Spotify is playing something outside the arena's playlist",
+  spotify_disconnected: "The host's Spotify is disconnected",
+};

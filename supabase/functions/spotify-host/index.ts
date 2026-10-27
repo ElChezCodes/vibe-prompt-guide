@@ -1,6 +1,7 @@
 // Spotify/DB payloads are untyped JSON from outside services
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CatalogTrack, PlaybackError, PlaybackStatus, SpotifyPlaybackProvider, trackUri } from "./playback.ts";
 
 /**
  * Host Spotify connection (roadmap step 5, supabase/sql/spotify_host_connection_2026-10-27.sql).
@@ -12,10 +13,22 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  *   status         -> connection summary + live device list (refreshes the token if needed)
  *   select_device  -> transfers playback with play:false (nothing changes what plays) and
  *                     records the preferred device; also verifies Premium
- *   disconnect     -> deletes the tokens and every stored Spotify datum (Developer Policy I.1.2)
+ *   disconnect     -> deletes the tokens and every stored Spotify datum (Developer Policy I.1.2),
+ *                     incl. per-arena playlist/device ids, and pauses the host's running arenas
+ *
+ * Step 6 (supabase/sql/spotify_playback_2026-10-27.sql), through the Playback Provider:
+ *   search         -> Spotify catalog search (max 10). In an arena it uses the arena host's
+ *                     token, so guests never connect Spotify; otherwise the caller's own
+ *   create_arena   -> creates an arena whose warm-up is a Spotify track
+ *   propose        -> active proposal of a Spotify track (songs row + the caller's queues insert)
+ *   start_arena    -> host: checks Premium + device, creates the private playlist with the
+ *                     warm-up first, plays it on the device, then start_arena_battles
+ *   resume_arena   -> host: plays the playlist again where it stopped and resumes the arena
+ *   watch          -> pg_cron every 15 s (no user JWT): onProgress for every running arena;
+ *                     pauses/resumes arenas (2 strikes, ~30 s)
  *
  * Secrets: SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_TOKEN_KEY (base64, 32 bytes),
- * optional SPOTIFY_REDIRECT_URIS (comma-separated allowlist).
+ * optional SPOTIFY_REDIRECT_URIS (comma-separated allowlist), optional SPOTIFY_WATCH_SECRET.
  */
 
 const corsHeaders = {
@@ -40,6 +53,20 @@ const API = "https://api.spotify.com/v1";
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
 });
+
+// As the caller: RLS, auth.uid() and the presence/proposer triggers apply
+function asUser(jwt: string) {
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+  });
+}
+
+// Watcher pacing: one check per arena per ~15 s cron tick, pause on the 2nd bad one
+const WATCH_MIN_INTERVAL_MS = 12_000;
+const STRIKES_TO_PAUSE = 2;
+// Don't call the natural end of the playlist "paused"
+const EXPECTED_TAIL_MS = 5_000;
 
 class HttpError extends Error {
   constructor(public status: number, public code: string, message?: string) {
@@ -178,6 +205,8 @@ async function loadAccount(userId: string) {
 async function deleteSpotifyData(userId: string) {
   await admin.from("streaming_accounts").delete().eq("host_id", userId);
   await admin.from("spotify_oauth_states").delete().eq("user_id", userId);
+  // Per-arena playlist/device ids too; their running arenas pause
+  await admin.rpc("forget_host_spotify", { p_host_id: userId });
 }
 
 // Automatic backend refresh: any action needing the API refreshes 60 s before expiry.
@@ -397,17 +426,422 @@ async function disconnect(userId: string) {
   return { connected: false };
 }
 
+
+// ---------- step 6: arenas on Spotify ----------
+
+async function providerFor(account: any) {
+  return new SpotifyPlaybackProvider(await getAccessToken(account));
+}
+
+// The device to play on: the one the host is already playing on (they moved
+// playback to another device of theirs: follow it), else the chosen one
+function pickDevice(status: PlaybackStatus, preferredId: string | null) {
+  const usable = status.devices.filter((d) => !d.is_restricted);
+  const active = usable.find((d) => d.id === status.activeDeviceId);
+  if (active) return { device: active, adopted: active.id !== preferredId };
+  const preferred = usable.find((d) => d.id === preferredId);
+  return preferred ? { device: preferred, adopted: false } : null;
+}
+
+async function adoptDevice(account: any, device: { id: string; name: string }) {
+  await admin
+    .from("streaming_accounts")
+    .update({ preferred_device_id: device.id, preferred_device_name: device.name, updated_at: new Date().toISOString() })
+    .eq("id", account.id);
+}
+
+async function playbackError(err: unknown, accountId: string): Promise<never> {
+  if (err instanceof PlaybackError && err.premiumRequired) {
+    await setPremium(accountId, "not_premium");
+    throw new HttpError(409, "spotify_not_premium", "Spotify Premium is required to play in an arena");
+  }
+  if (err instanceof PlaybackError && err.status === 404) {
+    throw new HttpError(409, "no_device", "Open Spotify on your device and try again");
+  }
+  throw new HttpError(502, "play_failed", err instanceof Error ? err.message : String(err));
+}
+
+async function loadArena(arenaId: string) {
+  const { data, error } = await admin
+    .from("arenas")
+    .select("id, name, state, host_id, warmup_song_id, warmup_started_at, paused_at, pause_reason")
+    .eq("id", arenaId)
+    .maybeSingle();
+  if (error) throw new HttpError(500, "db_error", error.message);
+  if (!data) throw new HttpError(404, "arena_not_found");
+  return data;
+}
+
+// Host or participant (same rule as get_arena_warmup)
+async function arenaForMember(userId: string, arenaId: string) {
+  const arena = await loadArena(arenaId);
+  if (arena.host_id === userId) return arena;
+  const { data } = await admin
+    .from("participants")
+    .select("id")
+    .eq("arena_id", arenaId)
+    .eq("identity_anchor_id", userId)
+    .maybeSingle();
+  if (!data) throw new HttpError(403, "not_member");
+  return arena;
+}
+
+async function hostProviderForArena(arena: any) {
+  const account = arena.host_id ? await loadAccount(arena.host_id) : null;
+  if (!account) throw new HttpError(409, "host_spotify_unavailable", "The host's Spotify isn't connected");
+  return providerFor(account);
+}
+
+async function search(userId: string, body: any) {
+  const query = String(body?.query ?? "").trim().slice(0, 100);
+  if (!query) return { tracks: [] };
+
+  let provider: SpotifyPlaybackProvider;
+  if (body?.arena_id) {
+    provider = await hostProviderForArena(await arenaForMember(userId, String(body.arena_id)));
+  } else {
+    const account = await loadAccount(userId);
+    if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify first");
+    provider = await providerFor(account);
+  }
+  return { tracks: await provider.search(query) };
+}
+
+async function getTrackOrFail(provider: SpotifyPlaybackProvider, trackId: unknown): Promise<CatalogTrack> {
+  const track = await provider.getTrack(String(trackId ?? ""));
+  if (!track) throw new HttpError(404, "track_not_found", "That Spotify track isn't available");
+  return track;
+}
+
+async function createArena(userId: string, body: any) {
+  const account = await loadAccount(userId);
+  if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify before creating an arena");
+  const track = await getTrackOrFail(await providerFor(account), body?.track_id);
+
+  const name = String(body?.name ?? "").trim().slice(0, 80) || "Test Arena";
+  const { data, error } = await admin.rpc("create_arena_spotify", {
+    p_host_id: userId,
+    p_name: name,
+    p_mood: body?.mood ?? null,
+    p_track: track,
+  });
+  if (error) throw new HttpError(400, "create_failed", error.message);
+  return { arena_id: data };
+}
+
+async function propose(userId: string, jwt: string, body: any) {
+  const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
+  const track = await getTrackOrFail(await hostProviderForArena(arena), body?.track_id);
+
+  const { data: songId, error: songError } = await admin.rpc("upsert_spotify_song", {
+    p_arena_id: arena.id,
+    p_track: track,
+  });
+  if (songError) throw new HttpError(500, "db_error", songError.message);
+
+  // As the caller: RLS (member, open arena), proposed_by stamp, presence touch
+  const { error } = await asUser(jwt).from("queues").insert({
+    arena_id: arena.id,
+    song_id: songId,
+    queue_type: "waiting",
+    position: 0,
+    priority: 1,
+  });
+  if (error) {
+    // queues_arena_song_unique: someone already queued it
+    if (error.code === "23505") return { result: "already_queued" };
+    throw new HttpError(403, "propose_rejected", error.message);
+  }
+  return { result: "proposed" };
+}
+
+async function warmupTrackUri(arena: any) {
+  const { data } = await admin
+    .from("songs")
+    .select("source, spotify_track_id, duration_ms")
+    .eq("id", arena.warmup_song_id)
+    .maybeSingle();
+  if (!data || data.source !== "spotify") return null;
+  return { uri: trackUri(data.spotify_track_id), durationMs: data.duration_ms as number };
+}
+
+function playlistDate(value: unknown) {
+  if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{2}$/.test(value)) return value;
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear()).slice(2)}`;
+}
+
+async function startBattlesAsHost(jwt: string, arenaId: string) {
+  const { data, error } = await asUser(jwt).rpc("start_arena_battles", { p_arena_id: arenaId });
+  if (error) throw new HttpError(409, "start_failed", error.message);
+  return data as string;
+}
+
+async function startArena(userId: string, jwt: string, body: any) {
+  const arena = await loadArena(String(body?.arena_id ?? ""));
+  if (arena.host_id !== userId) throw new HttpError(403, "not_host");
+  // Re-entering a running arena: nothing to play, just the open battle
+  if (arena.state === "active") return { battle_id: await startBattlesAsHost(jwt, arena.id) };
+  if (arena.state !== "waiting") throw new HttpError(409, "arena_closed");
+
+  const account = await loadAccount(userId);
+  if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify to start");
+  if (account.premium_status === "not_premium") {
+    throw new HttpError(409, "spotify_not_premium", "Spotify Premium is required to play in an arena");
+  }
+  const warmup = await warmupTrackUri(arena);
+  if (!warmup) {
+    throw new HttpError(409, "warmup_not_spotify", "This arena's warm-up isn't a Spotify track; create a new arena");
+  }
+
+  const provider = await providerFor(account);
+  const pick = pickDevice(await provider.getStatus(), account.preferred_device_id);
+  if (!pick) throw new HttpError(409, "no_device", "Open Spotify on the device that will play and pick it");
+
+  // A retried Start reuses the playlist it already created
+  const { data: existing } = await admin.from("arena_playback").select("*").eq("arena_id", arena.id).maybeSingle();
+  let session = existing?.playlist_id ? { id: existing.playlist_id, uri: existing.playlist_uri } : null;
+  const sessionName = existing?.session_name ?? `Music Fighter · ${arena.name} · ${playlistDate(body?.local_date)}`;
+  if (!session) {
+    try {
+      session = await provider.createSession(sessionName, warmup.uri);
+    } catch (err) {
+      throw new HttpError(502, "playlist_failed", err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  const { error: pbError } = await admin.from("arena_playback").upsert({
+    arena_id: arena.id,
+    host_id: userId,
+    playlist_id: session.id,
+    playlist_uri: session.uri,
+    session_name: sessionName,
+    device_id: pick.device.id,
+    device_name: pick.device.name,
+    strikes: 0,
+    strike_reason: null,
+    updated_at: new Date().toISOString(),
+  });
+  if (pbError) throw new HttpError(500, "db_error", pbError.message);
+
+  try {
+    await provider.play({ deviceId: pick.device.id, contextUri: session.uri });
+  } catch (err) {
+    await playbackError(err, account.id);
+  }
+  await setPremium(account.id, "premium");
+  if (pick.adopted) await adoptDevice(account, pick.device);
+
+  let battleId: string;
+  try {
+    battleId = await startBattlesAsHost(jwt, arena.id);
+  } catch (err) {
+    await provider.pause(pick.device.id);
+    throw err;
+  }
+
+  // Music is expected until the warm-up ends (backend clock); step 18 extends it
+  const { data: started } = await admin.from("arenas").select("warmup_started_at").eq("id", arena.id).single();
+  const startedMs = new Date(started?.warmup_started_at ?? Date.now()).getTime();
+  await admin
+    .from("arena_playback")
+    .update({
+      expected_until: new Date(startedMs + warmup.durationMs - EXPECTED_TAIL_MS).toISOString(),
+      is_playing: true,
+      current_track_uri: warmup.uri,
+      progress_ms: 0,
+      resume_track_uri: warmup.uri,
+      resume_position_ms: 0,
+      checked_at: new Date().toISOString(),
+    })
+    .eq("arena_id", arena.id);
+
+  return { battle_id: battleId };
+}
+
+// The arena playlist, recreated if a disconnect cleared it (step 6: the
+// warm-up; step 18 must re-add the winners too)
+async function ensureSession(provider: SpotifyPlaybackProvider, arena: any, pb: any) {
+  if (pb.playlist_id) return { id: pb.playlist_id, uri: pb.playlist_uri };
+  const warmup = await warmupTrackUri(arena);
+  if (!warmup) return null;
+  const session = await provider.createSession(pb.session_name ?? `Music Fighter · ${arena.name}`, warmup.uri);
+  await admin
+    .from("arena_playback")
+    .update({ playlist_id: session.id, playlist_uri: session.uri, updated_at: new Date().toISOString() })
+    .eq("arena_id", arena.id);
+  return session;
+}
+
+async function playFromResumePoint(provider: SpotifyPlaybackProvider, session: any, deviceId: string, pb: any) {
+  await provider.play({
+    deviceId,
+    contextUri: session.uri,
+    offsetUri: pb.resume_track_uri ?? undefined,
+    positionMs: pb.resume_position_ms ?? 0,
+  });
+}
+
+// Was music expected at this moment (or when the arena paused)?
+function musicExpected(pb: any, arena: any) {
+  const at = arena.paused_at ? new Date(arena.paused_at).getTime() : Date.now();
+  return !!pb.expected_until && new Date(pb.expected_until).getTime() > at;
+}
+
+async function resumeArena(userId: string, body: any) {
+  const arena = await loadArena(String(body?.arena_id ?? ""));
+  if (arena.host_id !== userId) throw new HttpError(403, "not_host");
+  if (arena.state !== "active" || !arena.paused_at) return { resumed: false };
+
+  const account = await loadAccount(userId);
+  if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify to resume");
+  const { data: pb } = await admin.from("arena_playback").select("*").eq("arena_id", arena.id).maybeSingle();
+  if (!pb) throw new HttpError(409, "no_playback");
+
+  const provider = await providerFor(account);
+  const pick = pickDevice(await provider.getStatus(), account.preferred_device_id);
+  if (!pick) throw new HttpError(409, "no_device", "Open Spotify on your device and try again");
+
+  if (musicExpected(pb, arena)) {
+    const session = await ensureSession(provider, arena, pb);
+    if (session) {
+      try {
+        await playFromResumePoint(provider, session, pick.device.id, pb);
+      } catch (err) {
+        await playbackError(err, account.id);
+      }
+    }
+  }
+  if (pick.adopted) await adoptDevice(account, pick.device);
+  await admin.from("arena_playback").update({ device_id: pick.device.id, device_name: pick.device.name }).eq("arena_id", arena.id);
+  await admin.rpc("resume_arena", { p_arena_id: arena.id });
+  return { resumed: true };
+}
+
+// onProgress for one arena: record what the host's player is doing and
+// pause/resume the arena (user decisions 2026-10-27, see the SQL file)
+async function checkArena(pb: any, arena: any) {
+  const record = (fields: Record<string, unknown>) =>
+    admin
+      .from("arena_playback")
+      .update({ ...fields, checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("arena_id", pb.arena_id);
+
+  let account: any = null;
+  let provider: SpotifyPlaybackProvider | null = null;
+  try {
+    account = await loadAccount(pb.host_id);
+    if (account) provider = await providerFor(account);
+  } catch (err) {
+    if (!(err instanceof HttpError && err.code === "spotify_revoked")) throw err;
+    account = null;
+  }
+  if (!account || !provider || (!pb.playlist_id && !arena.paused_at)) {
+    await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: "spotify_disconnected" });
+    await record({ is_playing: false });
+    return;
+  }
+
+  await provider.onProgress(async (status) => {
+    const pick = pickDevice(status, account.preferred_device_id);
+    const onPlaylist = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
+    const expected = musicExpected(pb, arena);
+    const snapshot: Record<string, unknown> = {
+      is_playing: status.isPlaying && onPlaylist,
+      device_id: pick?.device.id ?? pb.device_id,
+      device_name: pick?.device.name ?? pb.device_name,
+    };
+    if (onPlaylist && status.trackUri) {
+      Object.assign(snapshot, {
+        current_track_uri: status.trackUri,
+        progress_ms: status.progressMs,
+        resume_track_uri: status.trackUri,
+        resume_position_ms: status.progressMs,
+      });
+    }
+    if (pick?.adopted && expected) await adoptDevice(account, pick.device);
+
+    if (arena.paused_at) {
+      let canResume = false;
+      if (arena.pause_reason === "device_lost" || arena.pause_reason === "spotify_disconnected") {
+        // The device (or the connection) is back: Music Fighter plays again
+        if (pick) {
+          canResume = true;
+          if (expected) {
+            try {
+              const session = await ensureSession(provider!, arena, pb);
+              if (session) await playFromResumePoint(provider!, session, pick.device.id, pb);
+            } catch (err) {
+              console.warn("[spotify-host] resume play failed", arena.id, err);
+              canResume = false;
+            }
+          }
+        }
+      } else {
+        // Host paused Spotify / played something else: back when they play the playlist
+        canResume = !!pick && (!expected || (status.isPlaying && onPlaylist));
+      }
+      await record(snapshot);
+      if (canResume) await admin.rpc("resume_arena", { p_arena_id: arena.id });
+      return;
+    }
+
+    // Until step 18 music is only expected during the warm-up; outside that
+    // window nothing audible depends on the device, so nothing pauses
+    let problem: string | null = null;
+    if (expected) {
+      if (!pick) problem = "device_lost";
+      else if (!status.isPlaying) problem = "playback_paused";
+      else if (!onPlaylist) problem = "off_playlist";
+    }
+    const strikes = problem ? (problem === pb.strike_reason ? pb.strikes + 1 : 1) : 0;
+    await record({ ...snapshot, strikes, strike_reason: problem });
+    if (problem && strikes >= STRIKES_TO_PAUSE) {
+      await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: problem });
+    }
+  });
+}
+
+async function watch(req: Request) {
+  const secret = Deno.env.get("SPOTIFY_WATCH_SECRET");
+  if (secret && req.headers.get("x-watch-secret") !== secret) throw new HttpError(401, "unauthorized");
+
+  const { data: rows, error } = await admin
+    .from("arena_playback")
+    .select("*, arenas!inner(id, name, state, host_id, warmup_song_id, paused_at, pause_reason)")
+    .eq("arenas.state", "active");
+  if (error) throw new HttpError(500, "db_error", error.message);
+
+  let checked = 0;
+  for (const row of rows ?? []) {
+    // Extra calls change nothing: at most one check per arena per interval
+    if (row.checked_at && Date.now() - new Date(row.checked_at).getTime() < WATCH_MIN_INTERVAL_MS) continue;
+    try {
+      await checkArena(row, row.arenas);
+      checked++;
+    } catch (err) {
+      // Transient Spotify/network errors: next tick tries again
+      console.error("[spotify-host] watch", row.arena_id, err);
+    }
+  }
+  return { checked };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
   try {
+    const body = await req.json().catch(() => ({}));
+    // pg_cron, no user session
+    if (body?.action === "watch") return json(await watch(req));
+
     const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     const { data: auth, error: authError } = await admin.auth.getUser(jwt);
     if (authError || !auth?.user) throw new HttpError(401, "unauthorized");
     const userId = auth.user.id;
 
-    const body = await req.json().catch(() => ({}));
     switch (body?.action) {
       case "authorize":
         return json(await authorize(userId, body));
@@ -419,6 +853,16 @@ Deno.serve(async (req) => {
         return json(await selectDevice(userId, body));
       case "disconnect":
         return json(await disconnect(userId));
+      case "search":
+        return json(await search(userId, body));
+      case "create_arena":
+        return json(await createArena(userId, body));
+      case "propose":
+        return json(await propose(userId, jwt, body));
+      case "start_arena":
+        return json(await startArena(userId, jwt, body));
+      case "resume_arena":
+        return json(await resumeArena(userId, body));
       default:
         throw new HttpError(400, "unknown_action");
     }

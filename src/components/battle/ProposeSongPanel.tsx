@@ -8,8 +8,11 @@ import {
   MyProposal,
   proposeSong,
   searchSongs,
-  SongResult,
 } from "@/integrations/supabase/proposals";
+import { SpotifyHostError, SpotifyTrack } from "@/integrations/supabase/spotify";
+import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 interface ProposeSongPanelProps {
   arenaId: string;
@@ -22,7 +25,7 @@ interface ProposeSongPanelProps {
 const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
-  const [results, setResults] = useState<SongResult[]>([]);
+  const [results, setResults] = useState<SpotifyTrack[]>([]);
   const [myProposals, setMyProposals] = useState<MyProposal[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
@@ -46,16 +49,23 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
     }
 
     let cancelled = false;
-    searchSongs(arenaId, searchQuery)
-      .then((rows) => {
-        if (!cancelled) setResults(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setResults([]);
-      });
+    const timeout = setTimeout(() => {
+      searchSongs(arenaId, searchQuery)
+        .then((rows) => {
+          if (!cancelled) setResults(rows);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setResults([]);
+          if (err instanceof SpotifyHostError && err.code === "host_spotify_unavailable") {
+            setNotice("Search is unavailable: the host's Spotify isn't connected");
+          }
+        });
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
   }, [searchQuery, showResults, arenaId]);
 
@@ -71,8 +81,12 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
       setSelectedSongId(null);
       loadMyProposals();
       if (result === "proposed") onProposed?.();
-    } catch {
-      setNotice("Couldn't propose the song");
+    } catch (err) {
+      setNotice(
+        err instanceof SpotifyHostError && err.code === "host_spotify_unavailable"
+          ? "Can't propose now: the host's Spotify isn't connected"
+          : "Couldn't propose the song",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -84,7 +98,7 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
       <div className="relative flex-shrink-0">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-song-a" />
         <Input
-          placeholder="Search for a song..."
+          placeholder="Search Spotify..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-11 h-12 bg-secondary/80 border-song-a/40 text-foreground placeholder:text-muted-foreground rounded-xl focus-visible:ring-song-a"
@@ -134,34 +148,13 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
           // Search results
           <ScrollArea className="h-full">
             <div className="space-y-2 pr-4">
-              {results.map((song) => (
-                <div
-                  key={song.id}
-                  onClick={() => setSelectedSongId(song.id)}
-                  className={`
-                    p-3 rounded-xl cursor-pointer transition-all duration-200
-                    ${selectedSongId === song.id
-                      ? 'neon-row-selected'
-                      : 'neon-row hover:border-song-a/60'
-                    }
-                  `}
-                  role="button"
-                  aria-pressed={selectedSongId === song.id}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedSongId === song.id ? "bg-primary/15" : "bg-muted/60"}`}>
-                      <Music className={`h-5 w-5 ${selectedSongId === song.id ? 'text-primary icon-glow-primary' : 'text-song-b'}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`text-sm font-medium truncate ${selectedSongId === song.id ? 'text-primary' : 'text-foreground'}`}>
-                        {song.title}
-                      </p>
-                      <p className="text-muted-foreground text-xs truncate">
-                        {song.artist}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              {results.map((track) => (
+                <SpotifyTrackRow
+                  key={track.spotify_track_id}
+                  track={track}
+                  selected={selectedSongId === track.spotify_track_id}
+                  onSelect={() => setSelectedSongId(track.spotify_track_id)}
+                />
               ))}
             </div>
           </ScrollArea>

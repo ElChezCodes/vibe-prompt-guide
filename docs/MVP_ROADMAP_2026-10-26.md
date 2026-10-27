@@ -184,7 +184,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   redefined, steps 7-9, 13).
 - "Playback Provider" abstraction (`getStatus/play/queue/skip/onProgress`,
   swappable implementation for legal/licensing reasons) — *v3.2 §Playback real,
-  Backend_Block_4 §1*. **Not started.**
+  Backend_Block_4 §1*. **Done (step 6, 2026-10-27)** — Spotify implementation,
+  arena playlist + warm-up on the host's device, pause/resume watcher.
 - Real playback: winner auto-plays, next battle starts when previous winner
   starts playing, progress-synced timers, auto-append winners to the arena's
   playlist in the host's Spotify account (not a "local" playlist, 2026-10-27) — *v3.2 §Flujos clave, v3.0 §10, Backend_Block_3 §9,
@@ -373,7 +374,7 @@ additions (#1, #4 above), each marked where it lands.
    currently-playing dropped as unneeded). Disconnect deletes every stored
    Spotify datum. No arena pause / Start gating yet (warm-up still plays in
    the browser).
-6. **Playback Provider abstraction** — `getStatus/play/queue/skip/onProgress`
+6. **Playback Provider abstraction** — **Done 2026-10-27.** `getStatus/play/queue/skip/onProgress`
    interface plus the Spotify implementation. Kept swappable per the docs'
    own licensing rationale, not an invented abstraction.
    Agreed for this step (user decisions 2026-10-27): the arena's playlist is
@@ -394,6 +395,21 @@ additions (#1, #4 above), each marked where it lands.
    per query (Feb 2026); results shown with artwork, Spotify logo and link
    back (Design Guidelines). Before building it, check the Developer Policy
    on using the host's token to serve searches to their guests.
+   **Done 2026-10-27** (`supabase/sql/spotify_playback_2026-10-27.sql`,
+   `supabase/functions/spotify-host/playback.ts`). Policy check: nothing in
+   the Developer Policy/Terms forbids host-token catalog search for guests
+   (catalog metadata isn't personal data, token never leaves the server,
+   private non-commercial use); Spotify is moving away from Client
+   Credentials for metadata, so the host token is the stable path. User
+   decisions this step: warm-up = free Spotify search (no mood suggestions);
+   pause = frozen battle clock, votes closed, proposals open, **automatic
+   resume**; pause triggers (while music is expected) = no usable device for
+   2 checks (~30 s, another of the host's devices is adopted), host paused
+   Spotify, or playing outside the arena playlist; disconnect = immediate
+   pause; battle 1 keeps the curated-library fallback (fake track ids) until
+   steps 12/18. Step 18 must: extend `arena_playback.expected_until` to the
+   winners, `queue` winners into the playlist, and re-add them in
+   `ensureSession` when a reconnect recreates the playlist.
 7. **TO BE REDEFINED (2026-10-27)** — was "Participant Spotify OAuth".
    Participants no longer connect Spotify *for affinity/passive voting*.
    Since step 5 any user can connect Spotify from Profile, but only to host
