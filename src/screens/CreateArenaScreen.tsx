@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import BackButton from "@/components/nav/BackButton";
 import { arenaPath } from "@/lib/arenaRoutes";
 import {
   createArena,
@@ -61,52 +61,45 @@ const CreateArenaScreen = () => {
   };
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center bg-background px-6 py-12">
-      <button
-        onClick={() => navigate("/")}
-        className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground"
-        aria-label="Back"
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </button>
-      <div className="w-full max-w-md flex flex-col items-center gap-8">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-6 pt-20 pb-12">
+      <BackButton onClick={() => navigate("/")} />
+      <div className="w-full max-w-md flex flex-col items-center gap-6">
         {/* Header */}
         <div className="text-center animate-fade-in-up">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+          <h1 className="neon-heading text-2xl md:text-3xl mb-2">
             Create Arena
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-text-secondary">
             Set up your Music Fighter session
           </p>
         </div>
 
         {/* Arena Name Input */}
         <div 
-          className="w-full animate-fade-in-up" 
+          className="w-full neon-panel rounded-2xl p-4 animate-fade-in-up" 
           style={{ animationDelay: "50ms" }}
         >
+          <p className="neon-label mb-2">1 · Name</p>
           <Input
             type="text"
             placeholder="Arena name (optional)"
             value={arenaName}
             onChange={(e) => setArenaName(e.target.value)}
             disabled={isCreating}
-            className="w-full h-12 text-center text-lg bg-surface border-border/50 focus:border-primary/50"
+            className="w-full h-12 text-center text-lg bg-secondary/80 border-border focus-visible:ring-song-a"
           />
         </div>
 
         {/* Mood - required, fixed for the arena's lifetime */}
         <div
-          className="w-full animate-fade-in-up"
+          className="w-full neon-panel rounded-2xl p-4 animate-fade-in-up"
           style={{ animationDelay: "75ms" }}
         >
-          <p className="text-sm text-muted-foreground text-center mb-3">
-            Pick the mood
-          </p>
+          <p className="neon-label mb-3">2 · Pick the mood</p>
           <div className="max-h-72 overflow-y-auto pr-1 space-y-4">
             {MOOD_GROUPS.map((group) => (
               <div key={group}>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-2">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-2">
                   {group}
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -117,10 +110,10 @@ const CreateArenaScreen = () => {
                       onClick={() => setMood(m.value)}
                       disabled={isCreating}
                       aria-pressed={mood === m.value}
-                      className={`h-11 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`h-11 rounded-lg text-sm font-medium transition-all ${
                         mood === m.value
-                          ? "border-primary bg-primary/15 text-foreground"
-                          : "border-border/50 bg-surface text-muted-foreground hover:border-primary/40"
+                          ? "neon-row-selected text-foreground"
+                          : "neon-row text-text-secondary hover:border-song-a/60"
                       }`}
                     >
                       {m.emoji} {m.label}
@@ -136,13 +129,11 @@ const CreateArenaScreen = () => {
             first song of the session and sets battle 1's duration */}
         {mood && (
           <div
-            className="w-full animate-fade-in-up"
+            className="w-full neon-panel rounded-2xl p-4 animate-fade-in-up"
             style={{ animationDelay: "90ms" }}
           >
-            <p className="text-sm text-muted-foreground text-center mb-1">
-              Pick the warm-up song
-            </p>
-            <p className="text-xs text-muted-foreground/70 text-center mb-3">
+            <p className="neon-label mb-1">3 · Pick the warm-up song</p>
+            <p className="text-xs text-muted-foreground mb-3">
               It starts playing when you start battles and lasts the whole first battle
             </p>
             <Input
@@ -151,7 +142,7 @@ const CreateArenaScreen = () => {
               value={warmupQuery}
               onChange={(e) => setWarmupQuery(e.target.value)}
               disabled={isCreating}
-              className="w-full h-10 mb-2 bg-surface border-border/50 focus:border-primary/50"
+              className="w-full h-10 mb-2 bg-secondary/80 border-border focus-visible:ring-song-a"
             />
             <div className="max-h-60 overflow-y-auto pr-1 space-y-1">
               {warmupSuggestions.map((song) => (
@@ -161,10 +152,10 @@ const CreateArenaScreen = () => {
                   onClick={() => setWarmup(song)}
                   disabled={isCreating}
                   aria-pressed={warmup?.id === song.id}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all ${
                     warmup?.id === song.id
-                      ? "border-primary bg-primary/15"
-                      : "border-border/50 bg-surface hover:border-primary/40"
+                      ? "neon-row-selected"
+                      : "neon-row hover:border-song-a/60"
                   }`}
                 >
                   <div className="flex-1 min-w-0">
@@ -172,7 +163,7 @@ const CreateArenaScreen = () => {
                     <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                   </div>
                   {song.matches_mood && (
-                    <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-primary/15 text-[10px] text-foreground">
+                    <span className="flex-shrink-0 px-2 py-0.5 rounded-full border border-song-a/50 text-[10px] text-song-a">
                       Fits mood
                     </span>
                   )}
@@ -196,7 +187,7 @@ const CreateArenaScreen = () => {
           <Button
             onClick={handleCreateArena}
             disabled={isCreating || !mood || !warmup}
-            className="w-full h-12 text-lg font-semibold"
+            className="w-full h-12 text-lg font-bold"
           >
             {isCreating ? "Creating..." : "Create Arena"}
           </Button>
