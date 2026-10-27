@@ -343,6 +343,7 @@ const BattleRoomScreen = () => {
         participant={participant!}
         currentVote={displayedVote}
         derivedPhase={derivedPhase}
+        pausedAt={playback?.paused_at ?? null}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}
@@ -362,23 +363,30 @@ const BattleRoomScreen = () => {
             <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
               <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
                 {/* Song A hit area */}
-                <div
-                  className="flex-1 max-w-md aspect-square pointer-events-auto cursor-pointer"
-                  onClick={() => handleVote("A")}
-                  role="button"
-                  aria-label="Vote for Song A"
-                />
+                <div className="flex-1 max-w-md">
+                  <div
+                    className="aspect-square pointer-events-auto cursor-pointer"
+                    onClick={() => handleVote("A")}
+                    role="button"
+                    aria-label="Vote for Song A"
+                  />
+                  {/* StageView's "Open Spotify" row stays clickable */}
+                  <div className="h-8" />
+                </div>
 
                 {/* VS spacer */}
                 <div className="flex-shrink-0 w-16 lg:w-24" />
 
                 {/* Song B hit area */}
-                <div
-                  className="flex-1 max-w-md aspect-square pointer-events-auto cursor-pointer"
-                  onClick={() => handleVote("B")}
-                  role="button"
-                  aria-label="Vote for Song B"
-                />
+                <div className="flex-1 max-w-md">
+                  <div
+                    className="aspect-square pointer-events-auto cursor-pointer"
+                    onClick={() => handleVote("B")}
+                    role="button"
+                    aria-label="Vote for Song B"
+                  />
+                  <div className="h-8" />
+                </div>
               </div>
             </div>
 

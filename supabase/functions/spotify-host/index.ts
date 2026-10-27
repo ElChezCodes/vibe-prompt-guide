@@ -689,6 +689,20 @@ function musicExpected(pb: any, arena: any) {
   return !!pb.expected_until && new Date(pb.expected_until).getTime() > at;
 }
 
+// The battle clock follows the music: re-anchor battle 1 on when the warm-up
+// really started on the host's player (sync_arena_clock, step-6 fix). Only the
+// warm-up has a battle tied to it until step 18.
+async function syncClock(arena: any, playingUri: string | null, progressMs: number | null) {
+  if (!playingUri || progressMs == null) return;
+  const warmup = await warmupTrackUri(arena);
+  if (!warmup || warmup.uri !== playingUri) return;
+  const { error } = await admin.rpc("sync_arena_clock", {
+    p_arena_id: arena.id,
+    p_track_started_at: new Date(Date.now() - progressMs).toISOString(),
+  });
+  if (error) console.warn("[spotify-host] sync_arena_clock", arena.id, error.message);
+}
+
 async function resumeArena(userId: string, body: any) {
   const arena = await loadArena(String(body?.arena_id ?? ""));
   if (arena.host_id !== userId) throw new HttpError(403, "not_host");
@@ -716,6 +730,8 @@ async function resumeArena(userId: string, body: any) {
   if (pick.adopted) await adoptDevice(account, pick.device);
   await admin.from("arena_playback").update({ device_id: pick.device.id, device_name: pick.device.name }).eq("arena_id", arena.id);
   await admin.rpc("resume_arena", { p_arena_id: arena.id });
+  // Playback restarted at the resume point: the battle clock follows it
+  if (musicExpected(pb, arena)) await syncClock(arena, pb.resume_track_uri, pb.resume_position_ms);
   return { resumed: true };
 }
 
@@ -764,6 +780,9 @@ async function checkArena(pb: any, arena: any) {
 
     if (arena.paused_at) {
       let canResume = false;
+      // Where the music is after resuming: MF's resume point, or the host's player
+      let resumedUri: string | null = null;
+      let resumedMs: number | null = null;
       if (arena.pause_reason === "device_lost" || arena.pause_reason === "spotify_disconnected") {
         // The device (or the connection) is back: Music Fighter plays again
         if (pick) {
@@ -771,7 +790,11 @@ async function checkArena(pb: any, arena: any) {
           if (expected) {
             try {
               const session = await ensureSession(provider!, arena, pb);
-              if (session) await playFromResumePoint(provider!, session, pick.device.id, pb);
+              if (session) {
+                await playFromResumePoint(provider!, session, pick.device.id, pb);
+                resumedUri = pb.resume_track_uri;
+                resumedMs = pb.resume_position_ms;
+              }
             } catch (err) {
               console.warn("[spotify-host] resume play failed", arena.id, err);
               canResume = false;
@@ -781,9 +804,16 @@ async function checkArena(pb: any, arena: any) {
       } else {
         // Host paused Spotify / played something else: back when they play the playlist
         canResume = !!pick && (!expected || (status.isPlaying && onPlaylist));
+        if (canResume && expected) {
+          resumedUri = status.trackUri;
+          resumedMs = status.progressMs;
+        }
       }
       await record(snapshot);
-      if (canResume) await admin.rpc("resume_arena", { p_arena_id: arena.id });
+      if (canResume) {
+        await admin.rpc("resume_arena", { p_arena_id: arena.id });
+        await syncClock(arena, resumedUri, resumedMs);
+      }
       return;
     }
 
@@ -797,6 +827,7 @@ async function checkArena(pb: any, arena: any) {
     }
     const strikes = problem ? (problem === pb.strike_reason ? pb.strikes + 1 : 1) : 0;
     await record({ ...snapshot, strikes, strike_reason: problem });
+    if (expected && !problem) await syncClock(arena, status.trackUri, status.progressMs);
     if (problem && strikes >= STRIKES_TO_PAUSE) {
       await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: problem });
     }

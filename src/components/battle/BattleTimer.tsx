@@ -3,6 +3,9 @@ import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 
 interface BattleTimerProps {
   battle: ArenaBattleView | null;
+  // Arena paused (Spotify): the backend clock is frozen, so is the display.
+  // On resume the backend shifts started_at by the paused time.
+  pausedAt?: string | null;
 }
 
 const getRemainingSecondsFromBattle = (battle: {
@@ -23,7 +26,7 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
-const BattleTimer = ({ battle }: BattleTimerProps) => {
+const BattleTimer = ({ battle, pausedAt = null }: BattleTimerProps) => {
   const [remainingTime, setRemainingTime] = useState<number>(0);
 
   useEffect(() => {
@@ -37,7 +40,7 @@ const BattleTimer = ({ battle }: BattleTimerProps) => {
     const updateRemaining = () => {
       if (cancelled) return;
       const startedAt = new Date(battle.started_at!).getTime();
-      const clientNow = Date.now();
+      const clientNow = pausedAt ? new Date(pausedAt).getTime() : Date.now();
       const elapsedMs = clientNow - startedAt;
       const remainingMs = battle.duration_ms - elapsedMs;
       const remaining_seconds = Math.max(0, Math.ceil(remainingMs / 1000));
@@ -55,13 +58,14 @@ const BattleTimer = ({ battle }: BattleTimerProps) => {
     };
 
     updateRemaining();
+    if (pausedAt) return;
     const interval = setInterval(updateRemaining, 1000);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms]);
+  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms, pausedAt]);
 
   const isFinal = remainingTime > 0 && remainingTime <= 15;
 

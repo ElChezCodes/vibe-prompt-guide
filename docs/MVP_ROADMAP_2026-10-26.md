@@ -408,8 +408,15 @@ additions (#1, #4 above), each marked where it lands.
    Spotify, or playing outside the arena playlist; disconnect = immediate
    pause; battle 1 keeps the curated-library fallback (fake track ids) until
    steps 12/18. Step 18 must: extend `arena_playback.expected_until` to the
-   winners, `queue` winners into the playlist, and re-add them in
-   `ensureSession` when a reconnect recreates the playlist.
+   winners, `queue` winners into the playlist (incl. both songs of a draw,
+   A then B), re-add them in `ensureSession` when a reconnect recreates the
+   playlist, and generalise `sync_arena_clock` (today it re-anchors only
+   battle 1 on the warm-up's real Spotify progress) to the winner playing
+   during each battle. Fixes after the user's test (2026-10-27): battle
+   cards show Spotify artwork + "Open Spotify"; the battle timer freezes
+   while paused and follows the song (`spotify_clock_sync_2026-10-27.sql`);
+   search/track calls don't send `market=from_token` (needs
+   `user-read-private`).
 7. **TO BE REDEFINED (2026-10-27)** — was "Participant Spotify OAuth".
    Participants no longer connect Spotify *for affinity/passive voting*.
    Since step 5 any user can connect Spotify from Profile, but only to host

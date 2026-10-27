@@ -22,6 +22,7 @@ export interface ArenaBattleView {
   song_a_source: string;
   song_a_spotify_track_id: string;
   song_a_duration_ms: number;
+  song_a_artwork_url: string | null;
 
   song_b_id: string;
   song_b_title: string;
@@ -29,6 +30,7 @@ export interface ArenaBattleView {
   song_b_source: string;
   song_b_spotify_track_id: string;
   song_b_duration_ms: number;
+  song_b_artwork_url: string | null;
 
   votes_a: number;
   votes_b: number;
@@ -238,12 +240,14 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
                   song_a_source: prevBattle?.song_a_source ?? "",
                   song_a_spotify_track_id: prevBattle?.song_a_spotify_track_id ?? "",
                   song_a_duration_ms: prevBattle?.song_a_duration_ms ?? 0,
+                  song_a_artwork_url: prevBattle?.song_a_artwork_url ?? null,
                   song_b_id: prevBattle?.song_b_id ?? "",
                   song_b_title: prevBattle?.song_b_title ?? "",
                   song_b_artist: prevBattle?.song_b_artist ?? "",
                   song_b_source: prevBattle?.song_b_source ?? "",
                   song_b_spotify_track_id: prevBattle?.song_b_spotify_track_id ?? "",
                   song_b_duration_ms: prevBattle?.song_b_duration_ms ?? 0,
+                  song_b_artwork_url: prevBattle?.song_b_artwork_url ?? null,
                   votes_a: 0,
                   votes_b: 0,
                 };

@@ -5,6 +5,7 @@ import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { getMoodLabel } from "@/integrations/supabase/arenas";
+import { SpotifyIcon } from "@/components/streaming/SpotifyTrackRow";
 
 interface ArenaData {
   id: string;
@@ -29,9 +30,10 @@ interface StageViewProps {
   participant: ParticipantData;
   currentVote?: VoteData | null;
   derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
+  pausedAt?: string | null;
 }
 
-const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: StageViewProps) => {
+const StageView = ({ arena, battle, participant, currentVote, derivedPhase, pausedAt = null }: StageViewProps) => {
   console.log("[StageView Render]", {
     battle_id: battle?.battle_id,
     state: battle?.state,
@@ -74,7 +76,7 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
       </div>
 
       {/* Timer - Self-contained, re-renders independently */}
-      <BattleTimer battle={battle} />
+      <BattleTimer battle={battle} pausedAt={pausedAt} />
 
       {/* Battle Arena - Song Cards with VS */}
       <div className="relative flex-1 flex items-center justify-center px-8 lg:px-16">
@@ -86,10 +88,12 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songId={battle?.song_a_id ?? ""}
               songTitle={battle?.song_a_title ?? ""}
               artistName={battle?.song_a_artist ?? ""}
+              artworkUrl={battle?.song_a_artwork_url}
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
             />
+            <SpotifyLink source={battle?.song_a_source} trackId={battle?.song_a_spotify_track_id} />
           </div>
 
           {/* VS Emblem */}
@@ -106,10 +110,12 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
               songId={battle?.song_b_id ?? ""}
               songTitle={battle?.song_b_title ?? ""}
               artistName={battle?.song_b_artist ?? ""}
+              artworkUrl={battle?.song_b_artwork_url}
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
             />
+            <SpotifyLink source={battle?.song_b_source} trackId={battle?.song_b_spotify_track_id} />
           </div>
         </div>
       </div>
@@ -153,18 +159,39 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase }: St
   );
 };
 
+// Spotify attribution under each card (logo + "Open Spotify" link back,
+// Developer Policy II.4). Outside the card's square so the Battle Room's vote
+// hit areas (same square + an h-8 gap, pointer-events off) don't cover it.
+// Curated-library songs have placeholder ids: no link.
+const SpotifyLink = ({ source, trackId }: { source?: string; trackId?: string }) => (
+  <div className="h-8 flex items-center justify-center">
+    {source === "spotify" && trackId && (
+      <a
+        href={`https://open.spotify.com/track/${trackId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
+      >
+        <SpotifyIcon />
+        Open Spotify
+      </a>
+    )}
+  </div>
+);
+
 // Stage-optimized Song Card (read-only, larger text)
 interface StageSongCardProps {
   position: "A" | "B";
   songId: string;
   songTitle: string;
   artistName: string;
+  artworkUrl?: string | null;
   currentVote?: VoteData | null;
   tag?: string | null;
   isWinner?: boolean;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, currentVote, tag, isWinner }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, currentVote, tag, isWinner }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote
@@ -184,9 +211,16 @@ const StageSongCard = ({ position, songId, songTitle, artistName, currentVote, t
       <div
         className={`absolute inset-0 bg-gradient-to-b ${isA ? "from-song-a/25" : "from-song-b/25"} via-secondary to-background`}
       />
-      <div className="absolute inset-0 flex items-center justify-center pb-16">
-        <Music className={`w-16 h-16 lg:w-24 lg:h-24 opacity-40 ${isA ? "text-song-a" : "text-song-b"}`} />
-      </div>
+      {artworkUrl ? (
+        // Spotify artwork: whole (object-contain), between the pill and the song info, never covered
+        <div className="absolute inset-x-3 top-12 bottom-24 lg:bottom-36 flex items-center justify-center">
+          <img src={artworkUrl} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center pb-16">
+          <Music className={`w-16 h-16 lg:w-24 lg:h-24 opacity-40 ${isA ? "text-song-a" : "text-song-b"}`} />
+        </div>
+      )}
 
       {/* Top pill: mood / genre */}
       <div className="absolute top-3 inset-x-3 flex items-center justify-between">
