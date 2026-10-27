@@ -18,6 +18,7 @@ import EndArenaButton from "@/components/arena/EndArenaButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
+import { getMyStreamingConnection, StreamingConnectionSummary } from "@/integrations/supabase/spotify";
 
 // Host's arena panel: code/QR, Stage View, music connection, start/enter
 // battles, End Arena. Non-hosts are sent to the Battle Room.
@@ -29,6 +30,8 @@ const ArenaLobbyScreen = () => {
   const [warmup, setWarmup] = useState<ArenaWarmup | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  // Host-level Spotify connection (stored summary; live devices on Connect)
+  const [spotify, setSpotify] = useState<StreamingConnectionSummary | null>(null);
 
   const arenaId = arena?.id;
   const isOpen = arena?.state === "waiting" || arena?.state === "active";
@@ -41,6 +44,13 @@ const ArenaLobbyScreen = () => {
       .then(setWarmup)
       .catch(() => setWarmup(null));
   }, [arenaId, isHost]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    getMyStreamingConnection()
+      .then(setSpotify)
+      .catch(() => setSpotify(null));
+  }, [isHost]);
 
   // The host is in the arena from the lobby on, so it becomes their current
   // arena ("Back to your arena", Arena tab) before battles start
@@ -177,7 +187,15 @@ const ArenaLobbyScreen = () => {
             </Button>
             <Button variant="neon" className="h-11 justify-start" onClick={() => navigate(arenaPath(code, "connect"))}>
               <Plug className="w-4 h-4 mr-2" />
-              Connect music account
+              {spotify
+                ? `Spotify · ${spotify.display_name}${
+                    spotify.premium_status === "not_premium"
+                      ? " · not Premium"
+                      : spotify.preferred_device_name
+                        ? ` · ${spotify.preferred_device_name}`
+                        : " · pick a device"
+                  }`
+                : "Connect Spotify"}
             </Button>
           </div>
         )}

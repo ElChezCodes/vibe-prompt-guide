@@ -25,6 +25,62 @@ mechanic exists, never as a roadmap source themselves.
 
 ---
 
+## Change of focus — user decision 2026-10-27 (Spotify Developer Policy)
+
+After reviewing Spotify's Developer Policy (III.10 no business/venue use,
+III.13 no listener profiling from Spotify data, IV.2 no monetisation;
+dev-mode apps limited to 5 users, extended quota only for organisations
+with 250k MAU; audio-features/recommendations closed to new apps since
+2024-11-27; Feb-2026 dev-mode changes removed `popularity` from tracks/
+artists and `product` from `GET /me`), the product is re-scoped. **This
+overrides every spec document where they disagree:**
+
+1. **Private gatherings among friends** (a dinner at home), **not bars or
+   venues.** Framed as gamified music selection for a private group.
+2. **Music Fighter never plays audio.** It curates a playlist it creates in
+   real time in the **host's Spotify Premium account** (host must be
+   Premium); playback happens in the host's own Spotify app, on their own
+   device. The warm-up is the **first track of that playlist** (user
+   decision 2026-10-27, built in step 6/18; the browser MP3 warm-up of step 2
+   stays only as a provisional stand-in until then).
+3. **Participants never connect Spotify.** Affinity and passive voting will
+   be computed from **Music Fighter's own data**. Steps 7, 8, 9 and 13 are
+   **to be redefined** (marked below, not redesigned here).
+4. **Jukebox Boost and all payments are excluded for now** (steps 10-11).
+
+**Spec parts made obsolete by this** (kept in the docs for history, not
+deleted, but no longer requirements):
+- *Venue / "local" framing everywhere*: v4 §8.1 "reproductor real del
+  local", §10.2 playlist name "Music Fight + Nombre del Local" and "Stage
+  View se autentica con la cuenta del local", §11.1 "cuenta del local",
+  §11.4 venue-responsibility TOS note, §2.4/§12 "no volver a sonar en el
+  local"; PRD §6.2 "Activa [Servicio] en el local", §19 "Local acepta
+  repetir"; Paso_4 real-venue pilot (1 local, 10-30 people).
+- *GPS / geofencing*: v4 §16.3 (GPS as auxiliary validation, 30 m geofence).
+  QR/PIN only.
+- *Venue music history* as an affinity/proposal source: Backend_Block_3 §4,
+  CLAUDE.md three-tier model, step 13. (Block_4 §4 "historial musical del
+  Host" is also Spotify-derived and falls under point 3.)
+- *Participant Spotify integration*: v4 §11.2-11.3 (`user-top-read`, top
+  tracks/artists, `audio-features`, `audio-analysis`), v3.2 "Integración
+  musical del usuario", PRD §6.2 participant side, Spotify docs §4, the
+  `0.4·artist + 0.3·genre + 0.3·audio-features` passive-vote formula and the
+  k=1.25 affinity cap discussion, v4 §17.1 "Perfil: conectar/desconectar
+  Spotify; ver afinidad" for participants.
+- *Spotify-derived matching data*: Backend_Block_4 §5-8 audio features and
+  "Spotify popularity" tiers (endpoint closed / field removed) — affects
+  step 17, see there.
+- *PRD §6.2 "No necesitas cuenta Premium 😉"*: the host must be Premium.
+- *Jukebox Boost / payments*: v3.2 §4-5, v3.0 §5, engineering additions
+  #1, #3, #5 below (dormant while payments are excluded).
+- *Stage View "for the venue"*: it stays as a shared screen (TV at the
+  party), read-only; it does not authenticate with any account or control
+  playback (v4 §10.1 "control de playback desde Stage View", §17.2
+  "controles de playback, selector de dispositivo" → the host's phone does
+  that, via MF's backend).
+
+---
+
 ## Doc conflict found — resolved by user decision, 2026-10-26
 
 **PI (Prestige Influence) / ranking / gamification** appears as a core feature in
@@ -88,7 +144,9 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 ### C. Voting
 - Active voting (1 vote/user/battle, last-vote-counts, toggle/switch) — *PRD
   §6.6, v3.2 §Votación, Decision Log*. **Done.**
-- Passive voting: Spotify-affinity-similarity score
+- **To be redefined (2026-10-27): passive voting will use Music Fighter's own
+  data, not Spotify; the mechanics below are the superseded spec version.**
+  Passive voting: Spotify-affinity-similarity score
   (`0.4·artist + 0.3·genre + 0.3·audio_features`), ≥0.7 → +0.4 PB (+0.5 if
   ≥75% present users are passive), frozen until final 30s then ramps in, k=1.25
   aggregate cap, zero during Sudden Death — *v3.2 §"Cálculo de voto pasivo",
@@ -100,7 +158,7 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   Paso_1_Definitivo §6.4*. **Done.**
 - Draw → both songs to playlist A-then-B — *v3.2 §Empates* (supersedes v3.0's
   PI-then-random tiebreak, already noted in CLAUDE.md). **Done.**
-- Jukebox Boost: purchasable, non-cancelable, always-counts 1.0-point vote, 1
+- **Excluded for now (2026-10-27).** Jukebox Boost: purchasable, non-cancelable, always-counts 1.0-point vote, 1
   purchase per battle per user, no cap on battles — *v3.2 §4-5, v3.0 §5*. **Not
   started.** Mechanic is in scope to build; the real-money payment integration
   specifically is deferred to its own planning session (user-confirmed
@@ -117,19 +175,19 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 ### D. Streaming integration
 - Host streaming connection (1:1 with Host, play/pause/switch-track/set-device
   only, no user control, no scrubbing/volume) — *Backend_Block_1 §2,
-  Backend_Block_4 §1*. **Partial** — `streaming_accounts`/`ConnectStreamingScreen`
-  schema+UI exist, OAuth is fully mocked.
-- Participant streaming connection (OAuth for top tracks/artists/genres/
-  audio-feature averages, to drive passive voting and passive proposals) —
-  *v3.2 §"Integración musical del usuario", PRD §6.2, Spotify docs §4*. **Not
-  started** — no schema, no flow at all. This is the single biggest blocker for
-  C (passive voting) and the system-proposal half of E.
+  Backend_Block_4 §1*. **Done (step 5, 2026-10-27)** — real Spotify OAuth
+  (PKCE), encrypted tokens, backend refresh, Premium check, device choice,
+  disconnect. Host-level and reusable across arenas.
+- ~~Participant streaming connection~~ — **dropped (2026-10-27)**:
+  participants never connect Spotify (policy III.13). Passive voting and
+  passive proposals get their data from Music Fighter itself (to be
+  redefined, steps 7-9, 13).
 - "Playback Provider" abstraction (`getStatus/play/queue/skip/onProgress`,
   swappable implementation for legal/licensing reasons) — *v3.2 §Playback real,
   Backend_Block_4 §1*. **Not started.**
 - Real playback: winner auto-plays, next battle starts when previous winner
-  starts playing, progress-synced timers, auto-append winners to a local
-  playlist — *v3.2 §Flujos clave, v3.0 §10, Backend_Block_3 §9,
+  starts playing, progress-synced timers, auto-append winners to the arena's
+  playlist in the host's Spotify account (not a "local" playlist, 2026-10-27) — *v3.2 §Flujos clave, v3.0 §10, Backend_Block_3 §9,
   Backend_Block_4 §9*. **Not started** — `playlist_queue` has the right shape,
   nothing calls a real playback API.
 
@@ -137,7 +195,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - Active/human proposal (1 per user per battle, high priority, never displaced
   by system) — *Backend_Block_3 §3, PRD §6.3*. **Done** (`ProposeSongModal` →
   real `songs`/`queues`, this session).
-- Passive/system proposal (auto-generated when pools aren't full AND no pending
+- **To be redefined (2026-10-27): own-data affinity, no venue history.**
+  Passive/system proposal (auto-generated when pools aren't full AND no pending
   human proposals, sourced from aggregate passive-user affinity + mood + venue
   history, always low priority, never displaces human) — *Backend_Block_3 §4,
   Backend_Block_4 §3-4, PRD §8*. **Not started** — depends on D (participant
@@ -166,7 +225,9 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   winner (BPM ±5-8, similar/ascending energy, compatible genre) for session
   continuity — *Backend_Block_4 §7-8, PRD §9*. **Not started** — current
   `pull_next_battle_songs` pulls top-2-by-priority only, no compatibility logic
-  at all.
+  at all. **Affected by 2026-10-27:** Spotify no longer provides
+  popularity (removed Feb 2026) or audio features/BPM/energy (closed to new
+  apps) — the inputs need another source before this step.
 
 ### G. Identity, security, persistence
 - `identity_anchor_id` (anti-double-vote, survives auth-state changes) —
@@ -177,8 +238,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   any-participant `battles.state` write access enforces exactly this).
 - Token encryption at rest, TLS in transit, "E2EE lógico" (votes
   encrypted/anonymized) — *Backend_Block_5 §4*. **Partial** — TLS is
-  Supabase-infra-level (reasonable to assume done), token encryption at rest not
-  independently verified, vote-level encryption not implemented (relies on
+  Supabase-infra-level (reasonable to assume done), streaming tokens encrypted
+  at rest since step 5 (AES-256-GCM, key in Edge secrets), vote-level encryption not implemented (relies on
   DB-level RLS, not field encryption).
 - Arena TTL / archival of abandoned arenas — *Backend_Block_5 §6*. **Not
   started** (102 stale "Test Arena" rows from the cron incident are exactly the
@@ -201,7 +262,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   exact spec'd behavior/timings in this re-read.
 
 ### J. Validation & closure (process, not code)
-- Real-venue pilot (1 local, 10-30 people, 60-120 min, specific GO/NO-GO
+- Pilot (**a private gathering, not a venue, since 2026-10-27**; the
+  original spec: 1 local, 10-30 people, 60-120 min, specific GO/NO-GO
   criteria) — *Paso_4*. **Not started.**
 - Hardening pass (no new features, only fix what the pilot surfaced) —
   *Paso_5*. **Not started**, can't start before J's pilot runs.
@@ -300,23 +362,48 @@ additions (#1, #4 above), each marked where it lands.
    them (no RLS lock). Open for #9: 75 % "pasivos" (v3.2/v4) vs "inactivos"
    (Paso_1/PRD).
 5. **Host Spotify OAuth** — PKCE flow, encrypted token storage/refresh, device
-   selection.
+   selection. **Done 2026-10-27** (`supabase/sql/spotify_host_connection_2026-10-27.sql`,
+   Edge Function `spotify-host`). User decisions: tokens AES-256-GCM-encrypted
+   in the Edge Function with the key in Edge secrets (app-level encryption,
+   key outside the DB); one connection per host user, reused by all their
+   arenas; the host picks a preferred device (transfer with `play:false`,
+   which is also the Premium check — `GET /me` no longer returns `product`);
+   a missing device only warns. Scopes: `user-read-playback-state`,
+   `user-modify-playback-state`, `playlist-modify-private` (public and
+   currently-playing dropped as unneeded). Disconnect deletes every stored
+   Spotify datum. No arena pause / Start gating yet (warm-up still plays in
+   the browser).
 6. **Playback Provider abstraction** — `getStatus/play/queue/skip/onProgress`
    interface plus the Spotify implementation. Kept swappable per the docs'
    own licensing rationale, not an invented abstraction.
-7. **Participant Spotify OAuth** — separate scope from #5 (`user-top-read`
-   etc.), the prerequisite for both #9 and #12.
-8. **Participant affinity profile sync** — top tracks/artists/genres/
-   audio-feature averages, recalculated on the spec's cadence.
-9. **Passive voting engine** — the affinity-similarity formula, k=1.25 cap,
+   Agreed for this step (user decisions 2026-10-27): the arena's playlist is
+   created **at Start**, **private**, named "Music Fighter · <arena name> ·
+   dd/mm/aa"; the **warm-up is its first track** and starts playing on the
+   host's chosen device — so the warm-up is picked from Spotify search (the
+   curated library's `spotify_track_id`s are placeholder UUIDs, not real
+   Spotify ids) and the host must connect Spotify before creating an arena;
+   `useArenaWarmup`'s browser MP3 is removed. Device lost / host disconnected
+   → pause the arena (PRD §17), and Start requires a connected Premium host
+   with an available device. Disconnecting must also clear any per-arena
+   Spotify data added here (playlist ids).
+7. **TO BE REDEFINED (2026-10-27)** — was "Participant Spotify OAuth".
+   Participants no longer connect Spotify; what replaces it (if anything) is
+   decided with the user before this step.
+8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
+   sync" (top tracks/artists/genres/audio features from Spotify). Affinity
+   comes from Music Fighter's own data instead; definition pending.
+9. **TO BE REDEFINED (2026-10-27)** — the Spotify-similarity formula below
+   is superseded; the rest (lock-in snapshot, no-row rule) still stands.
+   **Passive voting engine** — the affinity-similarity formula, k=1.25 cap,
    30-second freeze/ramp, zero during Sudden Death. Depends on #4 and #8.
    Only participants with no `votes` row for the battle get a passive vote:
    voting and then cancelling means abstaining, not "didn't vote"
    (user decision, 2026-10-26).
-10. **Jukebox Boost mechanic** — the vote behavior only (1 purchase per battle,
+10. **EXCLUDED FOR NOW (2026-10-27).** **Jukebox Boost mechanic** — the vote behavior only (1 purchase per battle,
     non-cancelable, counts as 1.0 PB). Apply the shared anti-abuse boundary
     (engineering addition #3) here.
-11. **Jukebox Boost payment integration** — *deferred*, not scheduled; waits
+11. **EXCLUDED FOR NOW (2026-10-27)**, with all payments. **Jukebox Boost
+    payment integration** — *deferred*, not scheduled; waits
     for its own planning session (user-confirmed). When it is scheduled, the
     App Store/Play Store compliance boundary (engineering addition #1) and
     server-side receipt verification (addition #5) apply directly to this item
@@ -331,7 +418,9 @@ additions (#1, #4 above), each marked where it lands.
     top 2 regardless of proposer, so one user's two songs can face each other
     (confirmed by rollback test) — fix here; also decide what fills slot B
     when only one user has proposals.
-13. **Passive/system auto-proposal generation** — sourced from aggregate
+13. **TO BE REDEFINED (2026-10-27)** — sources change: own-data affinity
+    instead of Spotify, and no venue history (private gatherings). Original:
+    **Passive/system auto-proposal generation** — sourced from aggregate
     passive-user affinity + `mood` + venue history, always lower priority than
     human proposals. Depends on #1, #8, and a venue-history concept that
     doesn't exist yet in any form.
@@ -345,15 +434,20 @@ additions (#1, #4 above), each marked where it lands.
     Ranking screen, resolved 2026-10-26.
 17. **Battle pair selection / matchmaking** — popularity/BPM/energy/genre
     compatibility, continuity with the previous winner. Needs #12 and #13 (a
-    real, populated queue) to select from.
+    real, populated queue) to select from. Its Spotify inputs (popularity,
+    BPM/energy) are no longer available (see §F); needs another source.
 18. **Real playback wiring end-to-end** — winner auto-plays, battle starts when
-    the previous winner starts, synced timers, playlist auto-append. Depends
+    the previous winner starts, synced timers, playlist auto-append (winners
+    appended to the arena's private playlist after the warm-up; no
+    crossfade/mixing, policy III.7). Depends
     on #6 and #17 — this is where "what wins, plays" actually becomes true.
-19. **Stage View, remaining host flows, and UX/cross-platform conformance** —
+19. (Stage View is the party's shared screen, not a venue display, since
+    2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song
     selection, exact tension-bar/overlay timing, and the phone/tablet/desktop
     breakpoint QA gate (engineering addition #4). Depends on #18 for real data
     to display.
-20. **Pilot validation, hardening, closure** — the real-venue pilot, fix-only
+20. **Pilot validation, hardening, closure** — the pilot (a private
+    gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything
     above being functionally real first.

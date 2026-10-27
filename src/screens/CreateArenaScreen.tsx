@@ -12,6 +12,11 @@ import {
   ArenaMood,
   WarmupSuggestion,
 } from "@/integrations/supabase/arenas";
+import {
+  getMyStreamingConnection,
+  startSpotifyConnect,
+  StreamingConnectionSummary,
+} from "@/integrations/supabase/spotify";
 
 const MOOD_GROUPS = Array.from(new Set(ARENA_MOODS.map((m) => m.group)));
 
@@ -23,6 +28,21 @@ const CreateArenaScreen = () => {
   const [warmupSuggestions, setWarmupSuggestions] = useState<WarmupSuggestion[]>([]);
   const [warmup, setWarmup] = useState<WarmupSuggestion | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // Spotify belongs to the host, not the arena: it can be connected before
+  // creating one (it will be needed when the warm-up comes from Spotify, step 6)
+  const [spotify, setSpotify] = useState<StreamingConnectionSummary | null>(null);
+  const [spotifyError, setSpotifyError] = useState("");
+
+  useEffect(() => {
+    getMyStreamingConnection()
+      .then(setSpotify)
+      .catch(() => setSpotify(null));
+  }, []);
+
+  const handleConnectSpotify = () => {
+    setSpotifyError("");
+    startSpotifyConnect("/create").catch((err) => setSpotifyError(err instanceof Error ? err.message : String(err)));
+  };
 
   // Warm-up suggestions follow the chosen mood (MVP: curated library only)
   useEffect(() => {
@@ -73,6 +93,21 @@ const CreateArenaScreen = () => {
             Set up your Music Fighter session
           </p>
         </div>
+
+        {/* Host's Spotify (optional until step 6) */}
+        <div className="w-full flex items-center justify-between gap-3 text-sm">
+          {spotify ? (
+            <p className="text-muted-foreground truncate">Spotify · {spotify.display_name}</p>
+          ) : (
+            <>
+              <p className="text-muted-foreground">Spotify not connected</p>
+              <Button variant="neon" size="sm" disabled={isCreating} onClick={handleConnectSpotify}>
+                Connect Spotify
+              </Button>
+            </>
+          )}
+        </div>
+        {spotifyError && <p className="w-full text-sm text-destructive">{spotifyError}</p>}
 
         {/* Arena Name Input */}
         <div 

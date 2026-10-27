@@ -13,6 +13,7 @@ import ConnectStreamingScreen from "./screens/ConnectStreamingScreen";
 import ProposeSongScreen from "./screens/ProposeSongScreen";
 import RankingScreen from "./screens/RankingScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import SpotifyCallbackScreen from "./screens/SpotifyCallbackScreen";
 import AppShell from "./components/nav/AppShell";
 import { useAnonymousAuth } from "./hooks/useAnonymousAuth";
 import { usePresenceHeartbeat } from "./hooks/usePresenceHeartbeat";
@@ -51,6 +52,9 @@ const AppRoutes = () => {
       <Route path="/a/:code/battle" element={<BattleRoomScreen />} />
       {/* Stage view for venue displays, opened from a shared link */}
       <Route path="/a/:code/stage" element={<StageViewScreen />} />
+
+      {/* Spotify OAuth redirect URI (host connection, step 5) */}
+      <Route path="/spotify/callback" element={<SpotifyCallbackScreen />} />
 
       {/* Old state-only routes (/battle, /lobby, /stage, /connect) and anything unknown */}
       <Route path="*" element={<Navigate to="/" replace />} />
