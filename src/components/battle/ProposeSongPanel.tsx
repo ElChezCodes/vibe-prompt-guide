@@ -87,7 +87,7 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
           placeholder="Search for a song..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-11 h-12 neon-outline text-foreground placeholder:text-muted-foreground rounded-xl focus-visible:ring-song-a"
+          className="pl-11 h-12 bg-secondary/80 border-song-a/40 text-foreground placeholder:text-muted-foreground rounded-xl focus-visible:ring-song-a"
         />
         {searchQuery && (
           <button
