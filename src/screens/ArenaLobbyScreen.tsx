@@ -17,6 +17,7 @@ import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import EndArenaButton from "@/components/arena/EndArenaButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
+import { useArenaPresence } from "@/hooks/useArenaPresence";
 
 // Host's arena panel: code/QR, Stage View, music connection, start/enter
 // battles, End Arena. Non-hosts are sent to the Battle Room.
@@ -31,6 +32,8 @@ const ArenaLobbyScreen = () => {
 
   const arenaId = arena?.id;
   const isOpen = arena?.state === "waiting" || arena?.state === "active";
+  // Backend-computed presence counts (display only)
+  const presence = useArenaPresence(arenaId, isHost && isOpen);
 
   useEffect(() => {
     if (!arenaId || !isHost) return;
@@ -139,6 +142,13 @@ const ArenaLobbyScreen = () => {
             {arenaCode}
           </p>
         </div>
+
+        {/* Who's here: ACTIVO / PASIVO / INACTIVO counts from the backend */}
+        {!isClosed && presence && (
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {presence.active_count} active · {presence.passive_count} passive · {presence.inactive_count} inactive
+          </p>
+        )}
 
         {/* QR Code Block: opens /join/:code */}
         {!isClosed && (

@@ -82,9 +82,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - ACTIVO / PASIVO / INACTIVO, 5-minute activity window, transition rules
   (including the "re-entering between battles starts next battle as ACTIVO" edge
   case) — *PRD §5, Paso_1_Definitivo §3, v3.2 §1.2, Backend docs reference it
-  throughout*. **Partial** — `participants.last_active_at` is written
-  server-side on every qualifying action (step 3); nothing computes or
-  transitions a state yet (step 4).
+  throughout*. **Done** — activity writes (step 3) and server-computed states
+  with a per-battle lock-in snapshot (step 4).
 
 ### C. Voting
 - Active voting (1 vote/user/battle, last-vote-counts, toggle/switch) — *PRD
@@ -290,6 +289,16 @@ additions (#1, #4 above), each marked where it lands.
    Verified in-app by the user 2026-10-26.
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,
    including the "re-enters between battles → starts next as ACTIVO" edge case.
+   **Done 2026-10-26** (`supabase/sql/presence_states_2026-10-26.sql`).
+   Computed on the fly (`presence_state` / `participant_presence`), 5-min
+   activity window; connection = 30 s heartbeat (`last_seen_at`, not activity)
+   with a 10-min grace for locked phones, immediate INACTIVO on tab close
+   (`pagehide`) or Leave arena. Frozen per battle at lock-in in
+   `battle_presence_snapshots`, which is what #9 and the 0.4/0.5 PB ratio read.
+   User decisions: no music account needed to be PASIVO (#9 checks it);
+   a PASIVO user's active vote stays active and tapping again re-activates
+   them (no RLS lock). Open for #9: 75 % "pasivos" (v3.2/v4) vs "inactivos"
+   (Paso_1/PRD).
 5. **Host Spotify OAuth** — PKCE flow, encrypted token storage/refresh, device
    selection.
 6. **Playback Provider abstraction** — `getStatus/play/queue/skip/onProgress`

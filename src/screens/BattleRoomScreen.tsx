@@ -14,6 +14,8 @@ import EndArenaButton from "@/components/arena/EndArenaButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaPath } from "@/lib/arenaRoutes";
+import { useArenaPresence } from "@/hooks/useArenaPresence";
+import PresenceChip from "@/components/arena/PresenceChip";
 
 // "ended": the arena was already finished when opened (no joining possible)
 type ScreenState = "loading" | "error" | "ready" | "ended";
@@ -91,6 +93,9 @@ const BattleRoomScreen = () => {
   const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
+
+  // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes
+  const presence = useArenaPresence(arena?.id, !!participant, voteRecord);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -417,6 +422,7 @@ const BattleRoomScreen = () => {
               Lobby
             </button>
           )}
+          <PresenceChip state={presence?.my_state} />
         </div>
       )}
 

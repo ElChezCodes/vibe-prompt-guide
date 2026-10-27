@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import SplashScreen from "./screens/SplashScreen";
 import JoinArenaScreen from "./screens/JoinArenaScreen";
 import BattleRoomScreen from "./screens/BattleRoomScreen";
@@ -15,11 +15,16 @@ import RankingScreen from "./screens/RankingScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import AppShell from "./components/nav/AppShell";
 import { useAnonymousAuth } from "./hooks/useAnonymousAuth";
+import { usePresenceHeartbeat } from "./hooks/usePresenceHeartbeat";
 
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const { isReady } = useAnonymousAuth();
+  const { pathname } = useLocation();
+  // Any app screen keeps the user connected to their arena; the venue's Stage
+  // View is a display, not a person
+  usePresenceHeartbeat(isReady && !pathname.endsWith("/stage"));
 
   if (!isReady) {
     return null;
