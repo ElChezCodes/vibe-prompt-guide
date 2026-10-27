@@ -439,7 +439,9 @@ additions (#1, #4 above), each marked where it lands.
    user's own playlists to show them back to that user only is within
    Developer Terms V.4 ("displaying it back to the user"); minimum scopes
    (I.1.1/V.3); nothing stored (IV.3.1); not used for profiling (III.13).
-   The "1 proposal per user per battle" cap is still step 12.
+   The "1 proposal per user per battle" cap is still step 12. Verified
+   in-app by the user 2026-10-27; search and modal no longer reset after
+   proposing (user request).
 8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
    sync" (top tracks/artists/genres/audio features from Spotify). Affinity
    comes from Music Fighter's own data instead; definition pending.
