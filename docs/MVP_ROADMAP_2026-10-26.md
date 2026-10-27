@@ -287,6 +287,7 @@ additions (#1, #4 above), each marked where it lands.
    host's Start battles. A guard trigger pins `last_active_at`/`joined_at` for
    client roles. User decisions: host counts like everyone + Start counts;
    toggling off counts; heartbeat is NOT activity (v4 §1.3).
+   Verified in-app by the user 2026-10-26.
 4. **Presence state transitions** — ACTIVO/PASIVO/INACTIVO computed from #3,
    including the "re-enters between battles → starts next as ACTIVO" edge case.
 5. **Host Spotify OAuth** — PKCE flow, encrypted token storage/refresh, device
@@ -315,6 +316,12 @@ additions (#1, #4 above), each marked where it lands.
 12. **Queue rule enforcement** — explicit `active_10`/`waiting_50` caps, FIFO
     within waiting, 60-minute no-repeat, 20-battle purge, human>system
     priority.
+    User decision 2026-10-26: a user may keep **several** songs in their
+    queue list, but each battle takes **at most 1 per proposer** ("1 active
+    proposal per user per battle"). Today `pull_next_battle_songs` takes the
+    top 2 regardless of proposer, so one user's two songs can face each other
+    (confirmed by rollback test) — fix here; also decide what fills slot B
+    when only one user has proposals.
 13. **Passive/system auto-proposal generation** — sourced from aggregate
     passive-user affinity + `mood` + venue history, always lower priority than
     human proposals. Depends on #1, #8, and a venue-history concept that
