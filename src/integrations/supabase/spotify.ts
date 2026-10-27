@@ -55,12 +55,28 @@ async function callSpotifyHost<T>(body: Record<string, unknown>): Promise<T> {
 // Spotify doesn't accept "localhost" redirects; the dev URI is registered on 127.0.0.1
 export const spotifyRedirectUri = () => `${window.location.origin}/spotify/callback`;
 
+export function isEmbedded(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
 export async function startSpotifyConnect(returnTo: string): Promise<void> {
   // Same app, different origin = different anonymous session: don't hop over silently
   if (window.location.hostname === 'localhost') {
     throw new SpotifyHostError(
       'use_127_0_0_1',
       `Spotify only accepts 127.0.0.1: open http://127.0.0.1:${window.location.port || '8080'} instead of localhost`,
+    );
+  }
+  // Spotify's login refuses to load inside an iframe (e.g. Lovable's editor
+  // preview), and a new tab from there would have another anonymous session
+  if (isEmbedded()) {
+    throw new SpotifyHostError(
+      'open_in_new_tab',
+      'Spotify can\'t open inside this preview. Open the app in its own browser tab and connect from there.',
     );
   }
   const { url } = await callSpotifyHost<{ url: string }>({

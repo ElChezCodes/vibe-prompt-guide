@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSpotifyConnection } from "@/hooks/useSpotifyConnection";
+import { isEmbedded } from "@/integrations/supabase/spotify";
 
 // Spotify's own app links (Design Guidelines: "OPEN SPOTIFY")
 const OPEN_SPOTIFY_URL = "https://open.spotify.com";
@@ -41,6 +42,16 @@ const SpotifyConnectionPanel = ({ returnTo }: Props) => {
           Connect Spotify
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {isEmbedded() && (
+          <a
+            href={window.location.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center text-sm underline text-text-secondary"
+          >
+            Open the app in a new tab
+          </a>
+        )}
       </div>
     );
   }
