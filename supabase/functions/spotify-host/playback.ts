@@ -188,15 +188,17 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
   }
 
   async search(query: string): Promise<CatalogTrack[]> {
-    // limit ≤ 10 since Feb 2026; market from the host's account = playable for them
-    const params = new URLSearchParams({ q: query, type: "track", limit: "10", market: "from_token" });
+    // limit ≤ 10 since Feb 2026. No market param: "from_token" needs the
+    // user-read-private scope (403 "Insufficient client scope"), and with a user
+    // token Spotify already applies the host's country
+    const params = new URLSearchParams({ q: query, type: "track", limit: "10" });
     const body = await this.must(`/search?${params}`);
     return (body?.tracks?.items ?? []).filter((t: any) => t?.id).map(toCatalogTrack);
   }
 
   async getTrack(trackId: string): Promise<CatalogTrack | null> {
     if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return null;
-    const res = await this.api(`/tracks/${trackId}?market=from_token`);
+    const res = await this.api(`/tracks/${trackId}`);
     return res.status === 200 && res.body?.id ? toCatalogTrack(res.body) : null;
   }
 }
