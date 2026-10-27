@@ -24,7 +24,8 @@ const ProposeSongModal = ({ open, onOpenChange, arenaId }: ProposeSongModalProps
         </DialogHeader>
 
         <div className="flex-1 min-h-0">
-          <ProposeSongPanel arenaId={arenaId} onProposed={() => onOpenChange(false)} />
+          {/* Stays open after proposing (more songs from the same search); closed by the user */}
+          <ProposeSongPanel arenaId={arenaId} />
         </div>
       </DialogContent>
     </Dialog>

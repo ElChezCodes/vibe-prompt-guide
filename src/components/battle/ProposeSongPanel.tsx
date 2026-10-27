@@ -23,7 +23,6 @@ const SEARCH_DEBOUNCE_MS = 350;
 
 interface ProposeSongPanelProps {
   arenaId: string;
-  onProposed?: () => void;
 }
 
 // Shared by the Battle Room modal and the Proponer screen. Both mount it
@@ -31,7 +30,7 @@ interface ProposeSongPanelProps {
 // done in the other. Step 7: a member with their own Spotify connected can
 // also search with it (falling back to the host's) and pick from their own
 // playlists; every proposal still goes through the same spotify-host propose.
-const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
+const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   // Which account the selected song was found with (propose re-reads it with that one)
@@ -104,10 +103,10 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
     try {
       const result = await proposeSong(arenaId, selectedSongId, selectedAccount);
       setNotice(result === "already_queued" ? "That song is already in the queue" : "Song proposed");
-      setSearchQuery("");
+      // The query and its results stay, so several songs of the same search
+      // (e.g. one artist) can be proposed in a row (user request 2026-10-27)
       setSelectedSongId(null);
       loadMyProposals();
-      if (result === "proposed") onProposed?.();
     } catch (err) {
       setNotice(
         err instanceof SpotifyHostError && err.code === "host_spotify_unavailable"
