@@ -18,6 +18,8 @@ export interface SpotifyStatus {
   connected: boolean;
   display_name?: string;
   premium_status?: PremiumStatus;
+  // Step 7: playlist-read-private + user-library-read granted (older connections: reconnect)
+  can_read_library?: boolean;
   preferred_device_id?: string | null;
   preferred_device_name?: string | null;
   preferred_device_available?: boolean;
@@ -118,16 +120,66 @@ export interface SpotifyTrack {
   spotify_url: string;
 }
 
-// In an arena the arena host's token searches (guests never connect Spotify);
-// without one (Create Arena) the caller's own
-export async function searchSpotifyTracks(query: string, arenaId?: string): Promise<SpotifyTrack[]> {
-  const { tracks } = await callSpotifyHost<{ tracks: SpotifyTrack[] }>({
-    action: 'search',
-    query,
-    arena_id: arenaId ?? null,
-  });
+// Without an arena (Create Arena): the caller's own token
+export async function searchSpotifyTracks(query: string): Promise<SpotifyTrack[]> {
+  const { tracks } = await callSpotifyHost<{ tracks: SpotifyTrack[] }>({ action: 'search', query, arena_id: null });
   return tracks ?? [];
 }
+
+// Step 7: in an arena, "own" = the member's own Spotify if connected, silently
+// falling back to the host's; "host" = the host's (step 6). `account` says which
+// one actually answered.
+export type CatalogAccount = 'own' | 'host';
+
+export async function searchArenaTracks(
+  arenaId: string,
+  query: string,
+  account: CatalogAccount,
+): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount }> {
+  const res = await callSpotifyHost<{ tracks: SpotifyTrack[]; account: CatalogAccount }>({
+    action: 'search',
+    query,
+    arena_id: arenaId,
+    account,
+  });
+  return { tracks: res.tracks ?? [], account: res.account };
+}
+
+export interface ProposeSources {
+  is_host: boolean;
+  own_connected: boolean;
+  can_read_library: boolean;
+}
+
+export const getProposeSources = (arenaId: string) =>
+  callSpotifyHost<ProposeSources>({ action: 'propose_sources', arena_id: arenaId });
+
+// The member's own library, only to pick a song to propose; never stored.
+// id "liked" = Liked Songs. Errors: spotify_not_connected, needs_reconnect,
+// playlist_not_readable.
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  artwork_url: string | null;
+  total: number;
+  spotify_url: string;
+}
+
+export async function getMyPlaylists(arenaId: string): Promise<SpotifyPlaylist[]> {
+  const { playlists } = await callSpotifyHost<{ playlists: SpotifyPlaylist[] }>({
+    action: 'my_playlists',
+    arena_id: arenaId,
+  });
+  return playlists ?? [];
+}
+
+export const getPlaylistTracks = (arenaId: string, playlistId: string, offset: number) =>
+  callSpotifyHost<{ tracks: SpotifyTrack[]; next_offset: number | null }>({
+    action: 'playlist_tracks',
+    arena_id: arenaId,
+    playlist_id: playlistId,
+    offset,
+  });
 
 // The function re-reads the track from Spotify: the client only sends its id
 export async function createSpotifyArena(name: string, mood: string, trackId: string): Promise<string> {
@@ -140,11 +192,16 @@ export async function createSpotifyArena(name: string, mood: string, trackId: st
   return arena_id;
 }
 
-export async function proposeSpotifyTrack(arenaId: string, trackId: string): Promise<'proposed' | 'already_queued'> {
+export async function proposeSpotifyTrack(
+  arenaId: string,
+  trackId: string,
+  account: CatalogAccount = 'own',
+): Promise<'proposed' | 'already_queued'> {
   const { result } = await callSpotifyHost<{ result: 'proposed' | 'already_queued' }>({
     action: 'propose',
     arena_id: arenaId,
     track_id: trackId,
+    account,
   });
   return result;
 }

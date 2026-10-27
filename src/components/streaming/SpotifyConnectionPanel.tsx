@@ -14,7 +14,7 @@ interface Props {
 }
 
 /**
- * Host's Spotify connection: connect, Premium status, devices (which one is
+ * The user's Spotify connection (hosting + step 7 proposing from their library): connect, Premium status, devices (which one is
  * active, which one MF will use), disconnect. Functional/minimal markup; the
  * visual pass is done in Lovable.
  */
@@ -68,6 +68,18 @@ const SpotifyConnectionPanel = ({ returnTo }: Props) => {
         </div>
         <span className="text-sm text-primary font-medium">Connected</span>
       </div>
+
+      {/* Step 7: connections made before it lack the playlist/library scopes (soft re-consent) */}
+      {status.can_read_library === false && (
+        <div className="space-y-2">
+          <p className="text-sm text-text-secondary">
+            Reconnect Spotify to propose songs from your playlists and Liked Songs in any arena.
+          </p>
+          <Button variant="neon" className="w-full" disabled={busy} onClick={() => connect(returnTo)}>
+            Reconnect Spotify
+          </Button>
+        </div>
+      )}
 
       {/* Premium: only the player API can tell (GET /me no longer returns it) */}
       {status.premium_status === "not_premium" && (

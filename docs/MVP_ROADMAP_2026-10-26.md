@@ -429,6 +429,17 @@ additions (#1, #4 above), each marked where it lands.
    and each user in the dashboard's User Management while in dev mode (5
    users max). **Built in this step 7** (user decision 2026-10-27), after
    step 6's host-token search exists.
+   **Done 2026-10-27** (Edge Function `spotify-host` only, no SQL). User
+   decisions: "My playlists" = Liked Songs + owned/collaborative playlists
+   (Feb 2026: only those can be opened; adds `user-library-read` besides
+   `playlist-read-private`); search with the guest's own account by default,
+   silent fallback to the host's, plus a visible "My Spotify / Host's
+   Spotify" switch; soft re-consent (old connections keep working, Profile
+   and "My playlists" offer "Reconnect Spotify"). Policy check: reading the
+   user's own playlists to show them back to that user only is within
+   Developer Terms V.4 ("displaying it back to the user"); minimum scopes
+   (I.1.1/V.3); nothing stored (IV.3.1); not used for profiling (III.13).
+   The "1 proposal per user per battle" cap is still step 12.
 8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
    sync" (top tracks/artists/genres/audio features from Spotify). Affinity
    comes from Music Fighter's own data instead; definition pending.

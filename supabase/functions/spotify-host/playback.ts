@@ -21,6 +21,21 @@ export interface CatalogTrack {
   spotify_url: string;
 }
 
+// A playlist of the user's own library they can open (step 7): owned or
+// collaborative; "liked" = their Liked Songs
+export interface LibraryPlaylist {
+  id: string;
+  name: string;
+  artwork_url: string | null;
+  total: number;
+  spotify_url: string;
+}
+
+export interface LibraryPage {
+  tracks: CatalogTrack[];
+  next_offset: number | null;
+}
+
 export interface PlaybackDevice {
   id: string;
   name: string;
@@ -56,6 +71,9 @@ export interface PlaybackProvider {
   createSession(name: string, firstTrackUri: string): Promise<PlaybackSession>;
   search(query: string): Promise<CatalogTrack[]>;
   getTrack(trackId: string): Promise<CatalogTrack | null>;
+  // The token owner's own library, only to pick a song to propose (step 7)
+  listPlaylists(ownerId: string): Promise<LibraryPlaylist[]>;
+  playlistTracks(playlistId: string, offset: number): Promise<LibraryPage>;
 }
 
 export class PlaybackError extends Error {
@@ -68,6 +86,10 @@ export class PlaybackError extends Error {
 }
 
 const API = "https://api.spotify.com/v1";
+const LIBRARY_PAGE = 50;
+// /me/playlists pages read per listing (50 each)
+const MAX_PLAYLIST_PAGES = 4;
+export const LIKED_SONGS_ID = "liked";
 
 export const trackUri = (id: string) => `spotify:track:${id}`;
 
@@ -200,5 +222,46 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return null;
     const res = await this.api(`/tracks/${trackId}`);
     return res.status === 200 && res.body?.id ? toCatalogTrack(res.body) : null;
+  }
+
+  async listPlaylists(ownerId: string): Promise<LibraryPlaylist[]> {
+    const liked = await this.must("/me/tracks?limit=1");
+    const out: LibraryPlaylist[] = [{
+      id: LIKED_SONGS_ID,
+      name: "Liked Songs",
+      artwork_url: null,
+      total: liked?.total ?? 0,
+      spotify_url: "https://open.spotify.com/collection/tracks",
+    }];
+    for (let page = 0, offset = 0; page < MAX_PLAYLIST_PAGES; page++, offset += LIBRARY_PAGE) {
+      const body = await this.must(`/me/playlists?limit=${LIBRARY_PAGE}&offset=${offset}`);
+      for (const p of body?.items ?? []) {
+        // Since Feb 2026 only owned/collaborative playlists can be opened
+        if (!p?.id || (p.owner?.id !== ownerId && !p.collaborative)) continue;
+        out.push({
+          id: p.id,
+          name: p.name,
+          artwork_url: p.images?.[0]?.url ?? null,
+          total: p.items?.total ?? p.tracks?.total ?? 0,
+          spotify_url: p.external_urls?.spotify ?? `https://open.spotify.com/playlist/${p.id}`,
+        });
+      }
+      if (!body?.next) break;
+    }
+    return out;
+  }
+
+  async playlistTracks(playlistId: string, offset: number): Promise<LibraryPage> {
+    const page = `limit=${LIBRARY_PAGE}&offset=${offset}`;
+    const body = playlistId === LIKED_SONGS_ID
+      ? await this.must(`/me/tracks?${page}`)
+      : await this.must(`/playlists/${encodeURIComponent(playlistId)}/items?${page}&additional_types=track`);
+    const tracks = (body?.items ?? [])
+      .filter((e: any) => !e?.is_local)
+      .map((e: any) => e?.item ?? e?.track)
+      // Local files, episodes and removed tracks can't be proposed
+      .filter((t: any) => t?.id && (t.type ?? "track") === "track" && !t.is_local)
+      .map(toCatalogTrack);
+    return { tracks, next_offset: body?.next ? offset + LIBRARY_PAGE : null };
   }
 }

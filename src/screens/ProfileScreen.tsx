@@ -19,8 +19,9 @@ import {
 // Profile / achievements are placeholders (step 2b is navigation only). The
 // functional part is "Leave arena": the explicit exit (Paso_2 §4.1), distinct
 // from just browsing away from the Battle Room. Anyone can connect Spotify
-// here: it belongs to the user and is what lets them host their own arenas
-// (it is not used in other people's arenas).
+// here: it belongs to the user and is what lets them host their own arenas;
+// in other people's arenas it is used only to propose songs (search with it,
+// pick from their own playlists, step 7), never for taste profiling.
 const ProfileScreen = () => {
   const navigate = useNavigate();
   const { data: current } = useCurrentArena();
@@ -67,12 +68,12 @@ const ProfileScreen = () => {
         <p className="mt-3 text-xs text-muted-foreground text-center">Coming soon</p>
       </div>
 
-      {/* Spotify: needed to host your own arenas */}
+      {/* Spotify: to host your own arenas and propose from your own library */}
       <div
         className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
         style={{ animationDelay: "125ms" }}
       >
-        <p className="neon-label">Your Spotify · to host your own arenas</p>
+        <p className="neon-label">Your Spotify · to host arenas and propose from your playlists</p>
         <SpotifyConnectionPanel returnTo="/profile" />
       </div>
 

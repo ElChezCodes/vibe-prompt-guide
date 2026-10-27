@@ -9,8 +9,15 @@ import {
   proposeSong,
   searchSongs,
 } from "@/integrations/supabase/proposals";
-import { SpotifyHostError, SpotifyTrack } from "@/integrations/supabase/spotify";
+import {
+  CatalogAccount,
+  getProposeSources,
+  ProposeSources,
+  SpotifyHostError,
+  SpotifyTrack,
+} from "@/integrations/supabase/spotify";
 import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
+import MyPlaylistsBrowser from "@/components/streaming/MyPlaylistsBrowser";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -21,16 +28,32 @@ interface ProposeSongPanelProps {
 
 // Shared by the Battle Room modal and the Proponer screen. Both mount it
 // fresh and load "my proposals" from the backend, so each reflects what was
-// done in the other.
+// done in the other. Step 7: a member with their own Spotify connected can
+// also search with it (falling back to the host's) and pick from their own
+// playlists; every proposal still goes through the same spotify-host propose.
 const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  // Which account the selected song was found with (propose re-reads it with that one)
+  const [selectedAccount, setSelectedAccount] = useState<CatalogAccount>("own");
   const [results, setResults] = useState<SpotifyTrack[]>([]);
+  const [sources, setSources] = useState<ProposeSources | null>(null);
+  const [tab, setTab] = useState<"search" | "playlists">("search");
+  const [searchAccount, setSearchAccount] = useState<CatalogAccount>("own");
+  const [searchedWith, setSearchedWith] = useState<CatalogAccount | null>(null);
   const [myProposals, setMyProposals] = useState<MyProposal[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
 
-  const showResults = searchQuery.length > 0;
+  const showResults = tab === "search" && searchQuery.length > 0;
+  // The host's own account is the host's: nothing to choose
+  const canChooseAccount = !!sources?.own_connected && !sources.is_host;
+
+  useEffect(() => {
+    getProposeSources(arenaId)
+      .then(setSources)
+      .catch(() => setSources(null));
+  }, [arenaId]);
 
   const loadMyProposals = useCallback(() => {
     getMyProposals(arenaId)
@@ -50,9 +73,11 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
 
     let cancelled = false;
     const timeout = setTimeout(() => {
-      searchSongs(arenaId, searchQuery)
-        .then((rows) => {
-          if (!cancelled) setResults(rows);
+      searchSongs(arenaId, searchQuery, searchAccount)
+        .then(({ tracks, account }) => {
+          if (cancelled) return;
+          setResults(tracks);
+          setSearchedWith(account);
         })
         .catch((err) => {
           if (cancelled) return;
@@ -69,7 +94,7 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [searchQuery, showResults, arenaId]);
+  }, [searchQuery, showResults, arenaId, searchAccount]);
 
   const handleSubmit = async () => {
     if (!selectedSongId || isSubmitting) return;
@@ -77,7 +102,7 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
     setIsSubmitting(true);
     setNotice("");
     try {
-      const result = await proposeSong(arenaId, selectedSongId);
+      const result = await proposeSong(arenaId, selectedSongId, selectedAccount);
       setNotice(result === "already_queued" ? "That song is already in the queue" : "Song proposed");
       setSearchQuery("");
       setSelectedSongId(null);
@@ -94,8 +119,60 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
     }
   };
 
+  const selectTrack = (trackId: string, account: CatalogAccount) => {
+    setSelectedSongId(trackId);
+    setSelectedAccount(account);
+  };
+
+  const switchTab = (next: "search" | "playlists") => {
+    setTab(next);
+    setSelectedSongId(null);
+    setNotice("");
+  };
+
   return (
     <div className="h-full flex flex-col gap-4">
+      {/* Sources: their own playlists only with their own Spotify connected */}
+      {sources?.own_connected && (
+        <div className="flex-shrink-0 grid grid-cols-2 gap-2">
+          <Button variant={tab === "search" ? "default" : "ghost"} onClick={() => switchTab("search")}>
+            Search
+          </Button>
+          <Button variant={tab === "playlists" ? "default" : "ghost"} onClick={() => switchTab("playlists")}>
+            My playlists
+          </Button>
+        </div>
+      )}
+
+      {tab === "playlists" ? (
+        <div className="flex-1 min-h-0">
+          <MyPlaylistsBrowser
+            arenaId={arenaId}
+            needsReconnect={!sources?.can_read_library}
+            selectedTrackId={selectedSongId}
+            onSelect={(track) => selectTrack(track.spotify_track_id, "own")}
+          />
+        </div>
+      ) : (
+      <>
+      {canChooseAccount && (
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-text-secondary">
+          <span>Search with</span>
+          <div className="flex gap-1">
+            {(["own", "host"] as const).map((account) => (
+              <Button
+                key={account}
+                size="sm"
+                variant={searchAccount === account ? "default" : "ghost"}
+                onClick={() => setSearchAccount(account)}
+              >
+                {account === "own" ? "My Spotify" : "Host's Spotify"}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Search Input */}
       <div className="relative flex-shrink-0">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-song-a" />
@@ -150,18 +227,24 @@ const ProposeSongPanel = ({ arenaId, onProposed }: ProposeSongPanelProps) => {
           // Search results
           <ScrollArea className="h-full">
             <div className="space-y-2 pr-4">
+              {/* Their own account failed (or was revoked): the host's answered */}
+              {canChooseAccount && searchAccount === "own" && searchedWith === "host" && (
+                <p className="text-xs text-muted-foreground">Searched with the host's Spotify</p>
+              )}
               {results.map((track) => (
                 <SpotifyTrackRow
                   key={track.spotify_track_id}
                   track={track}
                   selected={selectedSongId === track.spotify_track_id}
-                  onSelect={() => setSelectedSongId(track.spotify_track_id)}
+                  onSelect={() => selectTrack(track.spotify_track_id, searchedWith ?? searchAccount)}
                 />
               ))}
             </div>
           </ScrollArea>
         )}
       </div>
+      </>
+      )}
 
       {notice && <p className="flex-shrink-0 text-sm text-center text-song-a">{notice}</p>}
 

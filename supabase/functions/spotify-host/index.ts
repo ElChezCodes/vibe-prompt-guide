@@ -1,7 +1,14 @@
 // Spotify/DB payloads are untyped JSON from outside services
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { CatalogTrack, PlaybackError, PlaybackStatus, SpotifyPlaybackProvider, trackUri } from "./playback.ts";
+import {
+  CatalogTrack,
+  LIKED_SONGS_ID,
+  PlaybackError,
+  PlaybackStatus,
+  SpotifyPlaybackProvider,
+  trackUri,
+} from "./playback.ts";
 
 /**
  * Host Spotify connection (roadmap step 5, supabase/sql/spotify_host_connection_2026-10-27.sql).
@@ -18,7 +25,7 @@ import { CatalogTrack, PlaybackError, PlaybackStatus, SpotifyPlaybackProvider, t
  *
  * Step 6 (supabase/sql/spotify_playback_2026-10-27.sql), through the Playback Provider:
  *   search         -> Spotify catalog search (max 10). In an arena it uses the arena host's
- *                     token, so guests never connect Spotify; otherwise the caller's own
+ *                     token (step 7: or the member's own, see below); otherwise the caller's own
  *   create_arena   -> creates an arena whose warm-up is a Spotify track
  *   propose        -> active proposal of a Spotify track (songs row + the caller's queues insert)
  *   start_arena    -> host: checks Premium + device, creates the private playlist with the
@@ -26,6 +33,14 @@ import { CatalogTrack, PlaybackError, PlaybackStatus, SpotifyPlaybackProvider, t
  *   resume_arena   -> host: plays the playlist again where it stopped and resumes the arena
  *   watch          -> pg_cron every 15 s (no user JWT): onProgress for every running arena;
  *                     pauses/resumes arenas (2 strikes, ~30 s)
+ *
+ * Step 7: a member's own Spotify, in any arena, only to pick songs to propose (never
+ * for affinity/profiling, Developer Policy III.13; nothing of their library is stored):
+ *   propose_sources -> what the caller can use: own connection, library scopes, host or not
+ *   my_playlists    -> Liked Songs + their owned/collaborative playlists
+ *   playlist_tracks -> one page (50) of one of those
+ *   search/propose  -> account "own" (default: the caller's token, falling back to the
+ *                      host's) or "host"
  *
  * Secrets: SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_TOKEN_KEY (base64, 32 bytes),
  * optional SPOTIFY_REDIRECT_URIS (comma-separated allowlist), optional SPOTIFY_WATCH_SECRET.
@@ -38,8 +53,13 @@ const corsHeaders = {
 };
 
 // Minimum needed (Developer Policy I.1.1): devices/state, transfer/play (steps 6/18),
-// the arena's private playlist (step 6). No public playlists, no profile data.
-const SCOPES = ["user-read-playback-state", "user-modify-playback-state", "playlist-modify-private"];
+// the arena's private playlist (step 6), the user's own playlists and Liked Songs to
+// propose from (step 7). No public playlists, no profile data.
+const LIBRARY_SCOPES = ["playlist-read-private", "user-library-read"];
+const SCOPES = ["user-read-playback-state", "user-modify-playback-state", "playlist-modify-private", ...LIBRARY_SCOPES];
+
+// Connections made before step 7 lack these: they keep working, the UI asks to reconnect
+const canReadLibrary = (account: any) => LIBRARY_SCOPES.every((s) => (account?.scopes ?? []).includes(s));
 
 const DEFAULT_REDIRECT_URIS = [
   "http://127.0.0.1:8080/spotify/callback",
@@ -328,6 +348,11 @@ async function callback(userId: string, body: any) {
     throw new HttpError(403, "spotify_user_not_allowed", me.body?.error?.message ?? "Spotify rejected this account");
   }
 
+  // Reconnecting the same Spotify account (e.g. to grant the step-7 scopes) keeps
+  // the chosen device and the Premium check
+  const previous = await loadAccount(userId);
+  const same = previous?.provider_account_id === me.body.id;
+
   const record = {
     host_id: userId,
     provider: "spotify",
@@ -337,11 +362,11 @@ async function callback(userId: string, body: any) {
     refresh_token_enc: await encryptToken(t.refresh_token, userId, "refresh_token"),
     token_expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
     scopes: String(t.scope ?? "").split(" ").filter(Boolean),
-    premium_status: "unverified",
-    premium_checked_at: null,
-    preferred_device_id: null,
-    preferred_device_name: null,
-    connected_at: new Date().toISOString(),
+    premium_status: same ? previous.premium_status : "unverified",
+    premium_checked_at: same ? previous.premium_checked_at : null,
+    preferred_device_id: same ? previous.preferred_device_id : null,
+    preferred_device_name: same ? previous.preferred_device_name : null,
+    connected_at: same ? previous.connected_at : new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
   const { data: saved, error } = await admin
@@ -386,6 +411,7 @@ async function status(userId: string) {
     display_name: account.display_name,
     premium_status: account.premium_status,
     scopes: account.scopes,
+    can_read_library: canReadLibrary(account),
     preferred_device_id: account.preferred_device_id,
     preferred_device_name: account.preferred_device_name,
     preferred_device_available: !!account.preferred_device_id &&
@@ -492,19 +518,108 @@ async function hostProviderForArena(arena: any) {
   return providerFor(account);
 }
 
+// The caller's own connection, or null if they have none / it was revoked
+async function ownAccount(userId: string) {
+  const account = await loadAccount(userId);
+  if (!account) return null;
+  try {
+    return { account, provider: await providerFor(account) };
+  } catch (err) {
+    if (err instanceof HttpError && (err.code === "spotify_revoked" || err.code === "spotify_refresh_failed")) return null;
+    throw err;
+  }
+}
+
+// Arena catalog calls (step 7, user decision 2026-10-27): with account "own" a
+// guest's own token is tried first and any Spotify failure (or no connection)
+// silently falls back to the host's token (step 6); "host" goes straight there.
+// For the host both are the same token.
+async function withArenaCatalog<T>(
+  userId: string,
+  arena: any,
+  account: unknown,
+  fn: (provider: SpotifyPlaybackProvider) => Promise<T>,
+): Promise<{ result: T; account: "own" | "host" }> {
+  if (account !== "host" && arena.host_id !== userId) {
+    const own = await ownAccount(userId);
+    if (own) {
+      try {
+        return { result: await fn(own.provider), account: "own" };
+      } catch (err) {
+        if (!(err instanceof PlaybackError)) throw err;
+        console.warn("[spotify-host] own token failed, using the host's", err.status, err.message);
+      }
+    }
+  }
+  const result = await fn(await hostProviderForArena(arena));
+  return { result, account: arena.host_id === userId ? "own" : "host" };
+}
+
 async function search(userId: string, body: any) {
   const query = String(body?.query ?? "").trim().slice(0, 100);
   if (!query) return { tracks: [] };
 
-  let provider: SpotifyPlaybackProvider;
   if (body?.arena_id) {
-    provider = await hostProviderForArena(await arenaForMember(userId, String(body.arena_id)));
-  } else {
-    const account = await loadAccount(userId);
-    if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify first");
-    provider = await providerFor(account);
+    const arena = await arenaForMember(userId, String(body.arena_id));
+    const { result, account } = await withArenaCatalog(userId, arena, body?.account, (p) => p.search(query));
+    return { tracks: result, account };
   }
-  return { tracks: await provider.search(query) };
+  const account = await loadAccount(userId);
+  if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify first");
+  return { tracks: await (await providerFor(account)).search(query), account: "own" };
+}
+
+// A member of an arena that still takes proposals (same states as queues RLS)
+async function arenaForProposing(userId: string, arenaId: string) {
+  const arena = await arenaForMember(userId, arenaId);
+  if (arena.state !== "waiting" && arena.state !== "active") throw new HttpError(409, "arena_closed");
+  return arena;
+}
+
+async function proposeSources(userId: string, body: any) {
+  const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
+  const account = await loadAccount(userId);
+  return {
+    is_host: arena.host_id === userId,
+    own_connected: !!account,
+    can_read_library: canReadLibrary(account),
+  };
+}
+
+// The caller's library only (their own token, never the host's); fetched live,
+// shown back to them only and never stored (Developer Terms IV.3, V.4)
+async function libraryProvider(userId: string) {
+  const own = await ownAccount(userId);
+  if (!own) throw new HttpError(409, "spotify_not_connected", "Connect your Spotify to use your playlists");
+  if (!canReadLibrary(own.account)) {
+    throw new HttpError(409, "needs_reconnect", "Reconnect Spotify to use your playlists");
+  }
+  return own;
+}
+
+async function myPlaylists(userId: string, body: any) {
+  await arenaForProposing(userId, String(body?.arena_id ?? ""));
+  const { account, provider } = await libraryProvider(userId);
+  return { playlists: await provider.listPlaylists(account.provider_account_id) };
+}
+
+async function playlistTracks(userId: string, body: any) {
+  await arenaForProposing(userId, String(body?.arena_id ?? ""));
+  const playlistId = String(body?.playlist_id ?? "");
+  if (playlistId !== LIKED_SONGS_ID && !/^[A-Za-z0-9]{10,40}$/.test(playlistId)) {
+    throw new HttpError(400, "invalid_playlist");
+  }
+  const offset = Math.max(0, Math.min(100_000, Math.floor(Number(body?.offset) || 0)));
+  const { provider } = await libraryProvider(userId);
+  try {
+    return await provider.playlistTracks(playlistId, offset);
+  } catch (err) {
+    // Only owned/collaborative playlists can be opened (Feb 2026)
+    if (err instanceof PlaybackError && (err.status === 403 || err.status === 404)) {
+      throw new HttpError(403, "playlist_not_readable", "Spotify doesn't let Music Fighter open this playlist");
+    }
+    throw err;
+  }
 }
 
 async function getTrackOrFail(provider: SpotifyPlaybackProvider, trackId: unknown): Promise<CatalogTrack> {
@@ -531,7 +646,17 @@ async function createArena(userId: string, body: any) {
 
 async function propose(userId: string, jwt: string, body: any) {
   const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
-  const track = await getTrackOrFail(await hostProviderForArena(arena), body?.track_id);
+  // Re-read from Spotify with the same account the caller picked it with
+  const { result: track } = await withArenaCatalog(userId, arena, body?.account, async (p) => {
+    const t = await p.getTrack(String(body?.track_id ?? ""));
+    if (!t) throw new PlaybackError(404, null, "track not found with this account");
+    return t;
+  }).catch((err) => {
+    if (err instanceof PlaybackError && err.status === 404) {
+      throw new HttpError(404, "track_not_found", "That Spotify track isn't available");
+    }
+    throw err;
+  });
 
   const { data: songId, error: songError } = await admin.rpc("upsert_spotify_song", {
     p_arena_id: arena.id,
@@ -890,6 +1015,12 @@ Deno.serve(async (req) => {
         return json(await createArena(userId, body));
       case "propose":
         return json(await propose(userId, jwt, body));
+      case "propose_sources":
+        return json(await proposeSources(userId, body));
+      case "my_playlists":
+        return json(await myPlaylists(userId, body));
+      case "playlist_tracks":
+        return json(await playlistTracks(userId, body));
       case "start_arena":
         return json(await startArena(userId, jwt, body));
       case "resume_arena":

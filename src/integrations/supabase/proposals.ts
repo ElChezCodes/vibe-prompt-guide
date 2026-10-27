@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { proposeSpotifyTrack, searchSpotifyTracks, SpotifyTrack } from '@/integrations/supabase/spotify';
+import { CatalogAccount, proposeSpotifyTrack, searchArenaTracks, SpotifyTrack } from '@/integrations/supabase/spotify';
 
 // Active proposals (tier 1). Shared by the Battle Room modal and the Proponer
 // screen so both read/write the same backend state.
@@ -15,16 +15,24 @@ export interface MyProposal {
 
 export type ProposeResult = 'proposed' | 'already_queued';
 
-// Spotify search with the arena host's token (no guest Spotify), see
-// searchSpotifyTracks; the proposal itself goes through spotify-host so the
+// Spotify search with the member's own account or the host's (step 7, see
+// searchArenaTracks); the proposal itself goes through spotify-host so the
 // track's metadata comes from Spotify, and the queues insert still runs as
-// the caller (RLS, proposed_by stamp, presence).
-export async function searchSongs(arenaId: string, query: string): Promise<SpotifyTrack[]> {
-  return searchSpotifyTracks(query, arenaId);
+// the caller (RLS, proposed_by stamp, presence), whatever the song's source.
+export async function searchSongs(
+  arenaId: string,
+  query: string,
+  account: CatalogAccount,
+): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount }> {
+  return searchArenaTracks(arenaId, query, account);
 }
 
-export async function proposeSong(arenaId: string, spotifyTrackId: string): Promise<ProposeResult> {
-  return proposeSpotifyTrack(arenaId, spotifyTrackId);
+export async function proposeSong(
+  arenaId: string,
+  spotifyTrackId: string,
+  account: CatalogAccount = 'own',
+): Promise<ProposeResult> {
+  return proposeSpotifyTrack(arenaId, spotifyTrackId, account);
 }
 
 // Still-queued proposals only: pull_next_battle_songs deletes a queue row
