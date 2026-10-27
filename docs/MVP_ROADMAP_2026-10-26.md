@@ -386,6 +386,14 @@ additions (#1, #4 above), each marked where it lands.
    → pause the arena (PRD §17), and Start requires a connected Premium host
    with an available device. Disconnecting must also clear any per-arena
    Spotify data added here (playlist ids).
+   **Also in this step (user decision 2026-10-27): Spotify search for song
+   proposals.** Today `search_songs` only searches the curated library; every
+   proposed song must become a real Spotify track, like the warm-up. Guests
+   don't connect Spotify, so the search runs server-side (Edge Function) with
+   the arena host's token — same piece as the warm-up search; max 10 results
+   per query (Feb 2026); results shown with artwork, Spotify logo and link
+   back (Design Guidelines). Before building it, check the Developer Policy
+   on using the host's token to serve searches to their guests.
 7. **TO BE REDEFINED (2026-10-27)** — was "Participant Spotify OAuth".
    Participants no longer connect Spotify; what replaces it (if anything) is
    decided with the user before this step.
