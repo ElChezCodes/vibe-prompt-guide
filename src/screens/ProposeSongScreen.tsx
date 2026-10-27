@@ -33,15 +33,17 @@ const ProposeSongScreen = () => {
   return (
     <div className="h-[calc(100dvh-4rem)] w-full flex flex-col gap-4 px-6 py-8 max-w-md mx-auto">
       <div className="flex-shrink-0">
-        <h1 className="text-2xl font-bold text-foreground">Propose a Song</h1>
-        <p className="text-sm text-muted-foreground">{arena.name}</p>
+        <h1 className="neon-heading text-2xl">Propose a Song</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          for <span className="text-song-a font-medium">{arena.name}</span>
+        </p>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 neon-panel rounded-2xl p-4">
         <ProposeSongPanel arenaId={arena.id} />
       </div>
 
-      <Button variant="outline" className="flex-shrink-0" onClick={() => navigate(arenaPath(code, "battle"))}>
+      <Button variant="neon" className="flex-shrink-0 h-11" onClick={() => navigate(arenaPath(code, "battle"))}>
         Back to the battle
       </Button>
     </div>
