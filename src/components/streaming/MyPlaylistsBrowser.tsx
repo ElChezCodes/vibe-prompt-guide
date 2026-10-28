@@ -10,7 +10,7 @@ import {
   SpotifyTrack,
   startSpotifyConnect,
 } from "@/integrations/supabase/spotify";
-import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
+import SpotifyTrackRow, { SpotifyIcon, SPOTIFY_LINK_CLASS } from "@/components/streaming/SpotifyTrackRow";
 
 interface Props {
   arenaId: string;
