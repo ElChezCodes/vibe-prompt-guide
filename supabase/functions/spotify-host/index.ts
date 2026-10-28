@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   CatalogTrack,
+  LIBRARY_PAGE,
   LIKED_SONGS_ID,
   PlaybackError,
   PlaybackStatus,
@@ -28,6 +29,8 @@ import {
  *                     token (step 7: or the member's own, see below); otherwise the caller's own
  *   create_arena   -> creates an arena whose warm-up is a Spotify track
  *   propose        -> active proposal of a Spotify track (songs row + the caller's queues insert);
+ *                     step 12b: create_arena takes fallback_source ('liked' | own playlist id);
+ *                     start_arena and watch keep the arena's fallback reserve (refillReserve)
  *                     step 12: result may be a queue-rule refusal (QUEUE_RULE_CODES)
  *   start_arena    -> host: checks Premium + device, creates the private playlist with the
  *                     warm-up first, plays it on the device, then start_arena_battles
@@ -606,7 +609,8 @@ async function libraryProvider(userId: string) {
 }
 
 async function myPlaylists(userId: string, body: any) {
-  await arenaForProposing(userId, String(body?.arena_id ?? ""));
+  // No arena: the host choosing their fallback source in Create Arena
+  if (body?.arena_id) await arenaForProposing(userId, String(body.arena_id));
   const { account, provider } = await libraryProvider(userId);
   return { playlists: await provider.listPlaylists(account.provider_account_id) };
 }
@@ -649,7 +653,73 @@ async function createArena(userId: string, body: any) {
     p_track: track,
   });
   if (error) throw new HttpError(400, "create_failed", error.message);
+
+  // Step 12b: where the host's fallback songs come from (Liked Songs by default)
+  const source = String(body?.fallback_source ?? LIKED_SONGS_ID);
+  if (source !== LIKED_SONGS_ID && /^[A-Za-z0-9]{10,40}$/.test(source)) {
+    await admin.from("arenas").update({ fallback_source: source }).eq("id", data);
+  }
   return { arena_id: data };
+}
+
+// Step 12b (supabase/sql/host_fallback_songs_2026-10-27.sql): keeps the
+// arena's reserve of system songs the SQL battle chain falls back on: the
+// host's source (Liked Songs or their chosen playlist) and catalog search by
+// the arena's artists, both with the host's token. Only what's missing is
+// fetched; failures just leave the reserve as it is (the arena waits).
+const ARTIST_SEARCH_TRIES = 2;
+
+async function refillReserve(arena: { id: string; host_id: string }) {
+  const { data: needs, error } = await admin.rpc("reserve_needs", { p_arena_id: arena.id });
+  if (error || !needs || (needs.host_library <= 0 && needs.arena_artist <= 0)) return;
+
+  const own = await ownAccount(arena.host_id);
+  if (!own) return;
+  const { account, provider } = own;
+
+  if (needs.host_library > 0 && canReadLibrary(account)) {
+    try {
+      const first = await provider.playlistTracks(needs.source, 0);
+      // A random page of the source, then shuffled
+      const pages = Math.ceil(first.total / LIBRARY_PAGE);
+      const page = pages > 1 ? await provider.playlistTracks(needs.source, Math.floor(Math.random() * pages) * LIBRARY_PAGE) : first;
+      await admin.rpc("add_reserve_songs", {
+        p_arena_id: arena.id,
+        p_source: "host_library",
+        p_tracks: shuffle(page.tracks),
+        p_limit: needs.host_library,
+      });
+    } catch (err) {
+      console.error("[spotify-host] reserve host_library", arena.id, err);
+    }
+  }
+
+  const artists: string[] = shuffle(needs.artists ?? []);
+  let missing = needs.arena_artist;
+  for (const artist of artists.slice(0, ARTIST_SEARCH_TRIES)) {
+    if (missing <= 0) break;
+    try {
+      const tracks = await provider.search(`artist:"${artist.replace(/"/g, "")}"`);
+      const { data: added } = await admin.rpc("add_reserve_songs", {
+        p_arena_id: arena.id,
+        p_source: "arena_artist",
+        p_tracks: shuffle(tracks),
+        p_limit: missing,
+      });
+      missing -= added ?? 0;
+    } catch (err) {
+      console.error("[spotify-host] reserve arena_artist", arena.id, err);
+    }
+  }
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 // Refusals raised by validate_queue_proposal (supabase/sql/queue_rules_2026-10-27.sql)
@@ -841,6 +911,9 @@ async function startArena(userId: string, jwt: string, body: any) {
   }
   await setPremium(account.id, "premium");
   if (pick.adopted) await adoptDevice(account, pick.device);
+
+  // Battle 1 may need fallback songs (nothing proposed yet)
+  await refillReserve(arena);
 
   let battleId: string;
   try {
@@ -1064,6 +1137,7 @@ async function watch(req: Request) {
       // Transient Spotify/network errors: next tick tries again
       console.error("[spotify-host] watch", row.arena_id, err);
     }
+    await refillReserve(row.arenas).catch((err) => console.error("[spotify-host] reserve", row.arena_id, err));
   }
   return { checked };
 }

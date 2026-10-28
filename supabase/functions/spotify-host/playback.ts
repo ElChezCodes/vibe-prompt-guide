@@ -34,6 +34,7 @@ export interface LibraryPlaylist {
 export interface LibraryPage {
   tracks: CatalogTrack[];
   next_offset: number | null;
+  total: number;
 }
 
 export interface PlaybackDevice {
@@ -86,7 +87,7 @@ export class PlaybackError extends Error {
 }
 
 const API = "https://api.spotify.com/v1";
-const LIBRARY_PAGE = 50;
+export const LIBRARY_PAGE = 50;
 // /me/playlists pages read per listing (50 each)
 const MAX_PLAYLIST_PAGES = 4;
 export const LIKED_SONGS_ID = "liked";
@@ -262,6 +263,6 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       // Local files, episodes and removed tracks can't be proposed
       .filter((t: any) => t?.id && (t.type ?? "track") === "track" && !t.is_local)
       .map(toCatalogTrack);
-    return { tracks, next_offset: body?.next ? offset + LIBRARY_PAGE : null };
+    return { tracks, next_offset: body?.next ? offset + LIBRARY_PAGE : null, total: body?.total ?? 0 };
   }
 }

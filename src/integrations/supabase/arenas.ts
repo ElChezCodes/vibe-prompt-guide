@@ -199,8 +199,13 @@ export async function leaveArena(arenaId: string): Promise<void> {
 
 // Host is the caller; the warm-up is a Spotify track the Edge Function
 // re-reads from Spotify (createSpotifyArena), so Spotify must be connected
-export async function createArena(name: string, mood: ArenaMood, warmupTrackId: string): Promise<Arena> {
-  const arenaId = await createSpotifyArena(name, mood, warmupTrackId);
+export async function createArena(
+  name: string,
+  mood: ArenaMood,
+  warmupTrackId: string,
+  fallbackSource?: string,
+): Promise<Arena> {
+  const arenaId = await createSpotifyArena(name, mood, warmupTrackId, fallbackSource);
   return getArena(arenaId);
 }
 

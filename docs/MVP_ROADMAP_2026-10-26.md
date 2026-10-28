@@ -543,6 +543,16 @@ additions (#1, #4 above), each marked where it lands.
     "Your proposals" = queue state/place + history + withdraw. Spec as
     written: 10 + 50, "full" notice, purge after 20 battles waiting, no song
     within 60 min of sounding (winners, draw A+B, warm-up).
+    **12b, same day (user decisions):** curated library retired from Music
+    Fighter (test data only). After the revancha the chain continues with the
+    host's backup music chosen at creation (Liked Songs or one of their own
+    playlists), then catalog search by the arena's artists / the warm-up's
+    artist (host token), then purged/withdrawn proposals; if still nothing the
+    arena waits ("Waiting for songs") and the next battle is created as soon
+    as a pair exists. Spotify radio/autoplay rejected: no API to start it,
+    recommendations and Spotify's algorithmic playlists closed to new apps,
+    and autoplay plays outside the arena playlist (`off_playlist`). Low-queue
+    notice at < 4 human proposals.
 13. **TO BE REDEFINED (2026-10-27)** — sources change: own-data affinity
     instead of Spotify, and no venue history (private gatherings). Candidate
     source proposed by the user 2026-10-27 (step-12 chat): fill empty slots
@@ -551,8 +561,9 @@ additions (#1, #4 above), each marked where it lands.
     library owner's explicit consent (step-7 decision: a guest's library is
     otherwise only for their own proposals), matching computed from MF's own
     data (step 8), not Spotify metadata (III.13/III.14; no audio features),
-    and pre-fetched by `spotify-host` (the battle cycle is SQL). Replaces the
-    curated-library fallback of `pull_next_battle_songs`. Original:
+    and pre-fetched by `spotify-host` (the battle cycle is SQL). The host's
+    part of this (their chosen Liked Songs/playlist, no matching) was built in
+    step 12b; what remains here is matching and guests' libraries. Original:
     **Passive/system auto-proposal generation** — sourced from aggregate
     passive-user affinity + `mood` + venue history, always lower priority than
     human proposals. Depends on #1, #8, and a venue-history concept that

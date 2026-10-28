@@ -165,7 +165,8 @@ export interface SpotifyPlaylist {
   spotify_url: string;
 }
 
-export async function getMyPlaylists(arenaId: string): Promise<SpotifyPlaylist[]> {
+// arenaId omitted: the host's own library outside an arena (Create Arena)
+export async function getMyPlaylists(arenaId?: string): Promise<SpotifyPlaylist[]> {
   const { playlists } = await callSpotifyHost<{ playlists: SpotifyPlaylist[] }>({
     action: 'my_playlists',
     arena_id: arenaId,
@@ -182,12 +183,20 @@ export const getPlaylistTracks = (arenaId: string, playlistId: string, offset: n
   });
 
 // The function re-reads the track from Spotify: the client only sends its id
-export async function createSpotifyArena(name: string, mood: string, trackId: string): Promise<string> {
+// fallbackSource (step 12b): 'liked' or one of the host's own playlist ids,
+// where songs come from when nothing else fills a battle
+export async function createSpotifyArena(
+  name: string,
+  mood: string,
+  trackId: string,
+  fallbackSource: string = 'liked',
+): Promise<string> {
   const { arena_id } = await callSpotifyHost<{ arena_id: string }>({
     action: 'create_arena',
     name,
     mood,
     track_id: trackId,
+    fallback_source: fallbackSource,
   });
   return arena_id;
 }

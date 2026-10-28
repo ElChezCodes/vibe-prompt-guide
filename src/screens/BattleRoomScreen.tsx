@@ -18,6 +18,8 @@ import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaPath } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
 import PresenceChip from "@/components/arena/PresenceChip";
+import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
+import { LOW_QUEUE_THRESHOLD } from "@/integrations/supabase/proposals";
 
 // "ended": the arena was already finished when opened (no joining possible)
 type ScreenState = "loading" | "error" | "ready" | "ended";
@@ -161,6 +163,8 @@ const BattleRoomScreen = () => {
 
   // Arena pause is decided server-side (Spotify watcher); display only
   const playback = useArenaPlayback(arenaId, arena?.state === "active");
+  // Step 12b: no pair for the next battle yet / few human proposals left
+  const queueSummary = useArenaQueueSummary(arenaId, arena?.state === "active");
   const isPaused = !!playback?.paused_at;
   const [resumeError, setResumeError] = useState("");
   const handleResume = async () => {
@@ -458,6 +462,26 @@ const BattleRoomScreen = () => {
           </div>
         </div>
       )}
+
+      {/* No pair for the next battle: the backend creates it as soon as songs arrive */}
+      {arena?.state === "active" && !isPaused && queueSummary?.waiting_for_songs && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+          <div className="mx-6 px-6 py-5 rounded-2xl neon-panel text-center animate-fade-in">
+            <p className="neon-label mb-2">Waiting for songs</p>
+            <p className="text-sm text-text-secondary">Propose a song and the next battle starts</p>
+          </div>
+        </div>
+      )}
+
+      {arena?.state === "active" &&
+        !isPaused &&
+        queueSummary &&
+        !queueSummary.waiting_for_songs &&
+        queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
+          <div className="absolute inset-x-0 top-20 z-[55] flex justify-center px-4 pointer-events-none">
+            <p className="hud-chip px-3 py-1 rounded-full text-xs text-song-b">The queue is running low: propose a song!</p>
+          </div>
+        )}
 
       {/* Arena paused (Spotify device/playback): battle clock frozen, votes closed */}
       {isPaused && (

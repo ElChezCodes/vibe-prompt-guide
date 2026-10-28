@@ -3,8 +3,10 @@ import { Search, Music, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import {
   getMyProposals,
+  LOW_QUEUE_THRESHOLD,
   MyProposal,
   ProposalStatus,
   proposeSong,
@@ -86,6 +88,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
 
+  const queueSummary = useArenaQueueSummary(arenaId);
   const showResults = tab === "search" && searchQuery.length > 0;
   // The host's own account is the host's: nothing to choose
   const canChooseAccount = !!sources?.own_connected && !sources.is_host;
@@ -187,6 +190,11 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
 
   return (
     <div className="h-full flex flex-col gap-4">
+      {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
+        <p className="flex-shrink-0 text-xs text-center text-song-b">
+          The queue is running low: propose a song!
+        </p>
+      )}
       {/* Sources: their own playlists only with their own Spotify connected */}
       {sources?.own_connected && (
         <div className="flex-shrink-0 grid grid-cols-2 gap-2">

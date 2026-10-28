@@ -18,6 +18,7 @@ import EndArenaButton from "@/components/arena/EndArenaButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
+import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import {
   getMyStreamingConnection,
   PAUSE_REASON_LABELS,
@@ -53,6 +54,8 @@ const ArenaLobbyScreen = () => {
   const isOpen = arena?.state === "waiting" || arena?.state === "active";
   // Backend-computed presence counts (display only)
   const presence = useArenaPresence(arenaId, isHost && isOpen);
+  // Songs proposed so far (step 12b); backup music covers the rest
+  const queueSummary = useArenaQueueSummary(arenaId, isHost && isOpen);
   // Spotify playback / arena pause (decided server-side)
   const playback = useArenaPlayback(arenaId, isHost && arena?.state === "active");
 
@@ -179,6 +182,12 @@ const ArenaLobbyScreen = () => {
         {!isClosed && presence && (
           <p className="text-sm text-muted-foreground tabular-nums">
             {presence.active_count} active · {presence.passive_count} passive · {presence.inactive_count} inactive
+          </p>
+        )}
+        {!isClosed && queueSummary && (
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {queueSummary.human_queued} {queueSummary.human_queued === 1 ? "song" : "songs"} proposed
+            {queueSummary.human_queued < 2 && " · backup music fills the rest"}
           </p>
         )}
 

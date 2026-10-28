@@ -69,6 +69,25 @@ export async function getMyProposals(arenaId: string): Promise<MyProposal[]> {
   return (data ?? []) as MyProposal[];
 }
 
+// Step 12b: fewer than this many human proposals queued -> "propose a song"
+export const LOW_QUEUE_THRESHOLD = 4;
+
+export interface ArenaQueueSummary {
+  human_queued: number;
+  waiting_for_songs: boolean; // active arena without an open battle: no pair yet
+}
+
+export async function getArenaQueueSummary(arenaId: string): Promise<ArenaQueueSummary | null> {
+  const { data, error } = await supabase.rpc('get_arena_queue_summary', { p_arena_id: arenaId });
+
+  if (error) {
+    console.error('Failed to load queue summary:', error.message, error);
+    throw error;
+  }
+
+  return ((data ?? [])[0] ?? null) as ArenaQueueSummary | null;
+}
+
 // Only the proposer, only while it is still queued
 export async function withdrawProposal(queueId: string): Promise<void> {
   const { error } = await supabase.rpc('withdraw_proposal', { p_queue_id: queueId });

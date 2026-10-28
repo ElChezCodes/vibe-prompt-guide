@@ -6,8 +6,11 @@ import BackButton from "@/components/nav/BackButton";
 import { arenaPath } from "@/lib/arenaRoutes";
 import { createArena, ARENA_MOODS, ArenaMood } from "@/integrations/supabase/arenas";
 import {
+  getMyPlaylists,
   getMyStreamingConnection,
   searchSpotifyTracks,
+  SpotifyHostError,
+  SpotifyPlaylist,
   SpotifyTrack,
   startSpotifyConnect,
   StreamingConnectionSummary,
@@ -33,6 +36,10 @@ const CreateArenaScreen = () => {
   const [spotify, setSpotify] = useState<StreamingConnectionSummary | null>(null);
   const [spotifyLoaded, setSpotifyLoaded] = useState(false);
   const [spotifyError, setSpotifyError] = useState("");
+  // Step 12b: where backup songs come from when nobody has proposed enough
+  const [fallbackSource, setFallbackSource] = useState("liked");
+  const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   useEffect(() => {
     getMyStreamingConnection()
@@ -40,6 +47,17 @@ const CreateArenaScreen = () => {
       .catch(() => setSpotify(null))
       .finally(() => setSpotifyLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (!spotify) return;
+    getMyPlaylists()
+      .then(setPlaylists)
+      .catch((err) => {
+        setPlaylists([]);
+        // Connection from before step 7: no library scopes
+        setNeedsReconnect(err instanceof SpotifyHostError && err.code === "needs_reconnect");
+      });
+  }, [spotify]);
 
   const handleConnectSpotify = () => {
     setSpotifyError("");
@@ -80,7 +98,7 @@ const CreateArenaScreen = () => {
     setIsCreating(true);
     try {
       setCreateError("");
-      const result = await createArena(arenaName, mood, warmup.spotify_track_id);
+      const result = await createArena(arenaName, mood, warmup.spotify_track_id, fallbackSource);
       console.log('Arena created:', result);
       // replace: browser back must not land on the filled form (duplicate arena)
       navigate(arenaPath(result.arena_code, "lobby"), { replace: true });
@@ -212,6 +230,37 @@ const CreateArenaScreen = () => {
                 <p className="text-sm text-muted-foreground text-center py-4">No songs found</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Backup music (step 12b): only the host's own library */}
+        {spotify && (
+          <div className="w-full neon-panel rounded-2xl p-4 animate-fade-in-up">
+            <p className="neon-label mb-1">4 · Backup music</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              When nobody has proposed enough songs, battles take songs from here and from the artists already playing
+            </p>
+            {needsReconnect ? (
+              <p className="text-xs text-muted-foreground">
+                Reconnect Spotify in Profile to choose a playlist; your Liked Songs will be tried
+              </p>
+            ) : (
+              <select
+                value={fallbackSource}
+                onChange={(e) => setFallbackSource(e.target.value)}
+                disabled={isCreating}
+                className="w-full h-10 px-3 rounded-md bg-secondary/80 border border-border text-sm text-foreground"
+              >
+                {(playlists.length ? playlists : [{ id: "liked", name: "Liked Songs", total: 0 } as SpotifyPlaylist]).map(
+                  (p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.total ? ` (${p.total})` : ""}
+                    </option>
+                  ),
+                )}
+              </select>
+            )}
           </div>
         )}
 
