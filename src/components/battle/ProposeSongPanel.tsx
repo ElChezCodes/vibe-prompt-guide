@@ -47,6 +47,8 @@ const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
       return "You already have 5 songs in the queue: wait until one fights";
     case "queue_full":
       return "The fighters list is full… please wait a few minutes";
+    case "not_available":
+      return "That song isn't available in the host's country, so Spotify can't play it";
   }
 };
 

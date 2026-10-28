@@ -231,6 +231,7 @@ const CreateArenaScreen = () => {
                   selected={warmup?.spotify_track_id === track.spotify_track_id}
                   onSelect={() => setWarmup(track)}
                   disabled={isCreating}
+                  unavailableLabel="Not available in your Spotify country"
                 />
               ))}
               {warmupError && (

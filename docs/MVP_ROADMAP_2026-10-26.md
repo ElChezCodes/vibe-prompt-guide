@@ -599,6 +599,14 @@ additions (#1, #4 above), each marked where it lands.
     playlist keep the step-6 pause; arena end lets the playlist play out.
     Matchmaking (#17) is not needed for this; #13 system songs enter through
     the same queue/`pull_next_battle_songs` path and stay compatible.
+    In-app test 2026-10-28: winners appended < 1 s, Sudden Death + draws
+    (A then B) and manual control OK. Found: a winner greyed out in the
+    host's country made MF put it back in a loop. User decisions 2026-10-28:
+    it counts as skipped (battle shortened by its length, last song = lock-in
+    now, no pause/prompt) and songs are checked against the host's Spotify
+    country when proposing (new `user-read-private` scope, soft re-consent):
+    `supabase/sql/unplayable_tracks_2026-10-28.sql`. Still to test: a late
+    battle over Autoplay, the unplayable skip.
 19. (Stage View is the party's shared screen, not a venue display, since
     2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song

@@ -22,6 +22,8 @@ export interface SpotifyStatus {
   can_read_library?: boolean;
   // user-library-modify granted: MF likes are saved to their Liked Songs
   can_save_likes?: boolean;
+  // user-read-private granted (2026-10-28): songs are checked against their country
+  can_check_market?: boolean;
   preferred_device_id?: string | null;
   preferred_device_name?: string | null;
   preferred_device_available?: boolean;
@@ -120,6 +122,9 @@ export interface SpotifyTrack {
   duration_ms: number;
   artwork_url: string | null;
   spotify_url: string;
+  // Checked against the host's Spotify country (where it will play): false =
+  // greyed out there, can't be proposed; null = not checked (old connection)
+  is_playable?: boolean | null;
 }
 
 // Without an arena (Create Arena): the caller's own token
@@ -212,7 +217,9 @@ export type ProposeResult =
   | 'is_warmup'
   | 'recently_played'
   | 'proposer_queue_full'
-  | 'queue_full';
+  | 'queue_full'
+  // Not playable in the host's Spotify country (2026-10-28)
+  | 'not_available';
 
 export interface ProposeOutcome {
   result: ProposeResult;
@@ -274,6 +281,10 @@ export interface ArenaPlayback {
   control_mode: ControlMode | null;
   // Host only: MF put the expected song back after a change in Spotify
   manual_change_at: string | null;
+  // A song skipped in the last 2 min because Spotify can't play it in the
+  // host's country (2026-10-28)
+  unplayable_title: string | null;
+  unplayable_artist: string | null;
 }
 
 // 'auto' = MF puts the arena's song back after changes in Spotify;

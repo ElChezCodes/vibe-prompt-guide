@@ -74,15 +74,22 @@ const corsHeaders = {
 
 // Minimum needed (Developer Policy I.1.1): devices/state, transfer/play (steps 6/18),
 // the arena's private playlist (step 6), the user's own playlists and Liked Songs to
-// propose from (step 7). No public playlists, no profile data.
+// propose from (step 7). No public playlists; of the profile only the country.
 const LIBRARY_SCOPES = ["playlist-read-private", "user-library-read"];
 // Likes (2026-10-27): a like in MF is also saved to the liker's own Liked Songs
 const LIKES_SCOPE = "user-library-modify";
-const SCOPES = ["user-read-playback-state", "user-modify-playback-state", "playlist-modify-private", ...LIBRARY_SCOPES, LIKES_SCOPE];
+// 2026-10-28: the account's country (GET /me), passed as `market` so songs that
+// can't play in the host's country are marked/refused (supabase/sql/unplayable_tracks_2026-10-28.sql)
+const MARKET_SCOPE = "user-read-private";
+const SCOPES = [
+  "user-read-playback-state", "user-modify-playback-state", "playlist-modify-private",
+  ...LIBRARY_SCOPES, LIKES_SCOPE, MARKET_SCOPE,
+];
 
 // Connections made before step 7 lack these: they keep working, the UI asks to reconnect
 const canReadLibrary = (account: any) => LIBRARY_SCOPES.every((s) => (account?.scopes ?? []).includes(s));
 const canSaveLikes = (account: any) => (account?.scopes ?? []).includes(LIKES_SCOPE);
+const canCheckMarket = (account: any) => (account?.scopes ?? []).includes(MARKET_SCOPE) && !!account?.country;
 
 const DEFAULT_REDIRECT_URIS = [
   "http://127.0.0.1:8080/spotify/callback",
@@ -389,6 +396,8 @@ async function callback(userId: string, body: any) {
     provider: "spotify",
     provider_account_id: me.body.id,
     display_name: me.body.display_name ?? me.body.id,
+    // Only sent with user-read-private; null = songs aren't checked for the country
+    country: typeof me.body.country === "string" ? me.body.country : null,
     access_token_enc: await encryptToken(t.access_token, userId, "access_token"),
     refresh_token_enc: await encryptToken(t.refresh_token, userId, "refresh_token"),
     token_expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
@@ -444,6 +453,7 @@ async function status(userId: string) {
     scopes: account.scopes,
     can_read_library: canReadLibrary(account),
     can_save_likes: canSaveLikes(account),
+    can_check_market: canCheckMarket(account),
     preferred_device_id: account.preferred_device_id,
     preferred_device_name: account.preferred_device_name,
     preferred_device_available: !!account.preferred_device_id &&
@@ -487,8 +497,10 @@ async function disconnect(userId: string) {
 
 // ---------- step 6: arenas on Spotify ----------
 
-async function providerFor(account: any) {
-  return new SpotifyPlaybackProvider(await getAccessToken(account));
+// market: the country the music will play in; by default the account's own
+// (in an arena: the host's, see withArenaCatalog)
+async function providerFor(account: any, market: string | null = account?.country ?? null) {
+  return new SpotifyPlaybackProvider(await getAccessToken(account), market);
 }
 
 // The device to play on: the one the host is already playing on (they moved
@@ -544,6 +556,11 @@ async function arenaForMember(userId: string, arenaId: string) {
   return arena;
 }
 
+async function hostMarket(arena: any): Promise<string | null> {
+  const account = arena.host_id ? await loadAccount(arena.host_id) : null;
+  return account?.country ?? null;
+}
+
 async function hostProviderForArena(arena: any) {
   const account = arena.host_id ? await loadAccount(arena.host_id) : null;
   if (!account) throw new HttpError(409, "host_spotify_unavailable", "The host's Spotify isn't connected");
@@ -551,11 +568,11 @@ async function hostProviderForArena(arena: any) {
 }
 
 // The caller's own connection, or null if they have none / it was revoked
-async function ownAccount(userId: string) {
+async function ownAccount(userId: string, market?: string | null) {
   const account = await loadAccount(userId);
   if (!account) return null;
   try {
-    return { account, provider: await providerFor(account) };
+    return { account, provider: await providerFor(account, market === undefined ? account.country ?? null : market) };
   } catch (err) {
     if (err instanceof HttpError && (err.code === "spotify_revoked" || err.code === "spotify_refresh_failed")) return null;
     throw err;
@@ -565,7 +582,8 @@ async function ownAccount(userId: string) {
 // Arena catalog calls (step 7, user decision 2026-10-27): with account "own" a
 // guest's own token is tried first and any Spotify failure (or no connection)
 // silently falls back to the host's token (step 6); "host" goes straight there.
-// For the host both are the same token.
+// For the host both are the same token. Either way songs are checked against
+// the host's country: that is where they will play.
 async function withArenaCatalog<T>(
   userId: string,
   arena: any,
@@ -573,7 +591,7 @@ async function withArenaCatalog<T>(
   fn: (provider: SpotifyPlaybackProvider) => Promise<T>,
 ): Promise<{ result: T; account: "own" | "host" }> {
   if (account !== "host" && arena.host_id !== userId) {
-    const own = await ownAccount(userId);
+    const own = await ownAccount(userId, await hostMarket(arena));
     if (own) {
       try {
         return { result: await fn(own.provider), account: "own" };
@@ -620,8 +638,8 @@ async function proposeSources(userId: string, body: any) {
 
 // The caller's library only (their own token, never the host's); fetched live,
 // shown back to them only and never stored (Developer Terms IV.3, V.4)
-async function libraryProvider(userId: string) {
-  const own = await ownAccount(userId);
+async function libraryProvider(userId: string, market?: string | null) {
+  const own = await ownAccount(userId, market);
   if (!own) throw new HttpError(409, "spotify_not_connected", "Connect your Spotify to use your playlists");
   if (!canReadLibrary(own.account)) {
     throw new HttpError(409, "needs_reconnect", "Reconnect Spotify to use your playlists");
@@ -637,13 +655,13 @@ async function myPlaylists(userId: string, body: any) {
 }
 
 async function playlistTracks(userId: string, body: any) {
-  await arenaForProposing(userId, String(body?.arena_id ?? ""));
+  const arena = await arenaForProposing(userId, String(body?.arena_id ?? ""));
   const playlistId = String(body?.playlist_id ?? "");
   if (playlistId !== LIKED_SONGS_ID && !/^[A-Za-z0-9]{10,40}$/.test(playlistId)) {
     throw new HttpError(400, "invalid_playlist");
   }
   const offset = Math.max(0, Math.min(100_000, Math.floor(Number(body?.offset) || 0)));
-  const { provider } = await libraryProvider(userId);
+  const { provider } = await libraryProvider(userId, await hostMarket(arena));
   try {
     return await provider.playlistTracks(playlistId, offset);
   } catch (err) {
@@ -665,6 +683,9 @@ async function createArena(userId: string, body: any) {
   const account = await loadAccount(userId);
   if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify before creating an arena");
   const track = await getTrackOrFail(await providerFor(account), body?.track_id);
+  if (track.is_playable === false) {
+    throw new HttpError(409, "not_available", "That song isn't available in your Spotify country");
+  }
 
   const name = String(body?.name ?? "").trim().slice(0, 80) || "Test Arena";
   const { data, error } = await admin.rpc("create_arena_spotify", {
@@ -707,7 +728,7 @@ async function refillReserve(arena: { id: string; host_id: string }) {
       await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "host_library",
-        p_tracks: shuffle(page.tracks),
+        p_tracks: shuffle(page.tracks.filter(playable)),
         p_limit: needs.host_library,
       });
     } catch (err) {
@@ -724,7 +745,7 @@ async function refillReserve(arena: { id: string; host_id: string }) {
       const { data: added } = await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "arena_artist",
-        p_tracks: shuffle(tracks),
+        p_tracks: shuffle(tracks.filter(playable)),
         p_limit: missing,
       });
       missing -= added ?? 0;
@@ -733,6 +754,8 @@ async function refillReserve(arena: { id: string; host_id: string }) {
     }
   }
 }
+
+const playable = (t: CatalogTrack) => t.is_playable !== false;
 
 function shuffle<T>(items: T[]): T[] {
   const out = [...items];
@@ -759,6 +782,9 @@ async function propose(userId: string, jwt: string, body: any) {
     }
     throw err;
   });
+
+  // Greyed out in the host's country: it could never sound (2026-10-28)
+  if (track.is_playable === false) return { result: "not_available" };
 
   const { data: songId, error: songError } = await admin.rpc("upsert_spotify_song", {
     p_arena_id: arena.id,
@@ -1228,6 +1254,9 @@ async function checkArena(pb: any, arena: any) {
     const recentlyCorrected = !!pb.manual_change_at &&
       Date.now() - new Date(pb.manual_change_at).getTime() < CORRECTION_COOLDOWN_MS;
 
+    // Times in a row MF has put this same track back (for expectedUnplayable)
+    const putBacks = { put_back_uri: expected.track_uri, put_back_count: pb.put_back_uri === expected.track_uri ? (pb.put_back_count ?? 0) + 1 : 1 };
+
     const putBack = async (positionMs: number, flagChange: boolean) => {
       if (recentlyCorrected) {
         await record(snapshot);
@@ -1239,17 +1268,54 @@ async function checkArena(pb: any, arena: any) {
         console.warn("[spotify-host] put back failed", arena.id, err);
         return false;
       }
-      await record({ ...snapshot, strikes: 0, strike_reason: null, ...(flagChange ? { manual_change_at: new Date().toISOString() } : {}) });
+      await record({
+        ...snapshot, ...putBacks, strikes: 0, strike_reason: null,
+        ...(flagChange ? { manual_change_at: new Date().toISOString() } : {}),
+      });
       return true;
+    };
+
+    // Spotify can't play the expected song in the host's country (greyed out):
+    // it skips it, and putting it back only makes it fall elsewhere. With the
+    // country known Spotify says so (is_playable, unless it relinks to another
+    // version); without it, two put-backs of it in a row didn't stick.
+    const expectedUnplayable = async () => {
+      if (account.country) {
+        const t = await provider.getTrack(expected.track_uri.replace("spotify:track:", ""));
+        if (t && trackUri(t.spotify_track_id) === expected.track_uri) return t.is_playable === false;
+      }
+      return pb.put_back_uri === expected.track_uri && (pb.put_back_count ?? 0) >= 2;
+    };
+
+    // User decision 2026-10-28: it counts as skipped (skip_unplayable_track
+    // shortens the battle over it), MF follows Spotify to the next song, no
+    // pause and no "you changed the music" prompt
+    const skipUnplayable = async () => {
+      const { error } = await admin.rpc("skip_unplayable_track", { p_arena_id: arena.id, p_track_uri: expected.track_uri });
+      if (error) throw new HttpError(500, "db_error", error.message);
+      const next = (await loadPlan(arena.id)).expected ?? null;
+      if (next && onPlaylist && status.isPlaying && playing === next.track_uri) {
+        await syncClock(arena, playing, status.progressMs);
+      } else if (next) {
+        try {
+          await provider.play({ deviceId: pick!.device.id, contextUri: session!.uri, offsetUri: next.track_uri, positionMs: Number(next.position_ms) });
+        } catch (err) {
+          console.warn("[spotify-host] play after unplayable failed", arena.id, err);
+        }
+      }
+      await record({ ...snapshot, strikes: 0, strike_reason: null, manual_change_at: null, put_back_uri: null, put_back_count: 0 });
     };
 
     let problem: string | null = null;
     if ((onExpected && status.isPlaying) || atSeam) {
-      await record({ ...snapshot, strikes: 0, strike_reason: null });
+      await record({ ...snapshot, strikes: 0, strike_reason: null, put_back_uri: null, put_back_count: 0 });
       if (onExpected) await syncClock(arena, playing, status.progressMs);
       return;
     } else if (!pick || !session) {
       problem = "device_lost";
+    } else if (playing !== expected.track_uri && (onPlaylist || !status.isPlaying || position < KICK_MS) && await expectedUnplayable()) {
+      await skipUnplayable();
+      return;
     } else if (pastEnd) {
       if (manual) {
         // The host skipped the last song before a winner exists: lock-in now,
@@ -1273,7 +1339,7 @@ async function checkArena(pb: any, arena: any) {
       if (!recentlyCorrected) {
         try {
           await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: expected.track_uri, positionMs: 0 });
-          await record({ ...snapshot, strikes: 0, strike_reason: null });
+          await record({ ...snapshot, ...putBacks, strikes: 0, strike_reason: null });
           await syncClock(arena, expected.track_uri, 0);
           return;
         } catch (err) {

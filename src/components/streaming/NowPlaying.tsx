@@ -44,6 +44,12 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
         <p className="text-xs text-muted-foreground">Spotify is playing its own picks until the next winner.</p>
       ) : null}
 
+      {playback.unplayable_title && (
+        <p className="text-xs text-muted-foreground">
+          "{playback.unplayable_title}" isn't available in the host's country: skipped.
+        </p>
+      )}
+
       {isHost && playback.manual_change_at && playback.control_mode !== "manual" && (
         <div className="neon-panel rounded-xl px-3 py-2 text-xs">
           <p className="text-foreground">

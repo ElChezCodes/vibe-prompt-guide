@@ -99,13 +99,14 @@ const SpotifyConnectionPanel = ({ returnTo }: Props) => {
       </div>
 
       {/* Step 7 / likes: older connections lack the library scopes (soft re-consent) */}
-      {(status.can_read_library === false || status.can_save_likes === false) && (
+      {(status.can_read_library === false || status.can_save_likes === false || status.can_check_market === false) && (
         <div className="rounded-xl border border-energy-yellow/40 bg-energy-yellow/5 p-3 space-y-3">
           <div className="flex items-start gap-2">
             <RefreshCw className="w-4 h-4 mt-0.5 flex-shrink-0 text-energy-yellow" />
             <p className="text-xs text-text-secondary">
-              Reconnect Spotify to propose songs from your playlists and Liked Songs, and to save the songs you like
-              in Music Fighter to your Liked Songs.
+              Reconnect Spotify to propose songs from your playlists and Liked Songs, to save the songs you like
+              in Music Fighter to your Liked Songs, and so Music Fighter can spot songs that aren't available in
+              your country.
             </p>
           </div>
           <Button variant="neon" size="sm" className="w-full" disabled={busy} onClick={() => connect(returnTo)}>

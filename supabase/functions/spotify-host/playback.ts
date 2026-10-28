@@ -22,6 +22,9 @@ export interface CatalogTrack {
   // external_ids.isrc: the only thing that crosses into MF's own affinity
   // data (step 8, mapped to MusicBrainz); null when Spotify doesn't send it
   isrc: string | null;
+  // Read with the host's country as `market` (2026-10-28): false = Spotify
+  // can't play it there (greyed out); null = country unknown (old connection)
+  is_playable: boolean | null;
 }
 
 // A playlist of the user's own library they can open (step 7): owned or
@@ -102,7 +105,7 @@ export const LIKED_SONGS_ID = "liked";
 
 export const trackUri = (id: string) => `spotify:track:${id}`;
 
-function toCatalogTrack(t: any): CatalogTrack {
+function toCatalogTrack(t: any, market: string | null): CatalogTrack {
   const images: any[] = t.album?.images ?? [];
   return {
     spotify_track_id: t.id,
@@ -113,11 +116,18 @@ function toCatalogTrack(t: any): CatalogTrack {
     artwork_url: images[0]?.url ?? null,
     spotify_url: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
     isrc: t.external_ids?.isrc ?? null,
+    is_playable: market ? t.is_playable !== false : null,
   };
 }
 
 export class SpotifyPlaybackProvider implements PlaybackProvider {
-  constructor(private accessToken: string) {}
+  // market = the country the music plays in (the arena host's), when known
+  constructor(private accessToken: string, private market: string | null = null) {}
+
+  private withMarket(params: URLSearchParams) {
+    if (this.market) params.set("market", this.market);
+    return params;
+  }
 
   private async api(path: string, init: RequestInit = {}) {
     const res = await fetch(`${API}${path}`, {
@@ -228,18 +238,17 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
   }
 
   async search(query: string): Promise<CatalogTrack[]> {
-    // limit ≤ 10 since Feb 2026. No market param: "from_token" needs the
-    // user-read-private scope (403 "Insufficient client scope"), and with a user
-    // token Spotify already applies the host's country
-    const params = new URLSearchParams({ q: query, type: "track", limit: "10" });
+    // limit ≤ 10 since Feb 2026. An explicit market (never "from_token")
+    // makes Spotify send is_playable and relink to the playable version
+    const params = this.withMarket(new URLSearchParams({ q: query, type: "track", limit: "10" }));
     const body = await this.must(`/search?${params}`);
-    return (body?.tracks?.items ?? []).filter((t: any) => t?.id).map(toCatalogTrack);
+    return (body?.tracks?.items ?? []).filter((t: any) => t?.id).map((t: any) => toCatalogTrack(t, this.market));
   }
 
   async getTrack(trackId: string): Promise<CatalogTrack | null> {
     if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return null;
-    const res = await this.api(`/tracks/${trackId}`);
-    return res.status === 200 && res.body?.id ? toCatalogTrack(res.body) : null;
+    const res = await this.api(`/tracks/${trackId}?${this.withMarket(new URLSearchParams())}`);
+    return res.status === 200 && res.body?.id ? toCatalogTrack(res.body, this.market) : null;
   }
 
   async listPlaylists(ownerId: string): Promise<LibraryPlaylist[]> {
@@ -284,7 +293,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
   }
 
   async playlistTracks(playlistId: string, offset: number): Promise<LibraryPage> {
-    const page = `limit=${LIBRARY_PAGE}&offset=${offset}`;
+    const page = this.withMarket(new URLSearchParams({ limit: String(LIBRARY_PAGE), offset: String(offset) }));
     const body = playlistId === LIKED_SONGS_ID
       ? await this.must(`/me/tracks?${page}`)
       : await this.must(`/playlists/${encodeURIComponent(playlistId)}/items?${page}&additional_types=track`);
@@ -293,7 +302,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       .map((e: any) => e?.item ?? e?.track)
       // Local files, episodes and removed tracks can't be proposed
       .filter((t: any) => t?.id && (t.type ?? "track") === "track" && !t.is_local)
-      .map(toCatalogTrack);
+      .map((t: any) => toCatalogTrack(t, this.market));
     return { tracks, next_offset: body?.next ? offset + LIBRARY_PAGE : null, total: body?.total ?? 0 };
   }
 }

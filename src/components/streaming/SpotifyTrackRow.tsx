@@ -15,13 +15,16 @@ export const SPOTIFY_LINK_CLASS =
   "flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1DB954] bg-[#1DB954]/10 hover:bg-[#1DB954]/20 transition-colors";
 
 interface Props {
-  track: Pick<SpotifyTrack, "title" | "artist" | "artwork_url" | "spotify_url"> & { duration_ms?: number };
+  track: Pick<SpotifyTrack, "title" | "artist" | "artwork_url" | "spotify_url" | "is_playable"> & { duration_ms?: number };
   selected?: boolean;
   onSelect?: () => void;
   disabled?: boolean;
   // Extra line under the artist, and a control before the Spotify link
   details?: ReactNode;
   action?: ReactNode;
+  // Shown (and the row can't be picked) when Spotify can't play it in the
+  // host's country (is_playable false)
+  unavailableLabel?: string;
 }
 
 /**
@@ -29,7 +32,18 @@ interface Props {
  * artist, the Spotify logo and an "Open Spotify" link back to the track
  * (Spotify Design Guidelines / Developer Policy II.4).
  */
-const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled, details, action }: Props) => (
+const SpotifyTrackRow = ({
+  track,
+  selected = false,
+  onSelect,
+  disabled: disabledProp,
+  details,
+  action,
+  unavailableLabel = "Not available in the host's country",
+}: Props) => {
+  const unavailable = track.is_playable === false;
+  const disabled = disabledProp || unavailable;
+  return (
   <div
     onClick={disabled ? undefined : onSelect}
     role={onSelect ? "button" : undefined}
@@ -67,6 +81,7 @@ const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled, details,
           </span>
         ) : null}
       </p>
+      {unavailable && <p className="text-[11px] text-destructive">{unavailableLabel}</p>}
       {details}
     </div>
     {action}
@@ -81,6 +96,7 @@ const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled, details,
       Open Spotify
     </a>
   </div>
-);
+  );
+};
 
 export default SpotifyTrackRow;
