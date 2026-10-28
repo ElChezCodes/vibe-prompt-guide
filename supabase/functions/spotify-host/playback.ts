@@ -82,6 +82,8 @@ export interface PlaybackProvider {
   // The token owner's own library, only to pick a song to propose (step 7)
   listPlaylists(ownerId: string): Promise<LibraryPlaylist[]>;
   playlistTracks(playlistId: string, offset: number): Promise<LibraryPage>;
+  // Whether a track is in the session's playlist (null = couldn't tell)
+  playlistHas(playlistId: string, trackUri: string): Promise<boolean | null>;
   // The token owner's Liked Songs, only when they like a song in MF
   isSaved(trackId: string): Promise<boolean>;
   save(trackId: string): Promise<void>;
@@ -290,6 +292,18 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
 
   async unsave(trackId: string) {
     await this.must(`/me/library?uris=${encodeURIComponent(trackUri(trackId))}`, { method: "DELETE" });
+  }
+
+  // Spotify's Autoplay/radio after the playlist's end still reports the
+  // playlist as the context: a track that isn't in it was not added by hand
+  async playlistHas(playlistId: string, uri: string): Promise<boolean | null> {
+    for (let page = 0, offset = 0; page < 10; page++, offset += LIBRARY_PAGE) {
+      const res = await this.api(`/playlists/${encodeURIComponent(playlistId)}/items?limit=${LIBRARY_PAGE}&offset=${offset}`);
+      if (res.status !== 200) return null;
+      if ((res.body?.items ?? []).some((e: any) => (e?.item ?? e?.track)?.uri === uri)) return true;
+      if (!res.body?.next) return false;
+    }
+    return null;
   }
 
   async playlistTracks(playlistId: string, offset: number): Promise<LibraryPage> {

@@ -1203,6 +1203,20 @@ async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, p
   return match || uri;
 }
 
+// A track reported on the arena playlist that is neither an arena song nor
+// in the playlist (added by hand) = Spotify's Autoplay/radio. Remembered per
+// instance; if the playlist can't be read it counts as on the playlist.
+const autoplayTracks = new Set<string>();
+
+async function isAutoplayTrack(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, session: PlaybackSession | null, uri: string | null) {
+  if (!uri || !session || (plan.arena_uris ?? []).includes(uri)) return false;
+  const key = `${arenaId}:${uri}`;
+  if (autoplayTracks.has(key)) return true;
+  const inPlaylist = await provider.playlistHas(session.id, uri);
+  if (inPlaylist === false) autoplayTracks.add(key);
+  return inPlaylist === false;
+}
+
 // onProgress for one arena: append new winners, record what the host's
 // player is doing, keep it on the arena's plan, pause/resume the arena (user
 // decisions 2026-10-27 and 2026-10-28, see the SQL files)
@@ -1230,8 +1244,11 @@ async function checkArena(pb: any, arena: any) {
 
   await provider.onProgress(async (status) => {
     const pick = pickDevice(status, account.preferred_device_id);
-    const onPlaylist = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
-    const playing = onPlaylist ? await arenaUriFor(provider, arena.id, plan, status) : status.trackUri;
+    const inContext = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
+    const playing = inContext ? await arenaUriFor(provider, arena.id, plan, status) : status.trackUri;
+    // Found in-app 2026-10-28: Spotify's Autoplay/radio reports the playlist as
+    // its context, so it looked like a song changed by hand
+    const onPlaylist = inContext && !(await isAutoplayTrack(provider, arena.id, plan, session, playing));
     const snapshot: Record<string, unknown> = {
       is_playing: status.isPlaying && onPlaylist,
       device_id: pick?.device.id ?? pb.device_id,
@@ -1377,6 +1394,21 @@ async function checkArena(pb: any, arena: any) {
       return;
     } else if (!pick || !session) {
       problem = "device_lost";
+    } else if (!onPlaylist && status.isPlaying && remaining < SEAM_MS) {
+      // The expected song is ending and Spotify already went on to Autoplay (a
+      // winner appended in its last seconds may not be in the player's queue
+      // yet): not a manual change. MF starts the next arena song itself, or
+      // lets Autoplay fill until the winner is decided.
+      if (plan.next_uri) {
+        try {
+          await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: plan.next_uri, positionMs: 0 });
+          await syncClock(arena, plan.next_uri, 0);
+        } catch (err) {
+          console.warn("[spotify-host] next after autoplay failed", arena.id, err);
+        }
+      }
+      await record({ ...snapshot, strikes: 0, strike_reason: null });
+      return;
     } else if (playing !== expected.track_uri && (onPlaylist || !status.isPlaying || position < KICK_MS) && await expectedUnplayable()) {
       await skipUnplayable();
       return;
