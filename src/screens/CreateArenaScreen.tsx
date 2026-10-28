@@ -210,12 +210,20 @@ const CreateArenaScreen = () => {
               className="w-full h-10 mb-2 bg-secondary/80 border-border focus-visible:ring-song-a"
             />
             {warmup && (
-              <div className="mb-2">
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">Selected</p>
+              <div className="mb-3 rounded-xl border border-primary/30 bg-primary/5 p-2 space-y-2">
+                <p className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-widest text-primary">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
+                  Warm-up selected
+                </p>
                 <SpotifyTrackRow track={warmup} selected />
               </div>
             )}
-            <div className="max-h-72 overflow-y-auto pr-1 space-y-1">
+            {warmupResults.length > 0 && (
+              <p className="px-1 mb-2 text-[11px] uppercase tracking-widest text-muted-foreground">
+                Results · tap to pick
+              </p>
+            )}
+            <div className="max-h-72 overflow-y-auto overflow-x-hidden pr-1 space-y-2">
               {warmupResults.map((track) => (
                 <SpotifyTrackRow
                   key={track.spotify_track_id}
@@ -225,9 +233,13 @@ const CreateArenaScreen = () => {
                   disabled={isCreating}
                 />
               ))}
-              {warmupError && <p className="text-sm text-destructive text-center py-2">{warmupError}</p>}
+              {warmupError && (
+                <p className="text-sm text-destructive text-center py-2 rounded-xl border border-destructive/30 bg-destructive/5">
+                  {warmupError}
+                </p>
+              )}
               {spotify && warmupQuery.trim() && warmupResults.length === 0 && !warmupError && (
-                <p className="text-sm text-muted-foreground text-center py-4">No songs found</p>
+                <p className="text-sm text-muted-foreground text-center py-4 neon-row rounded-xl">No songs found</p>
               )}
             </div>
           </div>

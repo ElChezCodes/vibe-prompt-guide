@@ -181,12 +181,24 @@ const ArenaLobbyScreen = () => {
 
         {/* Who's here: ACTIVO / PASIVO / INACTIVO counts from the backend */}
         {!isClosed && presence && (
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {presence.active_count} active · {presence.passive_count} passive · {presence.inactive_count} inactive
-          </p>
+          <div className="w-full grid grid-cols-3 gap-2 animate-fade-in-up" style={{ animationDelay: "75ms" }}>
+            {[
+              { label: "Active", count: presence.active_count, dot: "bg-primary shadow-[0_0_6px_hsl(var(--primary))]" },
+              { label: "Passive", count: presence.passive_count, dot: "bg-energy-yellow shadow-[0_0_6px_hsl(var(--energy-yellow)/0.8)]" },
+              { label: "Inactive", count: presence.inactive_count, dot: "bg-muted-foreground/70" },
+            ].map((stat) => (
+              <div key={stat.label} className="neon-row rounded-xl px-2 py-2.5 text-center">
+                <p className="text-xl font-bold text-foreground tabular-nums leading-none">{stat.count}</p>
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <span aria-hidden className={`w-1.5 h-1.5 rounded-full ${stat.dot}`} />
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
         {!isClosed && queueSummary && (
-          <p className="text-sm text-muted-foreground tabular-nums">
+          <p className="-mt-4 text-xs text-muted-foreground tabular-nums text-center">
             {queueSummary.human_queued} {queueSummary.human_queued === 1 ? "song" : "songs"} proposed
             {queueSummary.human_queued < 2 && " · backup music fills the rest"}
           </p>
