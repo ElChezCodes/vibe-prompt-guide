@@ -19,6 +19,9 @@ export interface CatalogTrack {
   duration_ms: number;
   artwork_url: string | null;
   spotify_url: string;
+  // external_ids.isrc: the only thing that crosses into MF's own affinity
+  // data (step 8, mapped to MusicBrainz); null when Spotify doesn't send it
+  isrc: string | null;
 }
 
 // A playlist of the user's own library they can open (step 7): owned or
@@ -104,6 +107,7 @@ function toCatalogTrack(t: any): CatalogTrack {
     // Spotify sorts images widest first
     artwork_url: images[0]?.url ?? null,
     spotify_url: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
+    isrc: t.external_ids?.isrc ?? null,
   };
 }
 

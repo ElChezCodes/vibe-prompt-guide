@@ -456,7 +456,8 @@ additions (#1, #4 above), each marked where it lands.
    into the account; privacy contact email pending from the user. Pending
    owner config: Auth URL/OTP/templates and custom SMTP (Gmail app password
    recommended, or Brevo).
-8. **Own affinity profile — DEFINED 2026-10-27, built together with step 9**
+8. **Own affinity profile — BUILT 2026-10-27 together with step 9** (`supabase/sql/affinity_passive_vote_2026-10-27.sql`, Edge Function `musicbrainz-enrich`; details in CLAUDE.md "Own affinity & passive vote"). Build decisions 2026-10-27: account signals persist until account deletion with a 1-year half-life; anonymous guests get an in-arena-only profile (purged with the votes, merged into an account if they sign in) and keep proposing through the host's Spotify without connecting their own; ISRC→MusicBrainz in its own Edge Function + per-minute cron at ≤ 1 req/s; k=1.25 kept as decided (configurable), Paso_1 §8 "never reverse a clear win" not adopted.
+   Original definition:
    (user decision: no code in the step-8 chat; "define 8, build with 9").
    Replaces "Participant affinity profile sync" (Spotify top tracks/genres/
    audio features). User decisions 2026-10-27:
@@ -494,7 +495,8 @@ additions (#1, #4 above), each marked where it lands.
      where the ISRC→MBID lookup runs (Edge Function + cache table);
      check the affinity rules with Sergio (CLAUDE.md), together with step 9's
      k=1.25 and "≥75 % pasivos vs inactivos".
-9. **TO BE REDEFINED (2026-10-27)** — the Spotify-similarity formula below
+9. **BUILT 2026-10-27 together with step 8** (rules below, score = step 8's v0).
+   Superseded note: the Spotify-similarity formula below
    is superseded by step 8's own-data score (built together with it); the
    rest (lock-in snapshot, no-row rule) still stands.
    **Passive voting engine** — the affinity-similarity formula, k=1.25 cap,

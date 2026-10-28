@@ -1,5 +1,5 @@
 import React from "react";
-import { Music } from "lucide-react";
+import { Heart, Music } from "lucide-react";
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
@@ -31,9 +31,21 @@ interface StageViewProps {
   currentVote?: VoteData | null;
   derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
   pausedAt?: string | null;
+  // Battle Room only: the viewer's likes (step 8 signal) and the toggle
+  likedSongIds?: Set<string>;
+  onToggleLike?: (songId: string) => void;
 }
 
-const StageView = ({ arena, battle, participant, currentVote, derivedPhase, pausedAt = null }: StageViewProps) => {
+const StageView = ({
+  arena,
+  battle,
+  participant,
+  currentVote,
+  derivedPhase,
+  pausedAt = null,
+  likedSongIds,
+  onToggleLike,
+}: StageViewProps) => {
   console.log("[StageView Render]", {
     battle_id: battle?.battle_id,
     state: battle?.state,
@@ -42,10 +54,16 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
   });
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
-  const totalVotes = votesA + votesB;
+  // Passive points (step 9), already 0 in Sudden Death; the bar shows the
+  // same points the backend adds up at lock-in
+  const passiveA = battle?.passive_a ?? 0;
+  const passiveB = battle?.passive_b ?? 0;
+  const pointsA = votesA + passiveA;
+  const pointsB = votesB + passiveB;
+  const totalPoints = pointsA + pointsB;
 
   const percentageA =
-    totalVotes > 0 ? Math.round((votesA / totalVotes) * 100) : 50;
+    totalPoints > 0 ? Math.round((pointsA / totalPoints) * 100) : 50;
 
   const percentageB = 100 - percentageA;
 
@@ -73,6 +91,7 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
       {/* Tension Bar - Full width at top */}
       <div className="relative w-full pt-8 px-8">
         <TensionBar percentageA={percentageA} percentageB={percentageB} intensity={getTensionIntensity()} />
+        {passiveA + passiveB > 0 && <VoteBreakdown votesA={votesA} votesB={votesB} passiveA={passiveA} passiveB={passiveB} />}
       </div>
 
       {/* Timer - Self-contained, re-renders independently */}
@@ -94,6 +113,8 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
+              isLiked={!!battle?.song_a_id && !!likedSongIds?.has(battle.song_a_id)}
+              onToggleLike={onToggleLike && battle?.song_a_id ? () => onToggleLike(battle.song_a_id) : undefined}
             />
           </div>
 
@@ -117,6 +138,8 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
               currentVote={currentVote}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
+              isLiked={!!battle?.song_b_id && !!likedSongIds?.has(battle.song_b_id)}
+              onToggleLike={onToggleLike && battle?.song_b_id ? () => onToggleLike(battle.song_b_id) : undefined}
             />
           </div>
         </div>
@@ -166,12 +189,32 @@ const StageView = ({ arena, battle, participant, currentVote, derivedPhase, paus
 // pointer-events off), so the "Open Spotify" link stays clickable.
 export const STAGE_CARD_FOOTER_CLASS = "h-16 lg:h-24";
 
+const formatPoints = (n: number) => (Math.round(n * 100) / 100).toString();
+
+// Explicit votes + passive points per side, shown once passive points exist
+// (the 30-s ramp before lock-in, then the passive votes cast at lock-in)
+const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
+  votesA: number;
+  votesB: number;
+  passiveA: number;
+  passiveB: number;
+}) => (
+  <div className="mt-1 flex justify-between text-[10px] lg:text-xs text-text-secondary">
+    <span className="text-song-a">
+      {votesA} {votesA === 1 ? "vote" : "votes"} + {formatPoints(passiveA)} passive
+    </span>
+    <span className="text-song-b">
+      {votesB} {votesB === 1 ? "vote" : "votes"} + {formatPoints(passiveB)} passive
+    </span>
+  </div>
+);
+
 // With Spotify artwork the square is the artwork alone (Spotify: artwork
 // uncropped and never covered), so title/artist move here, next to the
 // Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
-const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isA }: {
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isA, isLiked, onToggleLike }: {
   source?: string;
   trackId?: string;
   songTitle: string;
@@ -179,6 +222,8 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
   showInfo: boolean;
   isSelected: boolean;
   isA: boolean;
+  isLiked?: boolean;
+  onToggleLike?: () => void;
 }) => (
   <div className={`${STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
     {showInfo && (
@@ -202,6 +247,18 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
       {showInfo && isSelected && (
         <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>Your vote</span>
       )}
+      {onToggleLike && (
+        <button
+          type="button"
+          onClick={onToggleLike}
+          aria-pressed={!!isLiked}
+          aria-label={isLiked ? "Unlike song" : "Like song"}
+          className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-text-secondary"
+        >
+          <Heart className={`h-3.5 w-3.5 ${isLiked ? (isA ? "fill-song-a text-song-a" : "fill-song-b text-song-b") : ""}`} />
+          {isLiked ? "Liked" : "Like"}
+        </button>
+      )}
     </div>
   </div>
 );
@@ -218,9 +275,11 @@ interface StageSongCardProps {
   currentVote?: VoteData | null;
   tag?: string | null;
   isWinner?: boolean;
+  isLiked?: boolean;
+  onToggleLike?: () => void;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, tag, isWinner }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, tag, isWinner, isLiked, onToggleLike }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote
@@ -287,6 +346,8 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
         showInfo={!!artworkUrl}
         isSelected={isSelected}
         isA={isA}
+        isLiked={isLiked}
+        onToggleLike={onToggleLike}
       />
     </>
   );

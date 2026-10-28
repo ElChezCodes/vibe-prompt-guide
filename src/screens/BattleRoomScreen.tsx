@@ -20,6 +20,7 @@ import { useArenaPresence } from "@/hooks/useArenaPresence";
 import PresenceChip from "@/components/arena/PresenceChip";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import { LOW_QUEUE_THRESHOLD } from "@/integrations/supabase/proposals";
+import { getMySongLikes, toggleSongLike } from "@/integrations/supabase/likes";
 
 // "ended": the arena was already finished when opened (no joining possible)
 type ScreenState = "loading" | "error" | "ready" | "ended";
@@ -98,8 +99,41 @@ const BattleRoomScreen = () => {
 
   const { state: closureState, syncFromBattle, reset: resetClosure } = useBattleClosureOrchestrator();
 
-  // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes
-  const presence = useArenaPresence(arena?.id, !!participant, voteRecord);
+  // Manual likes (step 8 signal); a like is an action, so presence is re-read
+  const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
+  const [likeCount, setLikeCount] = useState(0);
+  useEffect(() => {
+    if (!arena?.id || !participant) return;
+    let cancelled = false;
+    getMySongLikes(arena.id).then((ids) => {
+      if (!cancelled) setLikedSongIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [arena?.id, participant]);
+
+  const handleToggleLike = useCallback(
+    async (songId: string) => {
+      if (!arena?.id || !songId) return;
+      try {
+        const liked = await toggleSongLike(arena.id, songId);
+        setLikedSongIds((prev) => {
+          const next = new Set(prev);
+          if (liked) next.add(songId);
+          else next.delete(songId);
+          return next;
+        });
+        setLikeCount((n) => n + 1);
+      } catch (err) {
+        console.error("[Like] Failed:", err);
+      }
+    },
+    [arena?.id],
+  );
+
+  // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes/likes
+  const presence = useArenaPresence(arena?.id, !!participant, [voteRecord?.id, voteRecord?.song_id, voteRecord?.status, voteRecord?.vote_type, voteRecord?.updated_at, likeCount].join(":"));
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -348,6 +382,8 @@ const BattleRoomScreen = () => {
         currentVote={displayedVote}
         derivedPhase={derivedPhase}
         pausedAt={playback?.paused_at ?? null}
+        likedSongIds={likedSongIds}
+        onToggleLike={arena?.state === "active" ? handleToggleLike : undefined}
       />
 
       {/* Invisible interaction layer - positioned above StageView */}

@@ -32,8 +32,13 @@ export interface ArenaBattleView {
   song_b_duration_ms: number;
   song_b_artwork_url: string | null;
 
+  // Explicit votes (count)
   votes_a: number;
   votes_b: number;
+  // Passive points (step 9): the live preview ramping in the 30 s before
+  // lock-in, then the passive votes cast at lock-in; 0 in Sudden Death
+  passive_a: number;
+  passive_b: number;
 }
 
 // Mergeable fields from realtime payload / backend reads
@@ -118,7 +123,7 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
   const fetchVoteCounts = useCallback(async (arenaId: string) => {
     const { data, error } = await supabase
       .from("arena_live_state")
-      .select("battle_id, votes_a, votes_b, status, started_at, duration_ms, lockin_at, resolution_type, winner_song_id, sudden_death_active")
+      .select("battle_id, votes_a, votes_b, passive_a, passive_b, status, started_at, duration_ms, lockin_at, resolution_type, winner_song_id, sudden_death_active")
       .eq("arena_id", arenaId)
       .order("battle_created_at", { ascending: false })
       .limit(1)
@@ -146,11 +151,19 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
       const unchanged =
         MERGE_FIELDS.every((f) => merged[f] === prev.battle[f]) &&
         prev.battle.votes_a === data.votes_a &&
-        prev.battle.votes_b === data.votes_b;
+        prev.battle.votes_b === data.votes_b &&
+        prev.battle.passive_a === data.passive_a &&
+        prev.battle.passive_b === data.passive_b;
       if (unchanged) return prev;
       return {
         ...prev,
-        battle: { ...merged, votes_a: data.votes_a, votes_b: data.votes_b },
+        battle: {
+          ...merged,
+          votes_a: data.votes_a,
+          votes_b: data.votes_b,
+          passive_a: data.passive_a,
+          passive_b: data.passive_b,
+        },
       };
     });
   }, [fetchLatestBattle]);
@@ -250,6 +263,8 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
                   song_b_artwork_url: prevBattle?.song_b_artwork_url ?? null,
                   votes_a: 0,
                   votes_b: 0,
+                  passive_a: 0,
+                  passive_b: 0,
                 };
                 return { ...prev, battle: minimal };
               });
