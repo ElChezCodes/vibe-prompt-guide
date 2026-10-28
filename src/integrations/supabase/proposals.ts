@@ -27,6 +27,7 @@ export type ProposalStatus =
 export interface MyProposal {
   queue_id: string | null; // only while queued (withdraw)
   song_id: string;
+  spotify_track_id: string;
   title: string;
   artist: string;
   artwork_url: string | null;

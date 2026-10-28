@@ -273,24 +273,21 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
               <p className="neon-label mb-3">Your proposals</p>
               <div className="space-y-2 pr-4">
                 {myProposals.map((proposal) => (
-                  <div
+                  <SpotifyTrackRow
                     key={proposal.queue_id ?? `${proposal.song_id}-${proposal.at}`}
-                    className="flex items-center gap-3 p-3 rounded-xl neon-row"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-song-a/10 flex items-center justify-center flex-shrink-0">
-                      <Music className="h-4 w-4 text-song-a" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{proposal.title}</p>
-                      <p className="text-muted-foreground text-xs truncate">{proposal.artist}</p>
-                      <p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>
-                    </div>
-                    {proposal.queue_id && (
-                      <Button size="sm" variant="ghost" onClick={() => handleWithdraw(proposal.queue_id)}>
-                        Withdraw
-                      </Button>
-                    )}
-                  </div>
+                    track={{
+                      ...proposal,
+                      spotify_url: `https://open.spotify.com/track/${proposal.spotify_track_id}`,
+                    }}
+                    details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
+                    action={
+                      proposal.queue_id && (
+                        <Button size="sm" variant="ghost" onClick={() => handleWithdraw(proposal.queue_id)}>
+                          Withdraw
+                        </Button>
+                      )
+                    }
+                  />
                 ))}
               </div>
             </ScrollArea>

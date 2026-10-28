@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import { SpotifyTrack } from "@/integrations/supabase/spotify";
 import { formatDuration } from "@/integrations/supabase/arenas";
 
@@ -13,6 +14,9 @@ interface Props {
   selected?: boolean;
   onSelect?: () => void;
   disabled?: boolean;
+  // Extra line under the artist, and a control before the Spotify link
+  details?: ReactNode;
+  action?: ReactNode;
 }
 
 /**
@@ -21,7 +25,7 @@ interface Props {
  * (Spotify Design Guidelines / Developer Policy II.4). Minimal markup; visual
  * design is done in Lovable.
  */
-const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled }: Props) => (
+const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled, details, action }: Props) => (
   <div
     onClick={disabled ? undefined : onSelect}
     role={onSelect ? "button" : undefined}
@@ -38,10 +42,12 @@ const SpotifyTrackRow = ({ track, selected = false, onSelect, disabled }: Props)
     <div className="flex-1 min-w-0">
       <p className="text-sm font-medium text-foreground truncate">{track.title}</p>
       <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+      {details}
     </div>
     {track.duration_ms ? (
       <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">{formatDuration(track.duration_ms)}</span>
     ) : null}
+    {action}
     <a
       href={track.spotify_url}
       target="_blank"
