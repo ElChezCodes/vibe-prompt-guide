@@ -1139,6 +1139,34 @@ async function hostPlayer(pb: any) {
   }
 }
 
+// Spotify's player may play another version of a playlist track (track
+// relinking: same recording, another id in the host's country), so the uri it
+// reports isn't the arena's. Found in-app 2026-10-28: MF kept putting such a
+// song "back", undoing the host's seeks. Mapped back by ISRC; matches are
+// remembered per instance (misses aren't: the song may win later).
+const relinked = new Map<string, string>();
+
+async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, uri: string | null) {
+  const arenaUris: string[] = plan.arena_uris ?? [];
+  if (!uri || arenaUris.includes(uri)) return uri;
+  const key = `${arenaId}:${uri}`;
+  const known = relinked.get(key);
+  if (known) return known;
+  let match = "";
+  try {
+    const track = await provider.getTrack(uri.replace("spotify:track:", ""));
+    if (track?.isrc) {
+      const { data } = await admin.from("songs").select("spotify_track_id").eq("arena_id", arenaId).eq("isrc", track.isrc);
+      match = (data ?? []).map((r: any) => trackUri(r.spotify_track_id)).find((u: string) => arenaUris.includes(u)) ?? "";
+    }
+  } catch (err) {
+    console.warn("[spotify-host] relink lookup failed", arenaId, err);
+    return uri;
+  }
+  if (match) relinked.set(key, match);
+  return match || uri;
+}
+
 // onProgress for one arena: append new winners, record what the host's
 // player is doing, keep it on the arena's plan, pause/resume the arena (user
 // decisions 2026-10-27 and 2026-10-28, see the SQL files)
@@ -1167,7 +1195,7 @@ async function checkArena(pb: any, arena: any) {
   await provider.onProgress(async (status) => {
     const pick = pickDevice(status, account.preferred_device_id);
     const onPlaylist = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
-    const playing = status.trackUri;
+    const playing = onPlaylist ? await arenaUriFor(provider, arena.id, plan, status.trackUri) : status.trackUri;
     const snapshot: Record<string, unknown> = {
       is_playing: status.isPlaying && onPlaylist,
       device_id: pick?.device.id ?? pb.device_id,
