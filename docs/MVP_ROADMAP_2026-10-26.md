@@ -442,11 +442,54 @@ additions (#1, #4 above), each marked where it lands.
    The "1 proposal per user per battle" cap is still step 12. Verified
    in-app by the user 2026-10-27; search and modal no longer reset after
    proposing (user request).
-8. **TO BE REDEFINED (2026-10-27)** — was "Participant affinity profile
-   sync" (top tracks/artists/genres/audio features from Spotify). Affinity
-   comes from Music Fighter's own data instead; definition pending.
+7b. **Optional Music Fighter accounts** (new, user decision 2026-10-27;
+   prerequisite of 8). Entering an arena stays anonymous; anyone who wants a
+   persistent profile signs in (email magic link or Google) and Supabase
+   links the identity to the existing anonymous user, so `auth.uid()` and the
+   history are kept. Needs a privacy policy + consent + account deletion (a
+   taste profile is personal data). The anonymous session is per origin/device,
+   so without an account the profile is per browser.
+8. **Own affinity profile — DEFINED 2026-10-27, built together with step 9**
+   (user decision: no code in the step-8 chat; "define 8, build with 9").
+   Replaces "Participant affinity profile sync" (Spotify top tracks/genres/
+   audio features). User decisions 2026-10-27:
+   - **Persistent per-user profile in a Music Fighter account** (Shazam-like:
+     MF's own catalog identity and own signals), not per arena.
+   - **Signals: only what the user does in MF** — explicit votes, active
+     proposals and likes (`song_likes`, to be reconnected as a manual "like"
+     signal). Never Spotify listening data (top items, saved tracks,
+     playlists read in step 7, plays/skips).
+   - **Spotify ↔ MF bridge = ISRC.** Spotify is used only for catalog search
+     and playback; the track's ISRC (`external_ids`, removed Feb 2026,
+     restored Mar 2026) maps it to MusicBrainz (recording/artist MBIDs, CC0).
+     Song features come from **open datasets** keyed by ISRC/MBID
+     (MusicBrainz relations/tags, AcousticBrainz, MSD, FMA, Last.fm — see
+     `MLM/Datasets_IA.pdf`), never from Spotify metadata. The profile and any
+     model never see Spotify names/ids/artwork (Developer Policy III.13 no
+     user profiling from Spotify Content, III.14 no ML on Spotify Content).
+     Documented grey zone: the ISRC itself is read from a Spotify response;
+     confirm with Spotify/legal before any growth beyond private use.
+   - **Engine: v0 rules first, own model later.** v0 = explainable score
+     (same artist / MusicBrainz-related artists / open tags overlap with what
+     the user voted, proposed, liked), works with few users; an own model
+     (pre-trained on open datasets with decaying influence, then MF data, per
+     `Datasets_IA.pdf`) only when MF has enough data. The old
+     `Affinity_Music_Model_Feature_Set_v1.csv` / `setup_spotify_ml.ps1`
+     (Spotify audio features, skips, device, location) are obsolete.
+   - Known limits: AcousticBrainz stopped collecting in 2022 and MSD ends in
+     2011 (recent songs have no audio features → fall back to artist/tags);
+     MusicBrainz tags and Last.fm/MSD are non-commercial/research licences
+     (fine while payments are excluded, a blocker for monetisation);
+     MusicBrainz API is 1 req/s (cache per ISRC).
+   - **Open for the build (ask then):** profile retention vs the 30-day vote
+     purge (the profile must aggregate signals before votes are purged);
+     whether a guest without an account gets an in-arena-only profile;
+     where the ISRC→MBID lookup runs (Edge Function + cache table);
+     check the affinity rules with Sergio (CLAUDE.md), together with step 9's
+     k=1.25 and "≥75 % pasivos vs inactivos".
 9. **TO BE REDEFINED (2026-10-27)** — the Spotify-similarity formula below
-   is superseded; the rest (lock-in snapshot, no-row rule) still stands.
+   is superseded by step 8's own-data score (built together with it); the
+   rest (lock-in snapshot, no-row rule) still stands.
    **Passive voting engine** — the affinity-similarity formula, k=1.25 cap,
    30-second freeze/ramp, zero during Sudden Death. Depends on #4 and #8.
    Only participants with no `votes` row for the battle get a passive vote:
