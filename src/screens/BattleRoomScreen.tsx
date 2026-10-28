@@ -9,6 +9,7 @@ import { useArenaWarmup } from "@/hooks/useArenaWarmup";
 import { useArenaPlayback } from "@/hooks/useArenaPlayback";
 import NowPlaying from "@/components/streaming/NowPlaying";
 import { PAUSE_REASON_LABELS, resumeSpotifyArena } from "@/integrations/supabase/spotify";
+import { Pause, Play } from "lucide-react";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView, { STAGE_CARD_FOOTER_CLASS } from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
@@ -527,22 +528,34 @@ const BattleRoomScreen = () => {
 
       {/* Arena paused (Spotify device/playback): battle clock frozen, votes closed */}
       {isPaused && (
-        <div className="absolute inset-x-0 top-20 z-[60] flex justify-center px-4">
-          <div className="neon-panel rounded-2xl px-4 py-3 text-center max-w-sm">
-            <p className="font-bold text-foreground">Arena paused</p>
-            <p className="text-sm text-muted-foreground">
-              {PAUSE_REASON_LABELS[playback.pause_reason] ?? "Spotify isn't playing"}. It resumes by itself when the
-              music is back.
-            </p>
-            {participant?.is_host && (
-              <button
-                onClick={handleResume}
-                className="mt-2 px-3 py-1 rounded-full bg-primary text-primary-foreground text-sm font-bold"
-              >
-                Resume on Spotify
-              </button>
-            )}
-            {resumeError && <p className="mt-1 text-xs text-destructive">{resumeError}</p>}
+        <div className="absolute inset-x-0 top-11 z-[60] flex justify-center px-3 animate-fade-in">
+          <div
+            role="status"
+            className="w-full max-w-md rounded-2xl border border-energy-yellow/50 bg-background/90 backdrop-blur-md px-3 py-2.5 shadow-[0_0_28px_-8px_hsl(var(--energy-yellow)/0.7)]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 flex-shrink-0 rounded-xl bg-energy-yellow/15 border border-energy-yellow/40 flex items-center justify-center">
+                <Pause className="w-4 h-4 text-energy-yellow" fill="currentColor" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold uppercase tracking-wider text-energy-yellow leading-tight">Arena paused</p>
+                <p className="text-xs text-text-secondary leading-snug">
+                  {PAUSE_REASON_LABELS[playback.pause_reason] ?? "Spotify isn't playing"}. It resumes by itself when the
+                  music is back.
+                </p>
+              </div>
+              {participant?.is_host && (
+                <button
+                  onClick={handleResume}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold glow-primary hover:brightness-110 transition"
+                >
+                  <Play className="w-3.5 h-3.5" fill="currentColor" />
+                  <span className="hidden min-[380px]:inline">Resume on Spotify</span>
+                  <span className="min-[380px]:hidden">Resume</span>
+                </button>
+              )}
+            </div>
+            {resumeError && <p className="mt-1.5 text-xs text-destructive">{resumeError}</p>}
           </div>
         </div>
       )}
