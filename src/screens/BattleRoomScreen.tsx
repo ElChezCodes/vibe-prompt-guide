@@ -560,15 +560,6 @@ const BattleRoomScreen = () => {
         </div>
       )}
 
-      {/* Step 18: what the host's Spotify plays (above the vote layer, so taps here never vote) */}
-      {arena?.state === "active" && !isPaused && (
-        <div className="absolute inset-x-0 bottom-2 z-[55] flex justify-center px-4">
-          <div className="w-full max-w-sm">
-            <NowPlaying arenaId={arena.id} playback={playback} isHost={!!participant?.is_host} />
-          </div>
-        </div>
-      )}
-
       {participant?.is_host && (arena?.state === "waiting" || arena?.state === "active") && (
         <div className="absolute top-2 right-2 z-[55]">
           {/* Realtime UPDATE will also arrive; set eagerly from the confirmed RPC result */}
@@ -583,10 +574,17 @@ const BattleRoomScreen = () => {
         </div>
       )}
 
-      {/* Proposals allowed in waiting and active (Block 2 §8); RLS enforces it too */}
-      {(arena?.state === "waiting" || arena?.state === "active") && derivedPhase !== "SUDDEN_DEATH" && (
-        <div className="absolute bottom-0 inset-x-0 z-[55]">
-          <ActionStrip arenaId={arena.id} />
+      {/* Bottom stack (above the vote layer, so taps here never vote): what the
+          host's Spotify plays (step 18), then Propose Song, one under the other */}
+      {(arena?.state === "waiting" || arena?.state === "active") && (
+        <div className="absolute bottom-0 inset-x-0 z-[55] flex flex-col items-center">
+          {arena.state === "active" && !isPaused && (
+            <div className="w-full max-w-sm px-4 pt-2">
+              <NowPlaying arenaId={arena.id} playback={playback} isHost={!!participant?.is_host} />
+            </div>
+          )}
+          {/* Proposals allowed in waiting and active (Block 2 §8); RLS enforces it too */}
+          {derivedPhase !== "SUDDEN_DEATH" ? <ActionStrip arenaId={arena.id} /> : <div className="h-2" />}
         </div>
       )}
 
