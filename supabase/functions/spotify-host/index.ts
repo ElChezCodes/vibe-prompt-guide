@@ -32,6 +32,7 @@ import {
  *                     step 12b: create_arena takes fallback_source ('liked' | own playlist id);
  *                     start_arena and watch keep the arena's fallback reserve (refillReserve)
  *                     step 12: result may be a queue-rule refusal (QUEUE_RULE_CODES)
+ *   like           -> toggle_song_like as the caller, mirrored in their own Spotify Liked Songs
  *   start_arena    -> host: checks Premium + device, creates the private playlist with the
  *                     warm-up first, plays it on the device, then start_arena_battles
  *   resume_arena   -> host: plays the playlist again where it stopped and resumes the arena
@@ -67,10 +68,13 @@ const corsHeaders = {
 // the arena's private playlist (step 6), the user's own playlists and Liked Songs to
 // propose from (step 7). No public playlists, no profile data.
 const LIBRARY_SCOPES = ["playlist-read-private", "user-library-read"];
-const SCOPES = ["user-read-playback-state", "user-modify-playback-state", "playlist-modify-private", ...LIBRARY_SCOPES];
+// Likes (2026-10-27): a like in MF is also saved to the liker's own Liked Songs
+const LIKES_SCOPE = "user-library-modify";
+const SCOPES = ["user-read-playback-state", "user-modify-playback-state", "playlist-modify-private", ...LIBRARY_SCOPES, LIKES_SCOPE];
 
 // Connections made before step 7 lack these: they keep working, the UI asks to reconnect
 const canReadLibrary = (account: any) => LIBRARY_SCOPES.every((s) => (account?.scopes ?? []).includes(s));
+const canSaveLikes = (account: any) => (account?.scopes ?? []).includes(LIKES_SCOPE);
 
 const DEFAULT_REDIRECT_URIS = [
   "http://127.0.0.1:8080/spotify/callback",
@@ -423,6 +427,7 @@ async function status(userId: string) {
     premium_status: account.premium_status,
     scopes: account.scopes,
     can_read_library: canReadLibrary(account),
+    can_save_likes: canSaveLikes(account),
     preferred_device_id: account.preferred_device_id,
     preferred_device_name: account.preferred_device_name,
     preferred_device_available: !!account.preferred_device_id &&
@@ -763,6 +768,46 @@ async function propose(userId: string, jwt: string, body: any) {
     throw new HttpError(403, "propose_rejected", error.message);
   }
   return { result: "proposed" };
+}
+
+// Likes (supabase/sql/like_vote_spotify_2026-10-27.sql): toggle_song_like as
+// the caller (membership, vote-if-none, affinity signal), then mirror it in
+// the caller's OWN Spotify Liked Songs: added only if it wasn't there, removed
+// only if MF added it. Never the host's account. Spotify failures leave the
+// MF like as it is.
+async function like(userId: string, jwt: string, body: any) {
+  const arenaId = String(body?.arena_id ?? "");
+  const songId = String(body?.song_id ?? "");
+  const { data, error } = await asUser(jwt).rpc("toggle_song_like", { p_arena_id: arenaId, p_song_id: songId });
+  if (error) throw new HttpError(403, "like_rejected", error.message);
+  const result: any = { ...data, spotify: "not_connected" };
+
+  const { data: song } = await admin.from("songs").select("source, spotify_track_id").eq("id", songId).maybeSingle();
+  if (song?.source !== "spotify") return result;
+  const own = await ownAccount(userId);
+  if (!own) return result;
+  if (!canSaveLikes(own.account)) return { ...result, spotify: "needs_reconnect" };
+
+  try {
+    if (data.liked) {
+      if (await own.provider.isSaved(song.spotify_track_id)) {
+        result.spotify = "already_saved";
+      } else {
+        await own.provider.save(song.spotify_track_id);
+        await admin.rpc("mark_like_saved_to_spotify", { p_user: userId, p_arena_id: arenaId, p_song_id: songId });
+        result.spotify = "saved";
+      }
+    } else if (data.remove_from_spotify) {
+      await own.provider.unsave(song.spotify_track_id);
+      result.spotify = "removed";
+    } else {
+      result.spotify = "kept";
+    }
+  } catch (err) {
+    console.error("[spotify-host] like mirror", err);
+    result.spotify = "error";
+  }
+  return result;
 }
 
 // ---------- step 7b: accounts ----------
@@ -1173,6 +1218,8 @@ Deno.serve(async (req) => {
         return json(await createArena(userId, body));
       case "propose":
         return json(await propose(userId, jwt, body));
+      case "like":
+        return json(await like(userId, jwt, body));
       case "propose_sources":
         return json(await proposeSources(userId, body));
       case "my_playlists":

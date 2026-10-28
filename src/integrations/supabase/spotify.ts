@@ -20,6 +20,8 @@ export interface SpotifyStatus {
   premium_status?: PremiumStatus;
   // Step 7: playlist-read-private + user-library-read granted (older connections: reconnect)
   can_read_library?: boolean;
+  // user-library-modify granted: MF likes are saved to their Liked Songs
+  can_save_likes?: boolean;
   preferred_device_id?: string | null;
   preferred_device_name?: string | null;
   preferred_device_available?: boolean;
@@ -43,7 +45,7 @@ export class SpotifyHostError extends Error {
   }
 }
 
-async function callSpotifyHost<T>(body: Record<string, unknown>): Promise<T> {
+export async function callSpotifyHost<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('spotify-host', { body });
   if (error) {
     // Non-2xx: the function's { error, message } is in the response body

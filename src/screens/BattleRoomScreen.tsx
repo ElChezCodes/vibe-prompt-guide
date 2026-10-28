@@ -117,7 +117,7 @@ const BattleRoomScreen = () => {
     async (songId: string) => {
       if (!arena?.id || !songId) return;
       try {
-        const liked = await toggleSongLike(arena.id, songId);
+        const { liked, voted } = await toggleSongLike(arena.id, songId);
         setLikedSongIds((prev) => {
           const next = new Set(prev);
           if (liked) next.add(songId);
@@ -125,11 +125,16 @@ const BattleRoomScreen = () => {
           return next;
         });
         setLikeCount((n) => n + 1);
+        // The backend cast a vote for the liked song: show it as the user's vote
+        if (voted && battle && participant) {
+          const vote = await getParticipantVote(battle.battle_id, participant.id);
+          if (vote) setVoteRecord(vote);
+        }
       } catch (err) {
         console.error("[Like] Failed:", err);
       }
     },
-    [arena?.id],
+    [arena?.id, battle, participant],
   );
 
   // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes/likes

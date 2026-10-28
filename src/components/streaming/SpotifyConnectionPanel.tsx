@@ -69,11 +69,12 @@ const SpotifyConnectionPanel = ({ returnTo }: Props) => {
         <span className="text-sm text-primary font-medium">Connected</span>
       </div>
 
-      {/* Step 7: connections made before it lack the playlist/library scopes (soft re-consent) */}
-      {status.can_read_library === false && (
+      {/* Step 7 / likes: older connections lack the library scopes (soft re-consent) */}
+      {(status.can_read_library === false || status.can_save_likes === false) && (
         <div className="space-y-2">
           <p className="text-sm text-text-secondary">
-            Reconnect Spotify to propose songs from your playlists and Liked Songs in any arena.
+            Reconnect Spotify to propose songs from your playlists and Liked Songs, and to save the songs you like
+            in Music Fighter to your Liked Songs.
           </p>
           <Button variant="neon" className="w-full" disabled={busy} onClick={() => connect(returnTo)}>
             Reconnect Spotify

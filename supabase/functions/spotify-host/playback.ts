@@ -78,6 +78,10 @@ export interface PlaybackProvider {
   // The token owner's own library, only to pick a song to propose (step 7)
   listPlaylists(ownerId: string): Promise<LibraryPlaylist[]>;
   playlistTracks(playlistId: string, offset: number): Promise<LibraryPage>;
+  // The token owner's Liked Songs, only when they like a song in MF
+  isSaved(trackId: string): Promise<boolean>;
+  save(trackId: string): Promise<void>;
+  unsave(trackId: string): Promise<void>;
 }
 
 export class PlaybackError extends Error {
@@ -254,6 +258,20 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       if (!body?.next) break;
     }
     return out;
+  }
+
+  // Feb 2026: /me/library (URIs) replaces /me/tracks for saving/checking
+  async isSaved(trackId: string): Promise<boolean> {
+    const body = await this.must(`/me/library/contains?uris=${encodeURIComponent(trackUri(trackId))}`);
+    return Array.isArray(body) ? !!body[0] : false;
+  }
+
+  async save(trackId: string) {
+    await this.must(`/me/library?uris=${encodeURIComponent(trackUri(trackId))}`, { method: "PUT" });
+  }
+
+  async unsave(trackId: string) {
+    await this.must(`/me/library?uris=${encodeURIComponent(trackUri(trackId))}`, { method: "DELETE" });
   }
 
   async playlistTracks(playlistId: string, offset: number): Promise<LibraryPage> {
