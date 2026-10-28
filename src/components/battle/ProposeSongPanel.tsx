@@ -189,21 +189,37 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="h-full flex flex-col gap-3">
       {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
-        <p className="flex-shrink-0 text-xs text-center text-song-b">
+        <p className="flex-shrink-0 self-center inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-song-b bg-song-b/10 border border-song-b/30">
+          <span className="w-1.5 h-1.5 rounded-full bg-song-b animate-pulse" />
           The queue is running low: propose a song!
         </p>
       )}
       {/* Sources: their own playlists only with their own Spotify connected */}
       {sources?.own_connected && (
-        <div className="flex-shrink-0 grid grid-cols-2 gap-2">
-          <Button variant={tab === "search" ? "default" : "ghost"} onClick={() => switchTab("search")}>
-            Search
-          </Button>
-          <Button variant={tab === "playlists" ? "default" : "ghost"} onClick={() => switchTab("playlists")}>
-            My playlists
-          </Button>
+        <div role="tablist" className="flex-shrink-0 grid grid-cols-2 gap-1 p-1 rounded-xl neon-row">
+          {(
+            [
+              ["search", "Search"],
+              ["playlists", "My playlists"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              onClick={() => switchTab(value)}
+              className={`h-9 rounded-lg text-sm font-semibold transition-all ${
+                tab === value
+                  ? "bg-primary text-primary-foreground glow-primary"
+                  : "text-text-secondary hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -219,18 +235,23 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       ) : (
       <>
       {canChooseAccount && (
-        <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-text-secondary">
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>Search with</span>
-          <div className="flex gap-1">
+          <div className="inline-flex p-0.5 rounded-full neon-row">
             {(["own", "host"] as const).map((account) => (
-              <Button
+              <button
                 key={account}
-                size="sm"
-                variant={searchAccount === account ? "default" : "ghost"}
+                type="button"
+                aria-pressed={searchAccount === account}
                 onClick={() => setSearchAccount(account)}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                  searchAccount === account
+                    ? "bg-song-a/20 text-song-a"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {account === "own" ? "My Spotify" : "Host's Spotify"}
-              </Button>
+              </button>
             ))}
           </div>
         </div>
