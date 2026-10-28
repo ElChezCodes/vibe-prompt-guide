@@ -59,7 +59,7 @@ const ProfileScreen = () => {
         style={{ animationDelay: "100ms" }}
       >
         <p className="neon-label mb-3">Achievements</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 max-w-[16rem] mx-auto">
           {[0, 1, 2].map((i) => (
             <div key={i} className="aspect-square rounded-xl neon-row flex items-center justify-center">
               <Lock className="w-5 h-5 text-muted-foreground" />
