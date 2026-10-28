@@ -192,18 +192,33 @@ export async function createSpotifyArena(name: string, mood: string, trackId: st
   return arena_id;
 }
 
+// Step 12: queue-rule refusals come back as a result, not an error;
+// available_at only for recently_played (ISO, when it may be proposed again)
+export type ProposeResult =
+  | 'proposed'
+  | 'already_queued'
+  | 'in_battle'
+  | 'is_warmup'
+  | 'recently_played'
+  | 'proposer_queue_full'
+  | 'queue_full';
+
+export interface ProposeOutcome {
+  result: ProposeResult;
+  available_at?: string | null;
+}
+
 export async function proposeSpotifyTrack(
   arenaId: string,
   trackId: string,
   account: CatalogAccount = 'own',
-): Promise<'proposed' | 'already_queued'> {
-  const { result } = await callSpotifyHost<{ result: 'proposed' | 'already_queued' }>({
+): Promise<ProposeOutcome> {
+  return callSpotifyHost<ProposeOutcome>({
     action: 'propose',
     arena_id: arenaId,
     track_id: trackId,
     account,
   });
-  return result;
 }
 
 // Host: playlist + warm-up on the device, then waiting -> active (idempotent

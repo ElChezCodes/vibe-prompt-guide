@@ -27,7 +27,8 @@ import {
  *   search         -> Spotify catalog search (max 10). In an arena it uses the arena host's
  *                     token (step 7: or the member's own, see below); otherwise the caller's own
  *   create_arena   -> creates an arena whose warm-up is a Spotify track
- *   propose        -> active proposal of a Spotify track (songs row + the caller's queues insert)
+ *   propose        -> active proposal of a Spotify track (songs row + the caller's queues insert);
+ *                     step 12: result may be a queue-rule refusal (QUEUE_RULE_CODES)
  *   start_arena    -> host: checks Premium + device, creates the private playlist with the
  *                     warm-up first, plays it on the device, then start_arena_battles
  *   resume_arena   -> host: plays the playlist again where it stopped and resumes the arena
@@ -651,6 +652,9 @@ async function createArena(userId: string, body: any) {
   return { arena_id: data };
 }
 
+// Refusals raised by validate_queue_proposal (supabase/sql/queue_rules_2026-10-27.sql)
+const QUEUE_RULE_CODES = new Set(["in_battle", "is_warmup", "recently_played", "proposer_queue_full", "queue_full"]);
+
 async function propose(userId: string, jwt: string, body: any) {
   const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
   // Re-read from Spotify with the same account the caller picked it with
@@ -682,6 +686,10 @@ async function propose(userId: string, jwt: string, body: any) {
   if (error) {
     // queues_arena_song_unique: someone already queued it
     if (error.code === "23505") return { result: "already_queued" };
+    // Step-12 queue rules (validate_queue_proposal): the message is the code
+    if (error.code === "P0001" && QUEUE_RULE_CODES.has(error.message)) {
+      return { result: error.message, available_at: error.hint ?? null };
+    }
     throw new HttpError(403, "propose_rejected", error.message);
   }
   return { result: "proposed" };

@@ -6,12 +6,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getMyProposals,
   MyProposal,
+  ProposalStatus,
   proposeSong,
   searchSongs,
+  withdrawProposal,
 } from "@/integrations/supabase/proposals";
 import {
   CatalogAccount,
   getProposeSources,
+  ProposeOutcome,
   ProposeSources,
   SpotifyHostError,
   SpotifyTrack,
@@ -20,6 +23,45 @@ import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import MyPlaylistsBrowser from "@/components/streaming/MyPlaylistsBrowser";
 
 const SEARCH_DEBOUNCE_MS = 350;
+
+// Step 12 queue rules, decided by the backend (validate_queue_proposal)
+const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
+  switch (result) {
+    case "proposed":
+      return "Song proposed";
+    case "already_queued":
+      return "That song is already in the queue";
+    case "in_battle":
+      return "That song is fighting right now";
+    case "is_warmup":
+      return "That's the warm-up song";
+    case "recently_played": {
+      const at = available_at ? new Date(available_at) : null;
+      return at
+        ? `That song played recently: you can propose it again at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+        : "That song played recently: try again later";
+    }
+    case "proposer_queue_full":
+      return "You already have 5 songs in the queue: wait until one fights";
+    case "queue_full":
+      return "The fighters list is full… please wait a few minutes";
+  }
+};
+
+const statusLabel = (p: MyProposal): string => {
+  const labels: Record<ProposalStatus, string> = {
+    next: `#${p.place} in the next 10`,
+    waiting: `Waiting #${p.place} · ${p.battles_left} battles before it's dropped`,
+    competing: "Fighting now",
+    won: "Won",
+    lost: "Lost",
+    draw: "Draw",
+    cancelled: "Battle cancelled",
+    purged: "Dropped after 20 battles waiting",
+    withdrawn: "Withdrawn",
+  };
+  return labels[p.status];
+};
 
 interface ProposeSongPanelProps {
   arenaId: string;
@@ -60,8 +102,11 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       .catch(() => setMyProposals([]));
   }, [arenaId]);
 
+  // Places and outcomes change with every battle (step 12)
   useEffect(() => {
     loadMyProposals();
+    const interval = setInterval(loadMyProposals, 15000);
+    return () => clearInterval(interval);
   }, [loadMyProposals]);
 
   useEffect(() => {
@@ -101,8 +146,8 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     setIsSubmitting(true);
     setNotice("");
     try {
-      const result = await proposeSong(arenaId, selectedSongId, selectedAccount);
-      setNotice(result === "already_queued" ? "That song is already in the queue" : "Song proposed");
+      const outcome = await proposeSong(arenaId, selectedSongId, selectedAccount);
+      setNotice(proposeNotice(outcome));
       // The query and its results stay, so several songs of the same search
       // (e.g. one artist) can be proposed in a row (user request 2026-10-27)
       setSelectedSongId(null);
@@ -116,6 +161,17 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleWithdraw = async (queueId: string) => {
+    try {
+      await withdrawProposal(queueId);
+      setNotice("Proposal withdrawn");
+    } catch {
+      // It may have just entered a battle
+      setNotice("Couldn't withdraw it");
+    }
+    loadMyProposals();
   };
 
   const selectTrack = (trackId: string, account: CatalogAccount) => {
@@ -206,17 +262,26 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
           ) : (
             // My proposals still waiting in the queue
             <ScrollArea className="h-full">
-              <p className="neon-label mb-3">Your proposals in the queue</p>
+              <p className="neon-label mb-3">Your proposals</p>
               <div className="space-y-2 pr-4">
                 {myProposals.map((proposal) => (
-                  <div key={proposal.queue_id} className="flex items-center gap-3 p-3 rounded-xl neon-row">
+                  <div
+                    key={proposal.queue_id ?? `${proposal.song_id}-${proposal.at}`}
+                    className="flex items-center gap-3 p-3 rounded-xl neon-row"
+                  >
                     <div className="w-9 h-9 rounded-lg bg-song-a/10 flex items-center justify-center flex-shrink-0">
                       <Music className="h-4 w-4 text-song-a" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate">{proposal.title}</p>
                       <p className="text-muted-foreground text-xs truncate">{proposal.artist}</p>
+                      <p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>
                     </div>
+                    {proposal.queue_id && (
+                      <Button size="sm" variant="ghost" onClick={() => handleWithdraw(proposal.queue_id)}>
+                        Withdraw
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

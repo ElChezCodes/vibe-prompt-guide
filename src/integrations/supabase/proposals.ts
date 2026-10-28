@@ -1,19 +1,40 @@
 import { supabase } from '@/integrations/supabase/client';
-import { CatalogAccount, proposeSpotifyTrack, searchArenaTracks, SpotifyTrack } from '@/integrations/supabase/spotify';
+import {
+  CatalogAccount,
+  ProposeOutcome,
+  proposeSpotifyTrack,
+  searchArenaTracks,
+  SpotifyTrack,
+} from '@/integrations/supabase/spotify';
 
 // Active proposals (tier 1). Shared by the Battle Room modal and the Proponer
 // screen so both read/write the same backend state.
 
+// Queued: next (one of the next 10) | waiting (place in the waiting list,
+// battles_left before the 20-battle purge). History in this arena:
+// competing | won | lost | draw | cancelled | purged | withdrawn.
+export type ProposalStatus =
+  | 'next'
+  | 'waiting'
+  | 'competing'
+  | 'won'
+  | 'lost'
+  | 'draw'
+  | 'cancelled'
+  | 'purged'
+  | 'withdrawn';
+
 export interface MyProposal {
-  queue_id: string;
+  queue_id: string | null; // only while queued (withdraw)
   song_id: string;
   title: string;
   artist: string;
-  queue_type: 'waiting' | 'active';
-  created_at: string;
+  artwork_url: string | null;
+  status: ProposalStatus;
+  place: number | null;
+  battles_left: number | null;
+  at: string;
 }
-
-export type ProposeResult = 'proposed' | 'already_queued';
 
 // Spotify search with the member's own account or the host's (step 7, see
 // searchArenaTracks); the proposal itself goes through spotify-host so the
@@ -31,12 +52,12 @@ export async function proposeSong(
   arenaId: string,
   spotifyTrackId: string,
   account: CatalogAccount = 'own',
-): Promise<ProposeResult> {
+): Promise<ProposeOutcome> {
   return proposeSpotifyTrack(arenaId, spotifyTrackId, account);
 }
 
-// Still-queued proposals only: pull_next_battle_songs deletes a queue row
-// when its song enters a battle.
+// The caller's queued proposals in battle order, then what happened to the
+// ones that left the queue (step 12, get_my_proposals).
 export async function getMyProposals(arenaId: string): Promise<MyProposal[]> {
   const { data, error } = await supabase.rpc('get_my_proposals', { p_arena_id: arenaId });
 
@@ -46,4 +67,14 @@ export async function getMyProposals(arenaId: string): Promise<MyProposal[]> {
   }
 
   return (data ?? []) as MyProposal[];
+}
+
+// Only the proposer, only while it is still queued
+export async function withdrawProposal(queueId: string): Promise<void> {
+  const { error } = await supabase.rpc('withdraw_proposal', { p_queue_id: queueId });
+
+  if (error) {
+    console.error('Failed to withdraw proposal:', error.message, error);
+    throw error;
+  }
 }

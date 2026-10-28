@@ -535,8 +535,24 @@ additions (#1, #4 above), each marked where it lands.
     top 2 regardless of proposer, so one user's two songs can face each other
     (confirmed by rollback test) — fix here; also decide what fills slot B
     when only one user has proposals.
+    **Done 2026-10-27** (`supabase/sql/queue_rules_2026-10-27.sql`, details in
+    CLAUDE.md). User decisions: slot B chain = another proposer → the same
+    proposer's next song → a previous loser of the arena ("revancha") →
+    curated library (last resort until #13); order = turns per person (FIFO
+    within a turn, the next 10 never demote); max 5 queued per person;
+    "Your proposals" = queue state/place + history + withdraw. Spec as
+    written: 10 + 50, "full" notice, purge after 20 battles waiting, no song
+    within 60 min of sounding (winners, draw A+B, warm-up).
 13. **TO BE REDEFINED (2026-10-27)** — sources change: own-data affinity
-    instead of Spotify, and no venue history (private gatherings). Original:
+    instead of Spotify, and no venue history (private gatherings). Candidate
+    source proposed by the user 2026-10-27 (step-12 chat): fill empty slots
+    with a song from the **host's or a user's Spotify Liked Songs** that fits
+    the arena (mood/style of the songs playing or proposed) — only with the
+    library owner's explicit consent (step-7 decision: a guest's library is
+    otherwise only for their own proposals), matching computed from MF's own
+    data (step 8), not Spotify metadata (III.13/III.14; no audio features),
+    and pre-fetched by `spotify-host` (the battle cycle is SQL). Replaces the
+    curated-library fallback of `pull_next_battle_songs`. Original:
     **Passive/system auto-proposal generation** — sourced from aggregate
     passive-user affinity + `mood` + venue history, always lower priority than
     human proposals. Depends on #1, #8, and a venue-history concept that
