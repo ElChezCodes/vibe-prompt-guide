@@ -502,6 +502,20 @@ additions (#1, #4 above), each marked where it lands.
    Only participants with no `votes` row for the battle get a passive vote:
    voting and then cancelling means abstaining, not "didn't vote"
    (user decision, 2026-10-26).
+   **Rules decided by the user 2026-10-27** (resolve the doc conflicts that
+   CLAUDE.md said to check with Sergio; build together with step 8):
+   - Eligible: **PASIVO** in the lock-in `battle_presence_snapshots`, no
+     `votes` row, and enough own-data signals (account → persistent step-8
+     profile; anonymous → what they did in that arena). No signals = no vote.
+     INACTIVO never gets one.
+   - Value: only if affinity score ≥ 0.7; **scaled linearly** 0.4 PB at 0.7 →
+     0.5 PB at 1.0; when **≥75 % of present users are PASIVOS** (v4 wording,
+     not "inactivos") the base rises: 0.5 at 0.7 → 0.6 at 1.0.
+   - Timing: frozen until the final 30 s, ramps linearly over them (visible
+     on the tension bar), the value at lock-in is what counts; **0 during
+     Sudden Death**.
+   - Cap: PB_passive_total ≤ **1.25 × PB_active_total**; **with 0 active votes
+     the cap doesn't apply** (passive votes decide instead of a forced tie).
 10. **EXCLUDED FOR NOW (2026-10-27).** **Jukebox Boost mechanic** — the vote behavior only (1 purchase per battle,
     non-cancelable, counts as 1.0 PB). Apply the shared anti-abuse boundary
     (engineering addition #3) here.
