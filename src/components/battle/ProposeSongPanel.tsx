@@ -303,7 +303,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
                     details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
                     action={
                       proposal.queue_id && (
-                        <Button size="sm" variant="ghost" onClick={() => handleWithdraw(proposal.queue_id)}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); handleWithdraw(proposal.queue_id); }}>
                           Withdraw
                         </Button>
                       )

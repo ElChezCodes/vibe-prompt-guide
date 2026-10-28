@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, Heart, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, ListMusic, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -102,22 +102,51 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
     return (
       <ScrollArea className="h-full">
         <div className="space-y-2 pr-4">
-          {playlists.map((playlist) => (
-            <div key={playlist.id} className="relative">
-              <SpotifyTrackRow
-                track={{
-                  title: playlist.name,
-                  artist: `${playlist.total} songs`,
-                  artwork_url: playlist.artwork_url,
-                  spotify_url: playlist.spotify_url,
-                }}
-                onSelect={() => openPlaylist(playlist)}
-              />
-              {playlist.id === "liked" && (
-                <Heart className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-song-b pointer-events-none" />
-              )}
-            </div>
-          ))}
+          {playlists.map((playlist) => {
+            const isLiked = playlist.id === "liked";
+            return (
+              <div
+                key={playlist.id}
+                role="button"
+                onClick={() => openPlaylist(playlist)}
+                className="flex items-center gap-3 p-2 pr-2.5 rounded-xl cursor-pointer transition-all neon-row hover:border-song-a/60"
+              >
+                {isLiked ? (
+                  <div className="w-12 h-12 flex-shrink-0 rounded-md flex items-center justify-center bg-gradient-to-br from-nebula-glow/70 via-song-b/50 to-song-a/40">
+                    <Heart className="w-5 h-5 text-foreground" fill="currentColor" />
+                  </div>
+                ) : playlist.artwork_url ? (
+                  <img
+                    src={playlist.artwork_url}
+                    alt=""
+                    className="w-12 h-12 flex-shrink-0 rounded-md object-contain bg-background/60"
+                  />
+                ) : (
+                  <div className="w-12 h-12 flex-shrink-0 rounded-md bg-muted/60 flex items-center justify-center">
+                    <ListMusic className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{playlist.name}</p>
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                    <SpotifyIcon className="w-3 h-3 flex-shrink-0 text-[#1DB954]" />
+                    <span className="truncate tabular-nums">{playlist.total} songs</span>
+                  </p>
+                </div>
+                <a
+                  href={playlist.spotify_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className={SPOTIFY_LINK_CLASS}
+                >
+                  <SpotifyIcon className="w-3.5 h-3.5" />
+                  Open Spotify
+                </a>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+              </div>
+            );
+          })}
           {playlists.length === 1 && (
             <p className="text-xs text-muted-foreground text-center">
               Only playlists you own or collaborate on can be opened.
@@ -130,13 +159,23 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
 
   return (
     <div className="h-full flex flex-col gap-2">
-      <button
-        onClick={() => setOpen(null)}
-        className="flex-shrink-0 flex items-center gap-1 text-sm text-text-secondary hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        <span className="truncate">{open.name}</span>
-      </button>
+      <div className="flex-shrink-0 flex items-center gap-2 neon-row rounded-xl p-1.5 pr-2.5">
+        <button
+          onClick={() => setOpen(null)}
+          aria-label="Back to my playlists"
+          className="w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        {open.id === "liked" && <Heart className="w-4 h-4 flex-shrink-0 text-song-b" fill="currentColor" />}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">{open.name}</p>
+          <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <SpotifyIcon className="w-3 h-3 flex-shrink-0 text-[#1DB954]" />
+            <span className="tabular-nums">{open.total} songs</span>
+          </p>
+        </div>
+      </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-2 pr-4">
           {tracks.map((track) => (
@@ -156,9 +195,16 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
             </div>
           )}
           {!loading && nextOffset !== null && (
-            <Button variant="ghost" className="w-full" onClick={() => loadTracks(open, nextOffset)}>
-              Load more
-            </Button>
+            <div className="flex justify-center pt-1 pb-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full border border-border/70 px-4 text-xs text-text-secondary hover:text-foreground hover:border-song-a/60"
+                onClick={() => loadTracks(open, nextOffset)}
+              >
+                Load more
+              </Button>
+            </div>
           )}
           {error && <p className="text-sm text-center text-destructive">{error}</p>}
         </div>
