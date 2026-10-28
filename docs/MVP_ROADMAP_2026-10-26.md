@@ -449,6 +449,13 @@ additions (#1, #4 above), each marked where it lands.
    history are kept. Needs a privacy policy + consent + account deletion (a
    taste profile is personal data). The anonymous session is per origin/device,
    so without an account the profile is per browser.
+   **Built 2026-10-27** (`supabase/sql/accounts_2026-10-27.sql`, spotify-host
+   `merge_anonymous`/`delete_account`, Profile "Your account", `/privacy`).
+   User decisions: email + 6-digit code only (Google later); signing into an
+   existing account from an anonymous device **merges** that device's data
+   into the account; privacy contact email pending from the user. Pending
+   owner config: Auth URL/OTP/templates and custom SMTP (Gmail app password
+   recommended, or Brevo).
 8. **Own affinity profile — DEFINED 2026-10-27, built together with step 9**
    (user decision: no code in the step-8 chat; "define 8, build with 9").
    Replaces "Participant affinity profile sync" (Spotify top tracks/genres/

@@ -13,6 +13,7 @@ import ConnectStreamingScreen from "./screens/ConnectStreamingScreen";
 import ProposeSongScreen from "./screens/ProposeSongScreen";
 import RankingScreen from "./screens/RankingScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import PrivacyScreen from "./screens/PrivacyScreen";
 import SpotifyCallbackScreen from "./screens/SpotifyCallbackScreen";
 import AppShell from "./components/nav/AppShell";
 import { useAnonymousAuth } from "./hooks/useAnonymousAuth";
@@ -42,6 +43,7 @@ const AppRoutes = () => {
         <Route path="/create" element={<CreateArenaScreen />} />
         <Route path="/ranking" element={<RankingScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
+        <Route path="/privacy" element={<PrivacyScreen />} />
         {/* Arena screens: the arena travels in the URL */}
         <Route path="/a/:code/lobby" element={<ArenaLobbyScreen />} />
         <Route path="/a/:code/connect" element={<ConnectStreamingScreen />} />

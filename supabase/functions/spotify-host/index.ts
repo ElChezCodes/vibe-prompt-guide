@@ -42,6 +42,13 @@ import {
  *   search/propose  -> account "own" (default: the caller's token, falling back to the
  *                      host's) or "host"
  *
+ * Step 7b (supabase/sql/accounts_2026-10-27.sql): optional accounts. Lives here because
+ * a merge must re-encrypt Spotify tokens (they are bound to the user id).
+ *   merge_anonymous -> the account that just signed in claims the merge ticket its
+ *                      anonymous session created: Spotify connection, arenas, votes and
+ *                      proposals move to the account; the anonymous auth user is deleted
+ *   delete_account  -> ends the arenas they host, deletes their Spotify data and auth user
+ *
  * Secrets: SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_TOKEN_KEY (base64, 32 bytes),
  * optional SPOTIFY_REDIRECT_URIS (comma-separated allowlist), optional SPOTIFY_WATCH_SECRET.
  */
@@ -680,6 +687,75 @@ async function propose(userId: string, jwt: string, body: any) {
   return { result: "proposed" };
 }
 
+// ---------- step 7b: accounts ----------
+
+// The anonymous side's Spotify connection moves to the account when the
+// account has none, or when the anonymous side is hosting an open arena (its
+// playlist lives in that Spotify account); otherwise the account's own wins.
+async function moveSpotifyConnection(fromId: string, toId: string) {
+  const from = await loadAccount(fromId);
+  if (!from) return;
+  const to = await loadAccount(toId);
+  const { count } = await admin
+    .from("arenas")
+    .select("id", { count: "exact", head: true })
+    .eq("host_id", fromId)
+    .in("state", ["waiting", "active"]);
+  if (!to || (count ?? 0) > 0) {
+    const { id: _id, host_id: _host, ...rest } = from;
+    const { error } = await admin.from("streaming_accounts").upsert(
+      {
+        ...rest,
+        host_id: toId,
+        access_token_enc: await encryptToken(await decryptToken(from.access_token_enc, fromId, "access_token"), toId, "access_token"),
+        refresh_token_enc: await encryptToken(await decryptToken(from.refresh_token_enc, fromId, "refresh_token"), toId, "refresh_token"),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "host_id,provider" },
+    );
+    if (error) throw new HttpError(500, "db_error", error.message);
+  }
+  await admin.from("streaming_accounts").delete().eq("host_id", fromId);
+}
+
+async function mergeAnonymous(user: any, body: any) {
+  if (user.is_anonymous) throw new HttpError(403, "not_an_account", "Sign in first");
+  const { data: ticket } = await admin
+    .from("account_merge_tickets")
+    .select("*")
+    .eq("ticket", String(body?.ticket ?? ""))
+    .maybeSingle();
+  if (!ticket || new Date(ticket.expires_at).getTime() < Date.now()) {
+    throw new HttpError(400, "invalid_ticket", "This sign-in took too long; your account is ready, but this device's activity wasn't merged");
+  }
+  const fromId = ticket.anon_user_id;
+  const { data: from } = await admin.auth.admin.getUserById(fromId);
+  if (!from?.user?.is_anonymous) throw new HttpError(409, "not_anonymous");
+
+  await moveSpotifyConnection(fromId, user.id);
+  const { data, error } = await admin.rpc("merge_anonymous_user", { p_from: fromId, p_to: user.id });
+  if (error) throw new HttpError(500, "merge_failed", error.message);
+  await admin.auth.admin.deleteUser(fromId);
+  return { merged: true, ...data };
+}
+
+async function deleteAccount(user: any, jwt: string) {
+  if (user.is_anonymous) throw new HttpError(400, "not_an_account");
+  const { data: hosted } = await admin
+    .from("arenas")
+    .select("id")
+    .eq("host_id", user.id)
+    .in("state", ["waiting", "active"]);
+  for (const arena of hosted ?? []) {
+    const { error } = await asUser(jwt).rpc("end_arena", { p_arena_id: arena.id });
+    if (error) throw new HttpError(409, "end_arena_failed", error.message);
+  }
+  await deleteSpotifyData(user.id);
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) throw new HttpError(500, "delete_failed", error.message);
+  return { deleted: true };
+}
+
 async function warmupTrackUri(arena: any) {
   const { data } = await admin
     .from("songs")
@@ -1021,6 +1097,10 @@ Deno.serve(async (req) => {
         return json(await myPlaylists(userId, body));
       case "playlist_tracks":
         return json(await playlistTracks(userId, body));
+      case "merge_anonymous":
+        return json(await mergeAnonymous(auth.user, body));
+      case "delete_account":
+        return json(await deleteAccount(auth.user, jwt));
       case "start_arena":
         return json(await startArena(userId, jwt, body));
       case "resume_arena":

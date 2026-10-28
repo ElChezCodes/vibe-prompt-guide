@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { leaveArena } from "@/integrations/supabase/arenas";
 import { useCurrentArena, useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import SpotifyConnectionPanel from "@/components/streaming/SpotifyConnectionPanel";
+import AccountPanel from "@/components/account/AccountPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,15 @@ const ProfileScreen = () => {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground text-center">Coming soon</p>
+      </div>
+
+      {/* Optional account (step 7b) */}
+      <div
+        className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
+        style={{ animationDelay: "115ms" }}
+      >
+        <p className="neon-label">Your account</p>
+        <AccountPanel />
       </div>
 
       {/* Spotify: to host your own arenas and propose from your own library */}
