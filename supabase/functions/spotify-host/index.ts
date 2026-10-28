@@ -1142,22 +1142,58 @@ async function hostPlayer(pb: any) {
 // Spotify's player may play another version of a playlist track (track
 // relinking: same recording, another id in the host's country), so the uri it
 // reports isn't the arena's. Found in-app 2026-10-28: MF kept putting such a
-// song "back", undoing the host's seeks. Mapped back by ISRC; matches are
-// remembered per instance (misses aren't: the song may win later).
+// song "back", undoing the host's seeks and asking the host every check.
+// Mapped back to the arena song (matches remembered per instance; misses
+// aren't, the song may win later) by, in order: Spotify relinking the expected
+// song to that id itself, the same ISRC, the same title + artist + length, or,
+// for the expected song, the same length playing at its planned point.
 const relinked = new Map<string, string>();
+const RELINK_DURATION_MS = 3_000;
 
-async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, uri: string | null) {
+const sameText = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && a.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
+    b.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, status: PlaybackStatus) {
+  const uri = status.trackUri;
   const arenaUris: string[] = plan.arena_uris ?? [];
   if (!uri || arenaUris.includes(uri)) return uri;
   const key = `${arenaId}:${uri}`;
   const known = relinked.get(key);
   if (known) return known;
+  const idOf = (u: string) => u.replace("spotify:track:", "");
   let match = "";
   try {
-    const track = await provider.getTrack(uri.replace("spotify:track:", ""));
-    if (track?.isrc) {
-      const { data } = await admin.from("songs").select("spotify_track_id").eq("arena_id", arenaId).eq("isrc", track.isrc);
-      match = (data ?? []).map((r: any) => trackUri(r.spotify_track_id)).find((u: string) => arenaUris.includes(u)) ?? "";
+    const expectedUri: string | undefined = plan.expected?.track_uri;
+    if (expectedUri) {
+      const version = await provider.getTrack(idOf(expectedUri));
+      if (version && trackUri(version.spotify_track_id) === uri) match = expectedUri;
+    }
+    const track = match ? null : await provider.getTrack(idOf(uri));
+    const expected = plan.expected;
+    const onSchedule = !!expected && status.durationMs != null && status.progressMs != null &&
+      Math.abs(status.durationMs - Number(expected.duration_ms)) <= RELINK_DURATION_MS &&
+      Math.abs(status.progressMs - Number(expected.position_ms)) <= SEAM_MS * 2;
+    if (track) {
+      const { data } = await admin
+        .from("songs")
+        .select("spotify_track_id, isrc, title, artist, duration_ms")
+        .eq("arena_id", arenaId)
+        .in("spotify_track_id", arenaUris.map(idOf));
+      const songs = (data ?? []) as any[];
+      const hit = songs.find((r) => !!track.isrc && r.isrc === track.isrc) ??
+        songs.find((r) =>
+          sameText(r.title, track.title) && sameText(r.artist, track.artist) &&
+          Math.abs(Number(r.duration_ms) - track.duration_ms) <= RELINK_DURATION_MS
+        );
+      if (hit) match = trackUri(hit.spotify_track_id);
+      else if (onSchedule) match = expected.track_uri;
+      else {
+        console.info("[spotify-host] unknown track on the arena playlist", arenaId, uri, track.isrc, track.duration_ms,
+          "expected", expectedUri ?? null);
+      }
+    } else if (!match && onSchedule) {
+      match = expected.track_uri;
     }
   } catch (err) {
     console.warn("[spotify-host] relink lookup failed", arenaId, err);
@@ -1195,7 +1231,7 @@ async function checkArena(pb: any, arena: any) {
   await provider.onProgress(async (status) => {
     const pick = pickDevice(status, account.preferred_device_id);
     const onPlaylist = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
-    const playing = onPlaylist ? await arenaUriFor(provider, arena.id, plan, status.trackUri) : status.trackUri;
+    const playing = onPlaylist ? await arenaUriFor(provider, arena.id, plan, status) : status.trackUri;
     const snapshot: Record<string, unknown> = {
       is_playing: status.isPlaying && onPlaylist,
       device_id: pick?.device.id ?? pb.device_id,
