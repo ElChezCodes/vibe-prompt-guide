@@ -319,7 +319,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
             <div className="space-y-2 pr-4">
               {/* Their own account failed (or was revoked): the host's answered */}
               {canChooseAccount && searchAccount === "own" && searchedWith === "host" && (
-                <p className="text-xs text-muted-foreground">Searched with the host's Spotify</p>
+                <p className="text-[11px] text-muted-foreground px-1">Searched with the host's Spotify</p>
               )}
               {results.map((track) => (
                 <SpotifyTrackRow
@@ -336,7 +336,15 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       </>
       )}
 
-      {notice && <p className="flex-shrink-0 text-sm text-center text-song-a">{notice}</p>}
+      {notice && (
+        <p
+          role="status"
+          className="flex-shrink-0 self-center max-w-full inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-foreground bg-secondary/90 border border-song-a/40 shadow-[0_0_14px_-4px_hsl(var(--song-a)/0.6)] animate-fade-in"
+        >
+          <span className="w-1.5 h-1.5 flex-shrink-0 rounded-full bg-song-a" />
+          <span className="min-w-0">{notice}</span>
+        </p>
+      )}
 
       {/* Submit Button */}
       <div className="flex-shrink-0 pt-2">
