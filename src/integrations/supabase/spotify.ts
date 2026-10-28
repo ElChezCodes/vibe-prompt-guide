@@ -261,6 +261,28 @@ export interface ArenaPlayback {
   // Host only
   device_name: string | null;
   playlist_url: string | null;
+  // Step 18: what the host's player is on (our playlist / something else, e.g.
+  // Autoplay / nothing) and the arena song playing, else the one due now
+  player_context: 'playlist' | 'other' | 'stopped' | null;
+  now_playing_kind: 'warmup' | 'winner' | null;
+  now_playing_title: string | null;
+  now_playing_artist: string | null;
+  now_playing_artwork_url: string | null;
+  now_playing_spotify_track_id: string | null;
+  next_title: string | null;
+  next_artist: string | null;
+  control_mode: ControlMode | null;
+  // Host only: MF put the expected song back after a change in Spotify
+  manual_change_at: string | null;
+}
+
+// 'auto' = MF puts the arena's song back after changes in Spotify;
+// 'manual' = the host controls Spotify and MF follows their skips
+export type ControlMode = 'auto' | 'manual';
+
+export async function setArenaControlMode(arenaId: string, mode: ControlMode): Promise<void> {
+  const { error } = await supabase.rpc('set_arena_control_mode', { p_arena_id: arenaId, p_mode: mode });
+  if (error) throw error;
 }
 
 export async function getArenaPlayback(arenaId: string): Promise<ArenaPlayback | null> {

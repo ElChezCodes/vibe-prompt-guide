@@ -27,6 +27,7 @@ import {
   StreamingConnectionSummary,
 } from "@/integrations/supabase/spotify";
 import { useArenaPlayback } from "@/hooks/useArenaPlayback";
+import NowPlaying from "@/components/streaming/NowPlaying";
 
 // What the host can do about each Start refusal (codes from spotify-host)
 const START_ERRORS: Record<string, string> = {
@@ -262,6 +263,9 @@ const ArenaLobbyScreen = () => {
                 {playback.is_playing ? " · playing" : ""}
               </p>
             )}
+            <div className="mt-2">
+              <NowPlaying arenaId={arena.id} playback={playback} isHost />
+            </div>
             {playback.playlist_url && (
               <a
                 href={playback.playlist_url}

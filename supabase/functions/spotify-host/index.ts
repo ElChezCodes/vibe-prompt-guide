@@ -6,6 +6,7 @@ import {
   LIBRARY_PAGE,
   LIKED_SONGS_ID,
   PlaybackError,
+  PlaybackSession,
   PlaybackStatus,
   SpotifyPlaybackProvider,
   trackUri,
@@ -38,6 +39,13 @@ import {
  *   resume_arena   -> host: plays the playlist again where it stopped and resumes the arena
  *   watch          -> pg_cron every 15 s (no user JWT): onProgress for every running arena;
  *                     pauses/resumes arenas (2 strikes, ~30 s)
+ *   nudge          -> from the database (pg_net, same secret) when a winner is decided or a
+ *                     battle ends/starts late: appends winners, then checks the player
+ *
+ * Step 18 (supabase/sql/real_playback_2026-10-28.sql): winners are appended to the
+ * playlist and the player is kept on the arena's sound plan: drifts re-anchor the
+ * battle clock; manual changes are put back (auto) or followed (manual control);
+ * a song due after a gap (Autoplay) is started by MF.
  *
  * Step 7: a member's own Spotify, in any arena, only to pick songs to propose (never
  * for affinity/profiling, Developer Policy III.13; nothing of their library is stored):
@@ -99,7 +107,15 @@ function asUser(jwt: string) {
 
 // Watcher pacing: one check per arena per ~15 s cron tick, pause on the 2nd bad one
 const WATCH_MIN_INTERVAL_MS = 12_000;
+// Nudges from the database (step 18) may check sooner
+const NUDGE_MIN_INTERVAL_MS = 1_500;
 const STRIKES_TO_PAUSE = 2;
+// Step 18: Spotify a few seconds off the plan at a song change is not a change
+const SEAM_MS = 5_000;
+// A song that became due less than this ago and isn't playing is started
+const KICK_MS = 20_000;
+// After putting the expected track back, let Spotify catch up before again
+const CORRECTION_COOLDOWN_MS = 8_000;
 // Don't call the natural end of the playlist "paused"
 const EXPECTED_TAIL_MS = 5_000;
 
@@ -968,7 +984,7 @@ async function startArena(userId: string, jwt: string, body: any) {
     throw err;
   }
 
-  // Music is expected until the warm-up ends (backend clock); step 18 extends it
+  // Display only since step 18 (the sound plan decides when music is expected)
   const { data: started } = await admin.from("arenas").select("warmup_started_at").eq("id", arena.id).single();
   const startedMs = new Date(started?.warmup_started_at ?? Date.now()).getTime();
   await admin
@@ -987,18 +1003,37 @@ async function startArena(userId: string, jwt: string, body: any) {
   return { battle_id: battleId };
 }
 
-// The arena playlist, recreated if a disconnect cleared it (step 6: the
-// warm-up; step 18 must re-add the winners too)
+// The arena playlist, recreated if a disconnect cleared it: the warm-up and
+// every winner, in order (step 18)
 async function ensureSession(provider: SpotifyPlaybackProvider, arena: any, pb: any) {
   if (pb.playlist_id) return { id: pb.playlist_id, uri: pb.playlist_uri };
-  const warmup = await warmupTrackUri(arena);
-  if (!warmup) return null;
-  const session = await provider.createSession(pb.session_name ?? `Music Fighter · ${arena.name}`, warmup.uri);
+  const { data: entries, error } = await admin.rpc("arena_sound_plan", { p_arena_id: arena.id });
+  if (error) throw new HttpError(500, "db_error", error.message);
+  const uris: string[] = (entries ?? []).map((e: any) => e.track_uri);
+  if (!uris.length) return null;
+  const session = await provider.createSession(pb.session_name ?? `Music Fighter · ${arena.name}`, uris[0]);
+  if (uris.length > 1) await provider.queue(session, uris.slice(1));
   await admin
     .from("arena_playback")
     .update({ playlist_id: session.id, playlist_uri: session.uri, updated_at: new Date().toISOString() })
     .eq("arena_id", arena.id);
+  await admin.rpc("mark_playlist_appended", { p_arena_id: arena.id });
   return session;
+}
+
+// Winners decided since the last call go to the end of the playlist, in order
+// (claimed first so a nudge and the watcher never add one twice)
+async function flushAppends(provider: SpotifyPlaybackProvider, arenaId: string, session: PlaybackSession) {
+  const { data: claimed, error } = await admin.rpc("claim_playlist_appends", { p_arena_id: arenaId });
+  if (error) throw new HttpError(500, "db_error", error.message);
+  const rows = ((claimed ?? []) as any[]).sort((a, b) => Number(a.seq) - Number(b.seq));
+  if (!rows.length) return;
+  try {
+    await provider.queue(session, rows.map((r) => trackUri(r.spotify_track_id)));
+  } catch (err) {
+    await admin.rpc("release_playlist_appends", { p_ids: rows.map((r) => r.id) });
+    throw err;
+  }
 }
 
 async function playFromResumePoint(provider: SpotifyPlaybackProvider, session: any, deviceId: string, pb: any) {
@@ -1010,21 +1045,24 @@ async function playFromResumePoint(provider: SpotifyPlaybackProvider, session: a
   });
 }
 
-// Was music expected at this moment (or when the arena paused)?
-function musicExpected(pb: any, arena: any) {
-  const at = arena.paused_at ? new Date(arena.paused_at).getTime() : Date.now();
-  return !!pb.expected_until && new Date(pb.expected_until).getTime() > at;
+// The arena's sound plan at a moment (arena_playback_plan): the track that
+// should be playing and where, its neighbours, the open battle, the mode
+async function loadPlan(arenaId: string, at?: string | null) {
+  const { data, error } = await admin.rpc("arena_playback_plan", {
+    p_arena_id: arenaId,
+    p_at: at ?? new Date().toISOString(),
+  });
+  if (error) throw new HttpError(500, "db_error", error.message);
+  return (data ?? {}) as any;
 }
 
-// The battle clock follows the music: re-anchor battle 1 on when the warm-up
-// really started on the host's player (sync_arena_clock, step-6 fix). Only the
-// warm-up has a battle tied to it until step 18.
+// The battle clock follows the music: the plan entry playing re-anchors the
+// open battle (sync_arena_clock; a skip forward ends it early, v4 §8.3)
 async function syncClock(arena: any, playingUri: string | null, progressMs: number | null) {
   if (!playingUri || progressMs == null) return;
-  const warmup = await warmupTrackUri(arena);
-  if (!warmup || warmup.uri !== playingUri) return;
   const { error } = await admin.rpc("sync_arena_clock", {
     p_arena_id: arena.id,
+    p_track_uri: playingUri,
     p_track_started_at: new Date(Date.now() - progressMs).toISOString(),
   });
   if (error) console.warn("[spotify-host] sync_arena_clock", arena.id, error.message);
@@ -1044,7 +1082,8 @@ async function resumeArena(userId: string, body: any) {
   const pick = pickDevice(await provider.getStatus(), account.preferred_device_id);
   if (!pick) throw new HttpError(409, "no_device", "Open Spotify on your device and try again");
 
-  if (musicExpected(pb, arena)) {
+  const expected = !!(await loadPlan(arena.id, arena.paused_at)).expected;
+  if (expected) {
     const session = await ensureSession(provider, arena, pb);
     if (session) {
       try {
@@ -1058,12 +1097,25 @@ async function resumeArena(userId: string, body: any) {
   await admin.from("arena_playback").update({ device_id: pick.device.id, device_name: pick.device.name }).eq("arena_id", arena.id);
   await admin.rpc("resume_arena", { p_arena_id: arena.id });
   // Playback restarted at the resume point: the battle clock follows it
-  if (musicExpected(pb, arena)) await syncClock(arena, pb.resume_track_uri, pb.resume_position_ms);
+  if (expected) await syncClock(arena, pb.resume_track_uri, pb.resume_position_ms);
   return { resumed: true };
 }
 
-// onProgress for one arena: record what the host's player is doing and
-// pause/resume the arena (user decisions 2026-10-27, see the SQL file)
+// The host's account/provider for an arena; null = disconnected or revoked
+async function hostPlayer(pb: any) {
+  try {
+    const account = await loadAccount(pb.host_id);
+    if (!account) return null;
+    return { account, provider: await providerFor(account) };
+  } catch (err) {
+    if (err instanceof HttpError && err.code === "spotify_revoked") return null;
+    throw err;
+  }
+}
+
+// onProgress for one arena: append new winners, record what the host's
+// player is doing, keep it on the arena's plan, pause/resume the arena (user
+// decisions 2026-10-27 and 2026-10-28, see the SQL files)
 async function checkArena(pb: any, arena: any) {
   const record = (fields: Record<string, unknown>) =>
     admin
@@ -1071,35 +1123,36 @@ async function checkArena(pb: any, arena: any) {
       .update({ ...fields, checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("arena_id", pb.arena_id);
 
-  let account: any = null;
-  let provider: SpotifyPlaybackProvider | null = null;
-  try {
-    account = await loadAccount(pb.host_id);
-    if (account) provider = await providerFor(account);
-  } catch (err) {
-    if (!(err instanceof HttpError && err.code === "spotify_revoked")) throw err;
-    account = null;
-  }
-  if (!account || !provider || (!pb.playlist_id && !arena.paused_at)) {
+  const host = await hostPlayer(pb);
+  if (!host || (!pb.playlist_id && !arena.paused_at)) {
     await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: "spotify_disconnected" });
     await record({ is_playing: false });
     return;
   }
+  const { account, provider } = host;
+  const session = pb.playlist_id ? { id: pb.playlist_id, uri: pb.playlist_uri } : null;
+  if (session) await flushAppends(provider, arena.id, session);
+
+  // Where the music should be now (or when the arena paused)
+  const plan = await loadPlan(arena.id, arena.paused_at);
+  const expected = plan.expected ?? null;
+  const manual = plan.control_mode === "manual";
 
   await provider.onProgress(async (status) => {
     const pick = pickDevice(status, account.preferred_device_id);
     const onPlaylist = !!pb.playlist_uri && status.contextUri === pb.playlist_uri;
-    const expected = musicExpected(pb, arena);
+    const playing = status.trackUri;
     const snapshot: Record<string, unknown> = {
       is_playing: status.isPlaying && onPlaylist,
       device_id: pick?.device.id ?? pb.device_id,
       device_name: pick?.device.name ?? pb.device_name,
+      player_context: onPlaylist ? "playlist" : status.isPlaying ? "other" : "stopped",
     };
-    if (onPlaylist && status.trackUri) {
+    if (onPlaylist && playing) {
       Object.assign(snapshot, {
-        current_track_uri: status.trackUri,
+        current_track_uri: playing,
         progress_ms: status.progressMs,
-        resume_track_uri: status.trackUri,
+        resume_track_uri: playing,
         resume_position_ms: status.progressMs,
       });
     }
@@ -1116,9 +1169,9 @@ async function checkArena(pb: any, arena: any) {
           canResume = true;
           if (expected) {
             try {
-              const session = await ensureSession(provider!, arena, pb);
-              if (session) {
-                await playFromResumePoint(provider!, session, pick.device.id, pb);
+              const resumed = await ensureSession(provider, arena, pb);
+              if (resumed) {
+                await playFromResumePoint(provider, resumed, pick.device.id, pb);
                 resumedUri = pb.resume_track_uri;
                 resumedMs = pb.resume_position_ms;
               }
@@ -1129,10 +1182,11 @@ async function checkArena(pb: any, arena: any) {
           }
         }
       } else {
-        // Host paused Spotify / played something else: back when they play the playlist
-        canResume = !!pick && (!expected || (status.isPlaying && onPlaylist));
+        // Host paused Spotify / played something else: back when they play an arena song
+        const onArenaSong = status.isPlaying && onPlaylist && (plan.arena_uris ?? []).includes(playing);
+        canResume = !!pick && (!expected || onArenaSong);
         if (canResume && expected) {
-          resumedUri = status.trackUri;
+          resumedUri = playing;
           resumedMs = status.progressMs;
         }
       }
@@ -1144,40 +1198,133 @@ async function checkArena(pb: any, arena: any) {
       return;
     }
 
-    // Until step 18 music is only expected during the warm-up; outside that
-    // window nothing audible depends on the device, so nothing pauses
-    let problem: string | null = null;
-    if (expected) {
-      if (!pick) problem = "device_lost";
-      else if (!status.isPlaying) problem = "playback_paused";
-      else if (!onPlaylist) problem = "off_playlist";
+    // A late battle over Spotify's Autoplay lasts the track playing, if long enough
+    const battle = plan.open_battle;
+    if (battle?.soundtrack === "autoplay" && battle.state === "active" && !battle.fitted) {
+      const fits = status.isPlaying && !onPlaylist && status.durationMs != null && status.progressMs != null;
+      await admin.rpc("fit_battle_to_track", {
+        p_arena_id: arena.id,
+        p_track_ends_at: fits ? new Date(Date.now() + status.durationMs! - status.progressMs!).toISOString() : null,
+      });
     }
-    const strikes = problem ? (problem === pb.strike_reason ? pb.strikes + 1 : 1) : 0;
+
+    // No arena song expected (waiting for songs / late battle): Autoplay or silence is fine
+    if (!expected) {
+      await record({ ...snapshot, strikes: 0, strike_reason: null });
+      return;
+    }
+
+    const position = Number(expected.position_ms);
+    const remaining = expected.duration_ms - position;
+    const onExpected = onPlaylist && playing === expected.track_uri;
+    // Song boundaries: Spotify a moment behind or ahead of the plan
+    const atSeam = onPlaylist && status.isPlaying &&
+      ((playing === plan.prev_uri && position < SEAM_MS) || (playing === plan.next_uri && remaining < SEAM_MS));
+    // Last check was on the expected song and now the player is past the
+    // playlist's end (Autoplay, or stopped back at 0)
+    const sawExpected = pb.current_track_uri === expected.track_uri;
+    const pastEnd = !!expected.is_last && sawExpected &&
+      (status.isPlaying ? !onPlaylist : playing !== expected.track_uri || (status.progressMs ?? 0) + SEAM_MS < (pb.progress_ms ?? 0));
+    const recentlyCorrected = !!pb.manual_change_at &&
+      Date.now() - new Date(pb.manual_change_at).getTime() < CORRECTION_COOLDOWN_MS;
+
+    const putBack = async (positionMs: number, flagChange: boolean) => {
+      if (recentlyCorrected) {
+        await record(snapshot);
+        return true;
+      }
+      try {
+        await provider.play({ deviceId: pick!.device.id, contextUri: session!.uri, offsetUri: expected.track_uri, positionMs });
+      } catch (err) {
+        console.warn("[spotify-host] put back failed", arena.id, err);
+        return false;
+      }
+      await record({ ...snapshot, strikes: 0, strike_reason: null, ...(flagChange ? { manual_change_at: new Date().toISOString() } : {}) });
+      return true;
+    };
+
+    let problem: string | null = null;
+    if ((onExpected && status.isPlaying) || atSeam) {
+      await record({ ...snapshot, strikes: 0, strike_reason: null });
+      if (onExpected) await syncClock(arena, playing, status.progressMs);
+      return;
+    } else if (!pick || !session) {
+      problem = "device_lost";
+    } else if (pastEnd) {
+      if (manual) {
+        // The host skipped the last song before a winner exists: lock-in now,
+        // the winner plays as soon as it is decided
+        await admin.rpc("skip_to_lockin", { p_arena_id: arena.id });
+        await record({ ...snapshot, strikes: 0, strike_reason: null });
+        return;
+      }
+      if (await putBack(position, true)) return;
+      problem = "off_playlist";
+    } else if (manual && onPlaylist && status.isPlaying && (plan.later_uris ?? []).includes(playing)) {
+      // Manual control: a skip forward re-times the battle, it doesn't restart it
+      await record({ ...snapshot, strikes: 0, strike_reason: null });
+      await syncClock(arena, playing, status.progressMs);
+      return;
+    } else if (!status.isPlaying && playing === expected.track_uri) {
+      problem = "playback_paused";
+    } else if (position < KICK_MS && (!onPlaylist || !status.isPlaying)) {
+      // The song just became due and Spotify isn't on it (Autoplay after a
+      // gap, stopped at the playlist's end): play it from the start
+      if (!recentlyCorrected) {
+        try {
+          await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: expected.track_uri, positionMs: 0 });
+          await record({ ...snapshot, strikes: 0, strike_reason: null });
+          await syncClock(arena, expected.track_uri, 0);
+          return;
+        } catch (err) {
+          console.warn("[spotify-host] kick failed", arena.id, err);
+        }
+      }
+      problem = status.isPlaying ? "off_playlist" : "playback_paused";
+    } else if (!manual && onPlaylist) {
+      // Skip, back, reorder or a song added by hand: MF puts the expected
+      // track back at its point and asks the host about it
+      if (await putBack(position, true)) return;
+      problem = "off_playlist";
+    } else if (!status.isPlaying) {
+      problem = "playback_paused";
+    } else {
+      problem = "off_playlist";
+    }
+
+    const strikes = problem === pb.strike_reason ? pb.strikes + 1 : 1;
     await record({ ...snapshot, strikes, strike_reason: problem });
-    if (expected && !problem) await syncClock(arena, status.trackUri, status.progressMs);
-    if (problem && strikes >= STRIKES_TO_PAUSE) {
+    if (strikes >= STRIKES_TO_PAUSE) {
       await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: problem });
     }
   });
 }
 
-async function watch(req: Request) {
+const ARENA_COLUMNS = "id, name, state, host_id, warmup_song_id, paused_at, pause_reason";
+
+function checkSecret(req: Request) {
   const secret = Deno.env.get("SPOTIFY_WATCH_SECRET");
   if (secret && req.headers.get("x-watch-secret") !== secret) throw new HttpError(401, "unauthorized");
+}
+
+async function watch(req: Request) {
+  checkSecret(req);
 
   const { data: rows, error } = await admin
     .from("arena_playback")
-    .select("*, arenas!inner(id, name, state, host_id, warmup_song_id, paused_at, pause_reason)")
+    .select(`*, arenas!inner(${ARENA_COLUMNS})`)
     .eq("arenas.state", "active");
   if (error) throw new HttpError(500, "db_error", error.message);
 
   let checked = 0;
   for (const row of rows ?? []) {
-    // Extra calls change nothing: at most one check per arena per interval
-    if (row.checked_at && Date.now() - new Date(row.checked_at).getTime() < WATCH_MIN_INTERVAL_MS) continue;
     try {
-      await checkArena(row, row.arenas);
-      checked++;
+      // Extra calls change nothing: at most one check per arena per interval
+      const { data: due } = await admin.rpc("begin_playback_check", { p_arena_id: row.arena_id, p_min_ms: WATCH_MIN_INTERVAL_MS });
+      if (due) {
+        await checkArena(row, row.arenas);
+        checked++;
+      }
     } catch (err) {
       // Transient Spotify/network errors: next tick tries again
       console.error("[spotify-host] watch", row.arena_id, err);
@@ -1185,6 +1332,30 @@ async function watch(req: Request) {
     await refillReserve(row.arenas).catch((err) => console.error("[spotify-host] reserve", row.arena_id, err));
   }
   return { checked };
+}
+
+// From the database the moment something changes (a winner decided, a battle
+// ending or starting late): append now, then check the player
+async function nudge(req: Request, body: any) {
+  checkSecret(req);
+  const { data: row, error } = await admin
+    .from("arena_playback")
+    .select(`*, arenas!inner(${ARENA_COLUMNS})`)
+    .eq("arena_id", String(body?.arena_id ?? ""))
+    .eq("arenas.state", "active")
+    .maybeSingle();
+  if (error) throw new HttpError(500, "db_error", error.message);
+  if (!row) return { checked: false };
+
+  const { data: due } = await admin.rpc("begin_playback_check", { p_arena_id: row.arena_id, p_min_ms: NUDGE_MIN_INTERVAL_MS });
+  if (due) {
+    await checkArena(row, row.arenas);
+    return { checked: true };
+  }
+  // A check is running: still append right away
+  const host = await hostPlayer(row);
+  if (host && row.playlist_id) await flushAppends(host.provider, row.arena_id, { id: row.playlist_id, uri: row.playlist_uri });
+  return { checked: false };
 }
 
 Deno.serve(async (req) => {
@@ -1195,6 +1366,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     // pg_cron, no user session
     if (body?.action === "watch") return json(await watch(req));
+    if (body?.action === "nudge") return json(await nudge(req, body));
 
     const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     const { data: auth, error: authError } = await admin.auth.getUser(jwt);

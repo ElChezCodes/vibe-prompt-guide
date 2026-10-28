@@ -7,6 +7,7 @@ import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrat
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { useArenaWarmup } from "@/hooks/useArenaWarmup";
 import { useArenaPlayback } from "@/hooks/useArenaPlayback";
+import NowPlaying from "@/components/streaming/NowPlaying";
 import { PAUSE_REASON_LABELS, resumeSpotifyArena } from "@/integrations/supabase/spotify";
 import { ensureParticipant } from "@/integrations/supabase/participants";
 import StageView, { STAGE_CARD_FOOTER_CLASS } from "@/components/battle/StageView";
@@ -542,6 +543,15 @@ const BattleRoomScreen = () => {
               </button>
             )}
             {resumeError && <p className="mt-1 text-xs text-destructive">{resumeError}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Step 18: what the host's Spotify plays (above the vote layer, so taps here never vote) */}
+      {arena?.state === "active" && !isPaused && (
+        <div className="absolute inset-x-0 bottom-2 z-[55] flex justify-center px-4">
+          <div className="w-full max-w-sm">
+            <NowPlaying arenaId={arena.id} playback={playback} isHost={!!participant?.is_host} />
           </div>
         </div>
       )}

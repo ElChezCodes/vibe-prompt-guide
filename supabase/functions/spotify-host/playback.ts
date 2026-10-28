@@ -56,6 +56,7 @@ export interface PlaybackStatus {
   contextUri: string | null;
   trackUri: string | null;
   progressMs: number | null;
+  durationMs: number | null;
 }
 
 export interface PlaybackSession {
@@ -66,8 +67,8 @@ export interface PlaybackSession {
 export interface PlaybackProvider {
   getStatus(): Promise<PlaybackStatus>;
   play(opts: { deviceId: string; contextUri: string; offsetUri?: string; positionMs?: number }): Promise<void>;
-  // Appends a track to the arena's session (the playlist): what plays next
-  queue(session: PlaybackSession, trackUri: string): Promise<void>;
+  // Appends tracks to the arena's session (the playlist), in order: what plays next
+  queue(session: PlaybackSession, trackUris: string | string[]): Promise<void>;
   skip(deviceId: string): Promise<void>;
   pause(deviceId: string): Promise<void>;
   onProgress(handler: (status: PlaybackStatus) => Promise<void>): Promise<void>;
@@ -167,6 +168,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       contextUri: player?.context?.uri ?? null,
       trackUri: player?.item?.uri ?? null,
       progressMs: player?.progress_ms ?? null,
+      durationMs: player?.item?.duration_ms ?? null,
     };
   }
 
@@ -191,8 +193,15 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     await this.api(`/me/player/repeat?state=off&${q}`, { method: "PUT" });
   }
 
-  async queue(session: PlaybackSession, uri: string) {
-    await this.must(`/playlists/${session.id}/items`, { method: "POST", body: JSON.stringify({ uris: [uri] }) });
+  async queue(session: PlaybackSession, uris: string | string[]) {
+    const list = Array.isArray(uris) ? uris : [uris];
+    // Spotify takes up to 100 items per request
+    for (let i = 0; i < list.length; i += 100) {
+      await this.must(`/playlists/${session.id}/items`, {
+        method: "POST",
+        body: JSON.stringify({ uris: list.slice(i, i + 100) }),
+      });
+    }
   }
 
   async skip(deviceId: string) {

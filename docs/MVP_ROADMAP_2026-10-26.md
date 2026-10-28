@@ -189,8 +189,7 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - Real playback: winner auto-plays, next battle starts when previous winner
   starts playing, progress-synced timers, auto-append winners to the arena's
   playlist in the host's Spotify account (not a "local" playlist, 2026-10-27) — *v3.2 §Flujos clave, v3.0 §10, Backend_Block_3 §9,
-  Backend_Block_4 §9*. **Not started** — `playlist_queue` has the right shape,
-  nothing calls a real playback API.
+  Backend_Block_4 §9*. **Built 2026-10-28 (step 18).**
 
 ### E. Song proposals & queue
 - Active/human proposal (1 per user per battle, high priority, never displaced
@@ -587,6 +586,19 @@ additions (#1, #4 above), each marked where it lands.
     appended to the arena's private playlist after the warm-up; no
     crossfade/mixing, policy III.7). Depends
     on #6 and #17 — this is where "what wins, plays" actually becomes true.
+    **Built 2026-10-28, ahead of #13 (user decision 2026-10-28)**
+    (`supabase/sql/real_playback_2026-10-28.sql`, `spotify-host` `nudge`;
+    details in CLAUDE.md "Real playback"). User decisions: winners appended
+    when decided (lock-in; Sudden Death 10 s from lock-in, resolved at end − 5 s;
+    draw A then B), pushed at once via pg_net; no pair → Spotify Autoplay may
+    fill, a late battle lasts what is left of the playing song if ≥ 60 s
+    (Autoplay tracks too), else 60 s, then MF plays the winner; manual changes
+    inside the playlist are put back by MF and the host is asked whether to
+    take manual control (then skips are followed, v4 §8.3, skipping past the
+    end = immediate lock-in, anything else = off_playlist); pause/other
+    playlist keep the step-6 pause; arena end lets the playlist play out.
+    Matchmaking (#17) is not needed for this; #13 system songs enter through
+    the same queue/`pull_next_battle_songs` path and stay compatible.
 19. (Stage View is the party's shared screen, not a venue display, since
     2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song
