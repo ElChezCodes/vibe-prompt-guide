@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
-import { Swords, Loader2, Music, Monitor, Link2, Plug } from "lucide-react";
+import { Swords, Loader2, Music, Monitor, Link2, Plug, Pause, Play } from "lucide-react";
+import { SpotifyIcon, SPOTIFY_LINK_CLASS } from "@/components/streaming/SpotifyTrackRow";
 import {
   ArenaWarmup,
   formatDuration,
@@ -181,12 +182,24 @@ const ArenaLobbyScreen = () => {
 
         {/* Who's here: ACTIVO / PASIVO / INACTIVO counts from the backend */}
         {!isClosed && presence && (
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {presence.active_count} active · {presence.passive_count} passive · {presence.inactive_count} inactive
-          </p>
+          <div className="w-full grid grid-cols-3 gap-2 animate-fade-in-up" style={{ animationDelay: "75ms" }}>
+            {[
+              { label: "Active", count: presence.active_count, dot: "bg-primary shadow-[0_0_6px_hsl(var(--primary))]" },
+              { label: "Passive", count: presence.passive_count, dot: "bg-energy-yellow shadow-[0_0_6px_hsl(var(--energy-yellow)/0.8)]" },
+              { label: "Inactive", count: presence.inactive_count, dot: "bg-muted-foreground/70" },
+            ].map((stat) => (
+              <div key={stat.label} className="neon-row rounded-xl px-2 py-2.5 text-center">
+                <p className="text-xl font-bold text-foreground tabular-nums leading-none">{stat.count}</p>
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <span aria-hidden className={`w-1.5 h-1.5 rounded-full ${stat.dot}`} />
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
         {!isClosed && queueSummary && (
-          <p className="text-sm text-muted-foreground tabular-nums">
+          <p className="-mt-4 text-xs text-muted-foreground tabular-nums text-center">
             {queueSummary.human_queued} {queueSummary.human_queued === 1 ? "song" : "songs"} proposed
             {queueSummary.human_queued < 2 && " · backup music fills the rest"}
           </p>
@@ -234,18 +247,45 @@ const ArenaLobbyScreen = () => {
 
         {/* Spotify playback of the running arena */}
         {arena.state === "active" && playback && (
-          <div className="w-full neon-panel rounded-xl px-4 py-3 text-sm">
-            {playback.paused_at ? (
-              <>
+          <div
+            className={`w-full neon-panel rounded-2xl p-4 text-sm space-y-3 ${
+              playback.paused_at ? "ring-1 ring-energy-yellow/50" : ""
+            }`}
+          >
+            {/* Header: Spotify + device + state pill */}
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 flex-shrink-0 rounded-lg bg-[#1DB954]/15 flex items-center justify-center">
+                <SpotifyIcon className="w-5 h-5 text-[#1DB954]" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Spotify</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {playback.device_name || "Your device"}
+                </p>
+              </div>
+              {playback.paused_at ? (
+                <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-energy-yellow bg-energy-yellow/10 border border-energy-yellow/40">
+                  <Pause className="w-3 h-3" />
+                  Paused
+                </span>
+              ) : playback.is_playing ? (
+                <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  Playing
+                </span>
+              ) : null}
+            </div>
+
+            {playback.paused_at && (
+              <div className="rounded-xl border border-energy-yellow/30 bg-energy-yellow/5 p-3 space-y-2">
                 <p className="font-bold text-foreground">Arena paused</p>
-                <p className="text-muted-foreground">
+                <p className="text-xs text-text-secondary">
                   {PAUSE_REASON_LABELS[playback.pause_reason] ?? "Spotify isn't playing"}. It resumes by itself when
                   the music is back.
                 </p>
                 <Button
-                  variant="neon"
                   size="sm"
-                  className="mt-2"
+                  className="w-full font-bold"
                   onClick={() =>
                     resumeSpotifyArena(arena.id).catch((err) =>
                       setErrorMessage(
@@ -254,25 +294,22 @@ const ArenaLobbyScreen = () => {
                     )
                   }
                 >
+                  <Play className="w-4 h-4 mr-1" />
                   Resume on Spotify
                 </Button>
-              </>
-            ) : (
-              <p className="text-muted-foreground">
-                Spotify{playback.device_name ? ` · ${playback.device_name}` : ""}
-                {playback.is_playing ? " · playing" : ""}
-              </p>
+              </div>
             )}
-            <div className="mt-2">
-              <NowPlaying arenaId={arena.id} playback={playback} isHost />
-            </div>
+
+            <NowPlaying arenaId={arena.id} playback={playback} isHost />
+
             {playback.playlist_url && (
               <a
                 href={playback.playlist_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 inline-block text-xs font-bold uppercase text-[#1DB954]"
+                className={SPOTIFY_LINK_CLASS}
               >
+                <SpotifyIcon className="w-3.5 h-3.5" />
                 Open playlist in Spotify
               </a>
             )}

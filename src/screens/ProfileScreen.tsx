@@ -40,7 +40,7 @@ const ProfileScreen = () => {
   };
 
   return (
-    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center gap-6 px-6 py-12">
+    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center gap-6 px-4 sm:px-6 py-12">
       <h1 className="neon-heading text-3xl animate-fade-in-up">Profile</h1>
 
       {/* Avatar placeholder (no avatar system yet) */}
@@ -55,11 +55,11 @@ const ProfileScreen = () => {
 
       {/* Achievements placeholder */}
       <div
-        className="w-full max-w-xs neon-panel rounded-2xl p-4 animate-fade-in-up"
+        className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 animate-fade-in-up"
         style={{ animationDelay: "100ms" }}
       >
         <p className="neon-label mb-3">Achievements</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 max-w-[16rem] mx-auto">
           {[0, 1, 2].map((i) => (
             <div key={i} className="aspect-square rounded-xl neon-row flex items-center justify-center">
               <Lock className="w-5 h-5 text-muted-foreground" />
@@ -71,7 +71,7 @@ const ProfileScreen = () => {
 
       {/* Optional account (step 7b) */}
       <div
-        className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
+        className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-3 animate-fade-in-up"
         style={{ animationDelay: "115ms" }}
       >
         <p className="neon-label">Your account</p>
@@ -80,16 +80,19 @@ const ProfileScreen = () => {
 
       {/* Spotify: to host your own arenas and propose from your own library */}
       <div
-        className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
+        className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-3 animate-fade-in-up"
         style={{ animationDelay: "125ms" }}
       >
-        <p className="neon-label">Your Spotify · to host arenas and propose from your playlists</p>
+        <div>
+          <p className="neon-label">Your Spotify</p>
+          <p className="mt-1 text-xs text-muted-foreground">To host arenas and propose from your playlists</p>
+        </div>
         <SpotifyConnectionPanel returnTo="/profile" />
       </div>
 
       {current && (
         <div
-          className="w-full max-w-xs neon-panel rounded-2xl p-4 flex flex-col gap-3 animate-fade-in-up"
+          className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-3 animate-fade-in-up"
           style={{ animationDelay: "150ms" }}
         >
           <div className="flex items-center gap-3">

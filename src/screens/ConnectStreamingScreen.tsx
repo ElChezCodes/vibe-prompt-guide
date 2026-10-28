@@ -19,14 +19,16 @@ const ConnectStreamingScreen = () => {
   const lobbyPath = arenaPath(code, "lobby");
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center p-6 pt-20">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-4 sm:px-6 pt-20 pb-12">
       <BackButton onClick={() => navigate(lobbyPath)} label="Lobby" />
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-3">
-          <h1 className="neon-heading text-xl leading-snug">Your Spotify</h1>
+      <div className="w-full max-w-md flex flex-col gap-6">
+        <div className="text-center space-y-2 animate-fade-in-up">
+          <h1 className="neon-heading text-2xl leading-snug">Your Spotify</h1>
           <p className="text-text-secondary text-sm">Music plays from your Spotify app, on your own device.</p>
         </div>
-        <SpotifyConnectionPanel returnTo={arenaPath(code, "connect")} />
+        <div className="neon-panel rounded-2xl p-4 sm:p-5 animate-fade-in-up" style={{ animationDelay: "50ms" }}>
+          <SpotifyConnectionPanel returnTo={arenaPath(code, "connect")} />
+        </div>
       </div>
     </div>
   );

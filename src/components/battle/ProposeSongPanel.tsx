@@ -189,21 +189,37 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="h-full flex flex-col gap-3">
       {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
-        <p className="flex-shrink-0 text-xs text-center text-song-b">
+        <p className="flex-shrink-0 self-center inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-song-b bg-song-b/10 border border-song-b/30">
+          <span className="w-1.5 h-1.5 rounded-full bg-song-b animate-pulse" />
           The queue is running low: propose a song!
         </p>
       )}
       {/* Sources: their own playlists only with their own Spotify connected */}
       {sources?.own_connected && (
-        <div className="flex-shrink-0 grid grid-cols-2 gap-2">
-          <Button variant={tab === "search" ? "default" : "ghost"} onClick={() => switchTab("search")}>
-            Search
-          </Button>
-          <Button variant={tab === "playlists" ? "default" : "ghost"} onClick={() => switchTab("playlists")}>
-            My playlists
-          </Button>
+        <div role="tablist" className="flex-shrink-0 grid grid-cols-2 gap-1 p-1 rounded-xl neon-row">
+          {(
+            [
+              ["search", "Search"],
+              ["playlists", "My playlists"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              onClick={() => switchTab(value)}
+              className={`h-9 rounded-lg text-sm font-semibold transition-all ${
+                tab === value
+                  ? "bg-primary text-primary-foreground glow-primary"
+                  : "text-text-secondary hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -219,18 +235,23 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       ) : (
       <>
       {canChooseAccount && (
-        <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-text-secondary">
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>Search with</span>
-          <div className="flex gap-1">
+          <div className="inline-flex p-0.5 rounded-full neon-row">
             {(["own", "host"] as const).map((account) => (
-              <Button
+              <button
                 key={account}
-                size="sm"
-                variant={searchAccount === account ? "default" : "ghost"}
+                type="button"
+                aria-pressed={searchAccount === account}
                 onClick={() => setSearchAccount(account)}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                  searchAccount === account
+                    ? "bg-song-a/20 text-song-a"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {account === "own" ? "My Spotify" : "Host's Spotify"}
-              </Button>
+              </button>
             ))}
           </div>
         </div>
@@ -282,7 +303,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
                     details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
                     action={
                       proposal.queue_id && (
-                        <Button size="sm" variant="ghost" onClick={() => handleWithdraw(proposal.queue_id)}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdraw(proposal.queue_id)}>
                           Withdraw
                         </Button>
                       )
@@ -298,7 +319,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
             <div className="space-y-2 pr-4">
               {/* Their own account failed (or was revoked): the host's answered */}
               {canChooseAccount && searchAccount === "own" && searchedWith === "host" && (
-                <p className="text-xs text-muted-foreground">Searched with the host's Spotify</p>
+                <p className="text-[11px] text-muted-foreground px-1">Searched with the host's Spotify</p>
               )}
               {results.map((track) => (
                 <SpotifyTrackRow
@@ -315,7 +336,15 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       </>
       )}
 
-      {notice && <p className="flex-shrink-0 text-sm text-center text-song-a">{notice}</p>}
+      {notice && (
+        <p
+          role="status"
+          className="flex-shrink-0 self-center max-w-full inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-foreground bg-secondary/90 border border-song-a/40 shadow-[0_0_14px_-4px_hsl(var(--song-a)/0.6)] animate-fade-in"
+        >
+          <span className="w-1.5 h-1.5 flex-shrink-0 rounded-full bg-song-a" />
+          <span className="min-w-0">{notice}</span>
+        </p>
+      )}
 
       {/* Submit Button */}
       <div className="flex-shrink-0 pt-2">
