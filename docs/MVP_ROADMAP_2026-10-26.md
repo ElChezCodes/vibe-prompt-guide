@@ -593,6 +593,13 @@ additions (#1, #4 above), each marked where it lands.
     selection, exact tension-bar/overlay timing, and the phone/tablet/desktop
     breakpoint QA gate (engineering addition #4). Depends on #18 for real data
     to display.
+    **Technical cleanup (added 2026-10-28, user decision):** remove the
+    phase-desync debug logging (`[BattleTimer Debug]`, `[DerivedPhase Debug]`,
+    `[Realtime Debug]`, `[StageView Render]`, …, see `.lovable/plan.md`), drop
+    the vestigial `identity_anchors` table and the no-op `useBattleEndedTrigger`
+    stub (check nothing imports/references them first), and fix the 3
+    pre-existing lint errors (empty interfaces in `src/components/ui/command.tsx`
+    and `textarea.tsx`, `require()` in `tailwind.config.ts`).
 20. **Pilot validation, hardening, closure** — the pilot (a private
     gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything
