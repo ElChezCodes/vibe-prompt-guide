@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 // an email that already has an account signs into it and the anonymous
 // session's data is merged into it (merge ticket created before switching).
 
-export const PRIVACY_POLICY_VERSION = '2026-10-27';
+export const PRIVACY_POLICY_VERSION = '2026-10-28';
 
 export type SignInMode = 'convert' | 'signin';
 

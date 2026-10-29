@@ -608,9 +608,23 @@ additions (#1, #4 above), each marked where it lands.
 15. **PI award logic** — full/half PI on proposal wins, Sudden Death bonus,
     −5 PI on a first infraction. Use an idempotent, auditable ledger
     (engineering addition #2) so a retried event never double-awards.
+    **Built 2026-10-28 together with step 16's leaderboards**
+    (`supabase/sql/prestige_influence_2026-10-28.sql`, details in CLAUDE.md
+    "Prestige Influence"). User decisions 2026-10-28: win 10, Sudden Death
+    +5, draw 5 each + the SD bonus, +1 when a proposal reaches a battle (win
+    or lose, kept if cancelled), backings 50 % of the proposer's award only if
+    pre-assigned at the battle start and still their counted vote at the end
+    (a 'voted' backing made while the song fought gives nothing); cancelled,
+    system songs (incl. revancha) and the warm-up give nothing; the −5 penalty
+    is postponed until moderation exists (the ledger accepts 'penalty').
 16. **PI display in the UI** — inline next to the user's icon/profile/name
     wherever identity already appears (Battle Room, Stage View) — no dedicated
-    Ranking screen, resolved 2026-10-26.
+    Ranking screen, resolved 2026-10-26. **Changed by the user 2026-10-28:**
+    leaderboards in the Ranking tab (local = current + past arenas; global =
+    country and world, this month and all-time, accounts only), generated
+    nickname editable in Profile, optional declared country, "Your PI" chip +
+    award notice in the Battle Room. **Still to do (step 19): PI next to names
+    in the Stage View** (it shows no proposer names yet).
 17. **Battle pair selection / matchmaking** — popularity/BPM/energy/genre
     compatibility, continuity with the previous winner. Needs #12 and #13 (a
     real, populated queue) to select from. Its Spotify inputs (popularity,

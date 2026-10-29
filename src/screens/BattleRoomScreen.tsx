@@ -20,6 +20,8 @@ import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaPath } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
 import PresenceChip from "@/components/arena/PresenceChip";
+import PiChip from "@/components/arena/PiChip";
+import { useMyPi } from "@/hooks/useMyPi";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import { LOW_QUEUE_THRESHOLD } from "@/integrations/supabase/proposals";
 import { getMySongLikes, toggleSongLike } from "@/integrations/supabase/likes";
@@ -161,6 +163,8 @@ const BattleRoomScreen = () => {
 
   // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes/likes
   const presence = useArenaPresence(arena?.id, !!participant, [voteRecord?.id, voteRecord?.song_id, voteRecord?.status, voteRecord?.vote_type, voteRecord?.updated_at, likeCount].join(":"));
+  // Step 15: PI is awarded by the backend when a battle is created/completed
+  const myPi = useMyPi(participant ? arena?.id : undefined, `${battle?.battle_id}:${battle?.state}`);
 
   const handleVote = useCallback(
     async (side: "A" | "B") => {
@@ -536,6 +540,7 @@ const BattleRoomScreen = () => {
             </button>
           )}
           <PresenceChip state={presence?.my_state} />
+          <PiChip pi={myPi.pi} notice={myPi.notice} />
         </div>
       )}
 

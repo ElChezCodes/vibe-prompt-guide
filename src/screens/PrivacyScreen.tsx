@@ -21,6 +21,10 @@ const PrivacyScreen = () => (
       <li>What you do in arenas: joining, votes, song proposals and when you were active.</li>
       <li>If you create an account: your email and when you accepted this policy.</li>
       <li>
+        Your Prestige Influence (PI): points earned when songs you proposed or backed reach a battle or win, and a
+        nickname (generated, or the one you choose) and, only if you choose it, your country, shown in the rankings.
+      </li>
+      <li>
         If you connect Spotify: encrypted access tokens, your Spotify display name, Premium status and chosen device.
         Hosts also get a private playlist created in their own Spotify account.
       </li>
@@ -47,6 +51,10 @@ const PrivacyScreen = () => (
     <h2 className="font-semibold text-foreground">How long</h2>
     <ul className="list-disc pl-5 space-y-1">
       <li>Individual votes are deleted 30 days after an arena ends (battle totals are kept).</li>
+      <li>
+        Without an account, your PI is deleted with your votes 30 days after the arena ends; with an account it is kept
+        until you delete it. Each arena's final ranking (nicknames and PI) is kept.
+      </li>
       <li>Your account and profile are kept until you delete them.</li>
       <li>Disconnecting Spotify deletes every Spotify datum we hold about you.</li>
     </ul>

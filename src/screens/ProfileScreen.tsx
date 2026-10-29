@@ -5,6 +5,7 @@ import { leaveArena } from "@/integrations/supabase/arenas";
 import { useCurrentArena, useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import SpotifyConnectionPanel from "@/components/streaming/SpotifyConnectionPanel";
 import AccountPanel from "@/components/account/AccountPanel";
+import PlayerProfilePanel from "@/components/account/PlayerProfilePanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +68,15 @@ const ProfileScreen = () => {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground text-center">Coming soon</p>
+      </div>
+
+      {/* Leaderboard name, country and PI (step 15) */}
+      <div
+        className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-3 animate-fade-in-up"
+        style={{ animationDelay: "110ms" }}
+      >
+        <p className="neon-label">Your player card</p>
+        <PlayerProfilePanel />
       </div>
 
       {/* Optional account (step 7b) */}
