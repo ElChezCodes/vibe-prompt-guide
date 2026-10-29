@@ -567,7 +567,7 @@ additions (#1, #4 above), each marked where it lands.
     recommendations and Spotify's algorithmic playlists closed to new apps,
     and autoplay plays outside the arena playlist (`off_playlist`). Low-queue
     notice at < 4 human proposals.
-13. **Done 2026-10-28** (`supabase/sql/system_songs_fit_2026-10-28.sql`,
+13. **Done and verified in-app 2026-10-28** (`supabase/sql/system_songs_fit_2026-10-28.sql`,
     details in CLAUDE.md "System songs that fit the arena"). User decisions
     2026-10-28: scope = rank the fallback reserve by fit with the arena + let
     guests lend their Liked Songs; fit = the arena's style (its warm-up,
