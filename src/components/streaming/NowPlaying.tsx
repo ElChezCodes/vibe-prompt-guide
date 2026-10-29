@@ -60,36 +60,46 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
     isHost && !!playback.manual_change_at && mode !== "manual" && playback.manual_change_at !== answeredChangeAt;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5 w-full max-w-md mx-auto">
       {playback.now_playing_title && playback.now_playing_spotify_track_id ? (
-        <SpotifyTrackRow
-          track={{
-            title: playback.now_playing_title,
-            artist: playback.now_playing_artist ?? "",
-            artwork_url: playback.now_playing_artwork_url,
-            spotify_url: `https://open.spotify.com/track/${playback.now_playing_spotify_track_id}`,
-          }}
-          details={
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {playback.now_playing_kind === "warmup" ? "Now playing · warm-up" : "Now playing · winner"}
-              {playback.next_title ? ` · next: ${playback.next_title}` : ""}
-            </p>
-          }
-        />
+        <div className="neon-row rounded-xl px-2 py-1 backdrop-blur-md">
+          <SpotifyTrackRow
+            track={{
+              title: playback.now_playing_title,
+              artist: playback.now_playing_artist ?? "",
+              artwork_url: playback.now_playing_artwork_url,
+              spotify_url: `https://open.spotify.com/track/${playback.now_playing_spotify_track_id}`,
+            }}
+            details={
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                </span>
+                <span className="text-primary font-semibold">
+                  {playback.now_playing_kind === "warmup" ? "Warm-up" : "Winner"}
+                </span>
+                {playback.next_title ? <span className="truncate">· next: {playback.next_title}</span> : null}
+              </p>
+            }
+          />
+        </div>
       ) : playback.player_context === "other" ? (
-        <p className="text-xs text-muted-foreground">Spotify is playing its own picks until the next winner.</p>
+        <p className="neon-row rounded-full px-3 py-1.5 text-[11px] text-muted-foreground text-center">
+          Spotify is playing its own picks until the next winner.
+        </p>
       ) : null}
 
       {playback.unplayable_title && (
-        <p className="text-xs text-muted-foreground">
-          "{playback.unplayable_title}" isn't available in the host's country: skipped.
+        <p className="text-[11px] text-muted-foreground text-center px-2">
+          <span className="text-foreground">"{playback.unplayable_title}"</span> isn't available in the host's country: skipped.
         </p>
       )}
 
       {showPrompt && (
-        <div className="neon-panel rounded-xl px-3 py-2 text-xs">
+        <div className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] leading-snug shadow-[0_0_16px_hsl(var(--primary)/0.15)]">
           <p className="text-foreground">
-            The music changed in Spotify, so Music Fighter put the arena's song back. Do you want to control the
+            <span className="font-bold text-primary">The music changed in Spotify</span>, so Music Fighter put the arena's song back. Do you want to control the
             music yourself? Music Fighter will follow your skips.
           </p>
           <div className="mt-2 flex gap-2">
@@ -108,17 +118,19 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
       )}
 
       {isHost && mode === "manual" && !confirmAuto && (
-        <p className="text-xs text-muted-foreground">
-          {saving ? "Saving… " : "You control the music: skips move the battle on. "}
-          <button onClick={() => setConfirmAuto(true)} disabled={saving} className="underline font-bold disabled:opacity-50">
+        <div className="self-center inline-flex items-center gap-2 rounded-full hud-chip px-3 py-1 text-[11px] text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-song-b shrink-0" />
+          <span>{saving ? "Saving…" : "You control the music"}</span>
+          <span className="opacity-40">·</span>
+          <button onClick={() => setConfirmAuto(true)} disabled={saving} className="font-semibold text-foreground hover:text-primary disabled:opacity-50">
             Back to automatic
           </button>
-        </p>
+        </div>
       )}
 
       {/* Cancel comes first, where the link was: a second click can't confirm by accident */}
       {isHost && mode === "manual" && confirmAuto && (
-        <div className="neon-panel rounded-xl px-3 py-2 text-xs">
+        <div className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] leading-snug">
           <p className="text-foreground">
             Back to automatic? Music Fighter will put the arena's song back whenever the music changes in Spotify.
           </p>
@@ -138,10 +150,10 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
       )}
 
       {isHost && saving && mode === "auto" && (
-        <p className="text-xs text-muted-foreground">Saving…</p>
+        <p className="text-[11px] text-muted-foreground text-center">Saving…</p>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-[11px] text-destructive text-center">{error}</p>}
     </div>
   );
 };
