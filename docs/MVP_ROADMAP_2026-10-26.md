@@ -227,6 +227,9 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   at all. **Affected by 2026-10-27:** Spotify no longer provides
   popularity (removed Feb 2026) or audio features/BPM/energy (closed to new
   apps) — the inputs need another source before this step.
+  **Built 2026-10-29 (step 17):** MusicBrainz + ListenBrainz data, pair from the
+  next 10 by continuity with the last decided song + A-B compatibility, max 3
+  skips; see step 17 below and CLAUDE.md "Matchmaking".
 
 ### G. Identity, security, persistence
 - `identity_anchor_id` (anti-double-vote, survives auth-state changes) —
@@ -647,6 +650,19 @@ additions (#1, #4 above), each marked where it lands.
     compatibility, continuity with the previous winner. Needs #12 and #13 (a
     real, populated queue) to select from. Its Spotify inputs (popularity,
     BPM/energy) are no longer available (see §F); needs another source.
+    **Built 2026-10-29** (`supabase/sql/matchmaking_2026-10-29.sql`,
+    `musicbrainz-enrich`; details in CLAUDE.md "Matchmaking"). User decisions
+    2026-10-29: data = MusicBrainz + ListenBrainz (similar artists by
+    listening, release-group tags filtered by MB genres) + MusicBrainz search
+    by title/artist for ISRCs MB doesn't know; no BPM/energy (no viable open
+    source: AcousticBrainz frozen/huge, GetSongBPM needs key + backlink,
+    ReccoBeats keyed by Spotify ids, Deezer terms unclear) and **no
+    popularity**; pair chosen among the next 10 (Block_4 §7 grouping) by
+    continuity of both songs with the last decided song (draw: B) + A-B
+    compatibility, a song passed over 3 times fights next; no compatible
+    human = the human anyway (human-first); system songs by compatibility with
+    the human + ref, fit as tiebreak; internal log + "Next up to fight" list
+    (positions 1-10, artwork/title/artist/Open Spotify) on the Propose screen.
 18. **Real playback wiring end-to-end** — winner auto-plays, battle starts when
     the previous winner starts, synced timers, playlist auto-append (winners
     appended to the arena's private playlist after the warm-up; no

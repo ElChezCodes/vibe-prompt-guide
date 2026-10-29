@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
+import { useArenaNextUp } from "@/hooks/useArenaNextUp";
+import NextUpList from "@/components/battle/NextUpList";
 import {
   getMyProposals,
   LOW_QUEUE_THRESHOLD,
@@ -99,6 +101,8 @@ const statusLabel = (p: MyProposal): string => {
 
 interface ProposeSongPanelProps {
   arenaId: string;
+  // Step 17: the next 10 to fight, under the search (Propose screen only)
+  showNextUp?: boolean;
 }
 
 // Shared by the Battle Room modal and the Proponer screen. Both mount it
@@ -106,7 +110,7 @@ interface ProposeSongPanelProps {
 // done in the other. Step 7: a member with their own Spotify connected can
 // also search with it (falling back to the host's) and pick from their own
 // playlists; every proposal still goes through the same spotify-host propose.
-const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
+const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   // Which account the selected song was found with (propose re-reads it with that one)
@@ -121,6 +125,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
   const [notice, setNotice] = useState("");
 
   const queueSummary = useArenaQueueSummary(arenaId);
+  const nextUp = useArenaNextUp(arenaId, showNextUp);
   const showResults = tab === "search" && searchQuery.length > 0;
   // The host's own account is the host's: nothing to choose
   const canChooseAccount = !!sources?.own_connected && !sources.is_host;
@@ -248,6 +253,39 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     setNotice("");
   };
 
+  // Their queued proposals then history (step 12)
+  const proposalsList = (
+    <>
+      <p className="neon-label mb-3">Your proposals</p>
+      <div className="space-y-2 pr-4">
+        {myProposals.map((proposal) => (
+          <SpotifyTrackRow
+            key={proposal.queue_id ?? `${proposal.kind}-${proposal.song_id}-${proposal.at}`}
+            track={{
+              ...proposal,
+              spotify_url: `https://open.spotify.com/track/${proposal.spotify_track_id}`,
+            }}
+            details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
+            action={
+              proposal.queue_id ? (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdraw(proposal.queue_id)}>
+                  Withdraw
+                </Button>
+              ) : (
+                proposal.kind === "backing" &&
+                (proposal.status === "next" || proposal.status === "waiting") && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdrawBacking(proposal.song_id)}>
+                    Remove my vote
+                  </Button>
+                )
+              )
+            }
+          />
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <div className="h-full flex flex-col gap-3">
       {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
@@ -358,7 +396,13 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
       {/* Results Area */}
       <div className="flex-1 min-h-0">
         {!showResults ? (
-          myProposals.length === 0 ? (
+          showNextUp && nextUp.length > 0 ? (
+            // Step 17: the next 10 to fight, then their own proposals
+            <ScrollArea className="h-full">
+              <NextUpList songs={nextUp} />
+              {myProposals.length > 0 && <div className="mt-5">{proposalsList}</div>}
+            </ScrollArea>
+          ) : myProposals.length === 0 ? (
             // Empty state
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
               <div className="w-20 h-20 rounded-full neon-outline flex items-center justify-center mb-5">
@@ -369,35 +413,7 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
             </div>
           ) : (
             // My proposals still waiting in the queue
-            <ScrollArea className="h-full">
-              <p className="neon-label mb-3">Your proposals</p>
-              <div className="space-y-2 pr-4">
-                {myProposals.map((proposal) => (
-                  <SpotifyTrackRow
-                    key={proposal.queue_id ?? `${proposal.kind}-${proposal.song_id}-${proposal.at}`}
-                    track={{
-                      ...proposal,
-                      spotify_url: `https://open.spotify.com/track/${proposal.spotify_track_id}`,
-                    }}
-                    details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
-                    action={
-                      proposal.queue_id ? (
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdraw(proposal.queue_id)}>
-                          Withdraw
-                        </Button>
-                      ) : (
-                        proposal.kind === "backing" &&
-                        (proposal.status === "next" || proposal.status === "waiting") && (
-                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdrawBacking(proposal.song_id)}>
-                            Remove my vote
-                          </Button>
-                        )
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </ScrollArea>
+            <ScrollArea className="h-full">{proposalsList}</ScrollArea>
           )
         ) : (
           // Search results

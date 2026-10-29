@@ -40,7 +40,7 @@ const ProposeSongScreen = () => {
       </div>
 
       <div className="flex-1 min-h-0 neon-panel rounded-2xl p-4">
-        <ProposeSongPanel arenaId={arena.id} />
+        <ProposeSongPanel arenaId={arena.id} showNextUp />
       </div>
 
       <Button variant="neon" className="flex-shrink-0 h-11" onClick={() => navigate(arenaPath(code, "battle"))}>

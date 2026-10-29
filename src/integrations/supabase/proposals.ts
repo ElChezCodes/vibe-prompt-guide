@@ -116,3 +116,31 @@ export async function withdrawBacking(arenaId: string, songId: string): Promise<
     throw error;
   }
 }
+
+// Step 17: the next 10 in the order matchmaking would send them to fight
+// (pair_no 1 = the next battle; vs_system: it will face a system song;
+// available_at: can't sound yet, 60-min rule). Decided server-side.
+export interface NextUpSong {
+  pos: number;
+  song_id: string;
+  spotify_track_id: string;
+  title: string;
+  artist: string;
+  artwork_url: string | null;
+  duration_ms: number | null;
+  pair_no: number | null;
+  vs_system: boolean;
+  is_mine: boolean;
+  available_at: string | null;
+}
+
+export async function getArenaNextUp(arenaId: string): Promise<NextUpSong[]> {
+  const { data, error } = await supabase.rpc('get_arena_next_up', { p_arena_id: arenaId });
+
+  if (error) {
+    console.error('Failed to load next up:', error.message, error);
+    throw error;
+  }
+
+  return (data ?? []) as NextUpSong[];
+}
