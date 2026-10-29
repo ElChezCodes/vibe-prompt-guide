@@ -617,6 +617,10 @@ additions (#1, #4 above), each marked where it lands.
     (a 'voted' backing made while the song fought gives nothing); cancelled,
     system songs (incl. revancha) and the warm-up give nothing; the −5 penalty
     is postponed until moderation exists (the ledger accepts 'penalty').
+    Follow-up 2026-10-29 (user): proposing both songs of a battle was a PI
+    exploit, so two songs actively proposed by the same person never face
+    each other (overrides step 12's "same proposer's next" for slot B;
+    `supabase/sql/no_self_battles_2026-10-29.sql`).
 16. **PI display in the UI** — inline next to the user's icon/profile/name
     wherever identity already appears (Battle Room, Stage View) — no dedicated
     Ranking screen, resolved 2026-10-26. **Changed by the user 2026-10-28:**
