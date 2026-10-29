@@ -629,6 +629,12 @@ additions (#1, #4 above), each marked where it lands.
     (accounts), not only the host's; win/draw/SD/backing PI only when at least
     2 different people voted explicitly in the battle
     (`supabase/sql/fair_play_2026-10-29.sql`).
+    **Verified in-app by the user 2026-10-29.** After the test (user,
+    2026-10-29): PI rewards the proposed song winning, not its proposer's
+    vote — win/draw/SD/backing need a vote by someone other than the
+    recipient (replaces "2 voters"); the +1 needs 2+ people present and is
+    never given for songs proposed in the lobby
+    (`supabase/sql/pi_social_rules_2026-10-29.sql`).
 16. **PI display in the UI** — inline next to the user's icon/profile/name
     wherever identity already appears (Battle Room, Stage View) — no dedicated
     Ranking screen, resolved 2026-10-26. **Changed by the user 2026-10-28:**

@@ -261,7 +261,7 @@ const RankingScreen = () => {
 
       <p className="max-w-xs text-center text-xs text-muted-foreground">
         PI: +1 when your song reaches a battle, +10 when it wins (+5 in Sudden Death), 5 each in a draw (+5 Sudden Death), half when a
-        song you backed wins with your vote. Wins only count when at least 2 people voted.
+        song you backed wins with your vote. Wins count when someone else voted in the battle; the +1 needs 2+ people in the arena and isn't given for songs proposed in the lobby.
       </p>
     </div>
   );
