@@ -836,7 +836,7 @@ function shuffle<T>(items: T[]): T[] {
 // Refusals raised by validate_queue_proposal (supabase/sql/queue_rules_2026-10-27.sql)
 const QUEUE_RULE_CODES = new Set(["in_battle", "is_warmup", "recently_played", "proposer_queue_full", "queue_full"]);
 
-async function propose(userId: string, jwt: string, body: any) {
+async function propose(userId: string, jwt: string, body: any, retried = false): Promise<any> {
   const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
   // Re-read from Spotify with the same account the caller picked it with
   const { result: track } = await withArenaCatalog(userId, arena, body?.account, async (p) => {
@@ -876,6 +876,8 @@ async function propose(userId: string, jwt: string, body: any) {
         p_song_id: songId,
       });
       if (backError) throw new HttpError(403, "propose_rejected", backError.message);
+      // It left the queue in between (fought, withdrawn, purged): propose it anew once
+      if (backed === "not_queued" && !retried) return propose(userId, jwt, body, true);
       return { result: backed };
     }
     // Step-12 queue rules (validate_queue_proposal): the message is the code

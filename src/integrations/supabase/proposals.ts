@@ -22,7 +22,8 @@ export type ProposalStatus =
   | 'draw'
   | 'cancelled'
   | 'purged'
-  | 'withdrawn';
+  | 'withdrawn'
+  | 'removed'; // step 14: a backing removed by the backer
 
 // Step 14: 'backing' = they proposed a song someone had already queued, i.e.
 // a pre-assigned vote for its battle (vote_applied: cast or not, e.g. they

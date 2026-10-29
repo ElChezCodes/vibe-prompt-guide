@@ -49,8 +49,6 @@ const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
       return "That song is fighting right now: you already voted for it";
     case "not_queued":
       return "That song just left the queue: try again";
-    case "already_queued":
-      return "That song is already in the queue";
     case "in_battle":
       return "That song is fighting right now";
     case "is_warmup":
@@ -76,8 +74,9 @@ const statusLabel = (p: MyProposal): string => {
     const backed: Partial<Record<ProposalStatus, string>> = {
       next: `Your vote is ready · #${p.place} in the next 10`,
       waiting: `Your vote is ready · waiting #${p.place}`,
-      competing: p.vote_applied ? "Fighting now · your vote is in" : "Fighting now · your vote wasn't cast",
-      withdrawn: "Your vote was removed",
+      competing: p.vote_applied ? "Fighting now · your vote was cast" : "Fighting now · your vote wasn't cast",
+      removed: "Your vote was removed",
+      withdrawn: "Withdrawn by whoever proposed it",
       purged: "Dropped after 20 battles waiting",
     };
     const outcome = backed[p.status];
@@ -93,6 +92,7 @@ const statusLabel = (p: MyProposal): string => {
     cancelled: "Battle cancelled",
     purged: "Dropped after 20 battles waiting",
     withdrawn: "Withdrawn",
+    removed: "Your vote was removed",
   };
   return labels[p.status];
 };

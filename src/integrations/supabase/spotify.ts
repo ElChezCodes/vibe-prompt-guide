@@ -228,7 +228,6 @@ export type ProposeResult =
   | 'voted'
   | 'already_voted'
   | 'not_queued'
-  | 'already_queued'
   | 'in_battle'
   | 'is_warmup'
   | 'recently_played'
