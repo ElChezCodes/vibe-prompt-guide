@@ -20,7 +20,7 @@ import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaPath } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
 import PresenceChip from "@/components/arena/PresenceChip";
-import PiChip from "@/components/arena/PiChip";
+import PiChip, { PiNotice } from "@/components/arena/PiChip";
 import { useMyPi } from "@/hooks/useMyPi";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import { LOW_QUEUE_THRESHOLD } from "@/integrations/supabase/proposals";
@@ -540,7 +540,13 @@ const BattleRoomScreen = () => {
             </button>
           )}
           <PresenceChip state={presence?.my_state} />
-          <PiChip pi={myPi.pi} notice={myPi.notice} />
+        </div>
+      )}
+
+      {/* Your PI: top right, under End Arena for the host (the left row has no room on narrow phones) */}
+      {arena?.state !== "finished" && (
+        <div className={`absolute ${participant?.is_host ? "top-11" : "top-2"} right-2 z-[55]`}>
+          <PiChip pi={myPi.pi} />
         </div>
       )}
 
@@ -628,6 +634,13 @@ const BattleRoomScreen = () => {
           host's Spotify plays (step 18), then Propose Song, one under the other */}
       {(arena?.state === "waiting" || arena?.state === "active") && (
         <div className="absolute bottom-0 inset-x-0 z-[55] flex flex-col items-center">
+          {/* PI award notice, floating above the stack: it doesn't grow the stack's
+              box, and pointer-events-none lets taps through to the vote layer */}
+          {myPi.notice.length > 0 && (
+            <div className="absolute bottom-full inset-x-0 flex justify-center px-4 pb-2 pointer-events-none">
+              <PiNotice notice={myPi.notice} />
+            </div>
+          )}
           {arena.state === "active" && !isPaused && (
             <div className="w-full max-w-sm px-4 pt-2">
               <NowPlaying arenaId={arena.id} playback={playback} isHost={!!participant?.is_host} />

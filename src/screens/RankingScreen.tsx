@@ -30,17 +30,20 @@ const PERIODS: { id: PiPeriod; label: string }[] = [
 ];
 
 // Rows are decided by the backend (step 15): place, name and PI only
-const RankRow = ({ place, name, pi, isMe, note }: { place: number; name: string; pi: number; isMe: boolean; note?: string }) => (
+// Podium (crown, colours) only with PI: with everyone at 0 all tie at place 1
+const RankRow = ({ place, name, pi, isMe, note }: { place: number; name: string; pi: number; isMe: boolean; note?: string }) => {
+  const podium = pi > 0 && place <= 3;
+  return (
   <li
-    className={`flex items-center gap-3 rounded-lg neon-row ${place <= 3 ? `podium-${place} px-3 py-2.5` : "px-3 py-2"} ${
+    className={`flex items-center gap-3 rounded-lg neon-row ${podium ? `podium-${place} px-3 py-2.5` : "px-3 py-2"} ${
       isMe ? "rank-me" : ""
     }`}
     data-me={isMe || undefined}
   >
-    <span className={`w-8 shrink-0 text-center font-arcade font-black ${place <= 3 ? "podium-badge text-lg" : "text-sm text-muted-foreground"}`}>
-      {place === 1 ? <Crown className="inline w-5 h-5" /> : place}
+    <span className={`w-8 shrink-0 text-center font-arcade font-black ${podium ? "podium-badge text-lg" : "text-sm text-muted-foreground"}`}>
+      {podium && place === 1 ? <Crown className="inline w-5 h-5" /> : place}
     </span>
-    <span className={`flex-1 min-w-0 truncate text-foreground ${place <= 3 ? "font-semibold" : ""}`}>
+    <span className={`flex-1 min-w-0 truncate text-foreground ${podium ? "font-semibold" : ""}`}>
       {name}
       {isMe && <span className="ml-1.5 text-[10px] font-arcade uppercase tracking-wider text-primary">you</span>}
       {note && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">{note}</span>}
@@ -49,7 +52,8 @@ const RankRow = ({ place, name, pi, isMe, note }: { place: number; name: string;
       {pi} <span className="text-[10px] text-energy-yellow">PI</span>
     </span>
   </li>
-);
+  );
+};
 
 const Empty = ({ children }: { children: ReactNode }) => (
   <div className="py-8 flex flex-col items-center gap-2 text-center">
