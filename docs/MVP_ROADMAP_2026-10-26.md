@@ -621,6 +621,10 @@ additions (#1, #4 above), each marked where it lands.
     exploit, so two songs actively proposed by the same person never face
     each other (overrides step 12's "same proposer's next" for slot B;
     `supabase/sql/no_self_battles_2026-10-29.sql`).
+    Then (user, 2026-10-29): with the reserve empty, the rival comes from the
+    host's own MF profile (songs they voted/proposed/liked in other arenas,
+    accounts only), a passive system song that gives no PI
+    (`supabase/sql/host_profile_songs_2026-10-29.sql`).
 16. **PI display in the UI** — inline next to the user's icon/profile/name
     wherever identity already appears (Battle Room, Stage View) — no dedicated
     Ranking screen, resolved 2026-10-26. **Changed by the user 2026-10-28:**
