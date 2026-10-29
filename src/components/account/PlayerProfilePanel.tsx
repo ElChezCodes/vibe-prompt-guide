@@ -17,6 +17,10 @@ const ERRORS: Record<string, string> = {
  * here (their own Spotify country is just a suggestion). Minimal markup; the
  * visual pass is done in Lovable.
  */
+// Display only: regional-indicator flag from an ISO-2 code
+const flagEmoji = (code: string) =>
+  code.length === 2 ? String.fromCodePoint(...code.toUpperCase().split("").map((c) => 127397 + c.charCodeAt(0))) : "";
+
 const PlayerProfilePanel = () => {
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [nickname, setNickname] = useState("");
@@ -64,18 +68,27 @@ const PlayerProfilePanel = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm text-text-secondary">
-          You appear as <span className="font-semibold text-foreground">{profile.nickname}</span>
-        </p>
-        <p className="text-sm font-semibold text-foreground whitespace-nowrap" title={`This month: ${profile.month_pi} PI`}>
-          <span className="text-energy-yellow">PI</span> {profile.total_pi}
-        </p>
+      <div className="player-card rounded-2xl p-4">
+        <p className="neon-label">Player</p>
+        <p className="mt-1 font-arcade font-black text-2xl text-foreground break-words leading-tight">{profile.nickname}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="pi-badge text-sm" title={`This month: ${profile.month_pi} PI`}>
+            {profile.total_pi} <span className="text-[10px]">PI</span>
+          </span>
+          <span className="text-[11px] text-muted-foreground tabular-nums">{profile.month_pi} this month</span>
+          {profile.country && (
+            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full hud-chip px-2.5 py-1 text-xs text-foreground">
+              <span aria-hidden>{flagEmoji(profile.country)}</span>
+              {countryName(profile.country)}
+            </span>
+          )}
+        </div>
       </div>
 
       <label className="block space-y-1">
-        <span className="text-xs text-muted-foreground">Nickname</span>
+        <span className="neon-label">Nickname</span>
         <Input
+          className="neon-field"
           value={nickname}
           maxLength={20}
           placeholder={profile.is_generated ? profile.nickname : "Leave empty for a generated one"}
@@ -87,14 +100,14 @@ const PlayerProfilePanel = () => {
       </label>
 
       <label className="block space-y-1">
-        <span className="text-xs text-muted-foreground">Country (optional, for the country ranking)</span>
+        <span className="neon-label">Country <span className="normal-case tracking-normal font-normal text-muted-foreground">(optional, for the country ranking)</span></span>
         <select
           value={country}
           onChange={(e) => {
             setCountry(e.target.value);
             setSaved(false);
           }}
-          className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+          className="w-full h-10 rounded-md border border-border bg-background/60 px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           <option value="">No country</option>
           {COUNTRIES.map((c) => (

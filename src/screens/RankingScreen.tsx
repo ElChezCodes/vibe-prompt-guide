@@ -32,25 +32,30 @@ const PERIODS: { id: PiPeriod; label: string }[] = [
 // Rows are decided by the backend (step 15): place, name and PI only
 const RankRow = ({ place, name, pi, isMe, note }: { place: number; name: string; pi: number; isMe: boolean; note?: string }) => (
   <li
-    className={`flex items-center gap-3 px-3 py-2 rounded-lg neon-row ${isMe ? "border border-primary/60" : ""}`}
+    className={`flex items-center gap-3 rounded-lg neon-row ${place <= 3 ? `podium-${place} px-3 py-2.5` : "px-3 py-2"} ${
+      isMe ? "rank-me" : ""
+    }`}
     data-me={isMe || undefined}
   >
-    <span className="w-7 text-center font-arcade font-bold text-foreground">
-      {place === 1 ? <Crown className="inline w-4 h-4 text-energy-yellow" /> : place}
+    <span className={`w-8 shrink-0 text-center font-arcade font-black ${place <= 3 ? "podium-badge text-lg" : "text-sm text-muted-foreground"}`}>
+      {place === 1 ? <Crown className="inline w-5 h-5" /> : place}
     </span>
-    <span className="flex-1 min-w-0 truncate text-foreground">
+    <span className={`flex-1 min-w-0 truncate text-foreground ${place <= 3 ? "font-semibold" : ""}`}>
       {name}
-      {isMe && <span className="ml-1 text-xs text-primary">(you)</span>}
-      {note && <span className="ml-1 text-xs text-muted-foreground">{note}</span>}
+      {isMe && <span className="ml-1.5 text-[10px] font-arcade uppercase tracking-wider text-primary">you</span>}
+      {note && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">{note}</span>}
     </span>
-    <span className="font-semibold text-foreground">
-      {pi} <span className="text-xs text-energy-yellow">PI</span>
+    <span className="font-arcade font-bold tabular-nums text-foreground whitespace-nowrap">
+      {pi} <span className="text-[10px] text-energy-yellow">PI</span>
     </span>
   </li>
 );
 
 const Empty = ({ children }: { children: ReactNode }) => (
-  <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
+  <div className="py-8 flex flex-col items-center gap-2 text-center">
+    <Trophy className="w-8 h-8 text-muted-foreground/40" />
+    <p className="max-w-[16rem] text-sm text-muted-foreground">{children}</p>
+  </div>
 );
 
 const ArenaBoard = ({ arenaId }: { arenaId: string }) => {
@@ -86,9 +91,14 @@ const LocalTab = () => {
     <div className="space-y-4">
       {arenaId ? (
         <div className="space-y-2">
-          <p className="text-sm text-text-secondary">
+          <p className="flex items-center gap-2 text-sm font-semibold text-foreground truncate">
             {selectedPast ? selectedPast.name : current?.name}
-            {!selectedPast && <span className="ml-1 text-xs text-primary">live</span>}
+            {!selectedPast && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-arcade uppercase tracking-wider text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                live
+              </span>
+            )}
           </p>
           <ArenaBoard arenaId={arenaId} />
           {selected && current && selected !== current.arena_id && (
@@ -106,24 +116,27 @@ const LocalTab = () => {
       {past.length > 0 && (
         <div className="space-y-2">
           <p className="neon-label">Past arenas</p>
-          <ul className="space-y-2">
+          <ul className="grid grid-cols-1 gap-2">
             {past.map((a) => (
               <li key={a.arena_id}>
                 <button
                   onClick={() => setSelected(a.arena_id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg neon-row text-left ${
-                    a.arena_id === arenaId ? "border border-primary/60" : ""
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl neon-row text-left transition-colors ${
+                    a.arena_id === arenaId ? "rank-me" : ""
                   }`}
                 >
                   <span className="flex-1 min-w-0">
                     <span className="block truncate text-foreground">{a.name}</span>
-                    <span className="block text-xs text-muted-foreground">
+                    <span className="block text-[11px] text-muted-foreground">
                       {new Date(a.ended_at).toLocaleDateString()} · {a.players} players
                     </span>
                   </span>
                   {a.my_place != null && (
-                    <span className="text-sm text-foreground whitespace-nowrap">
-                      #{a.my_place} · {a.my_pi} <span className="text-xs text-energy-yellow">PI</span>
+                    <span className="flex flex-col items-end leading-tight whitespace-nowrap">
+                      <span className="font-arcade font-black text-foreground">#{a.my_place}</span>
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
+                        {a.my_pi} <span className="text-energy-yellow">PI</span>
+                      </span>
                     </span>
                   )}
                 </button>
@@ -152,12 +165,12 @@ const GlobalTab = ({ scope, profile }: { scope: PiScope; profile: MyProfile | nu
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div className="scoreboard grid grid-cols-2 gap-1 rounded-lg p-1">
         {PERIODS.map((p) => (
           <button
             key={p.id}
             onClick={() => setPeriod(p.id)}
-            className={`hud-chip px-3 py-1 rounded-full text-xs font-medium ${period === p.id ? "border-primary text-foreground" : "text-muted-foreground"}`}
+            className="scoreboard-tab"
             aria-pressed={period === p.id}
           >
             {p.label}
@@ -225,14 +238,14 @@ const RankingScreen = () => {
       </div>
 
       <div className="w-full max-w-md neon-panel rounded-2xl p-4 sm:p-5 space-y-4">
-        <div className="grid grid-cols-3 gap-2" role="tablist">
+        <div className="scoreboard grid grid-cols-3 gap-1 rounded-xl p-1" role="tablist">
           {TABS.map((t) => (
             <button
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={`hud-chip py-1.5 rounded-full text-sm font-medium ${tab === t.id ? "border-primary text-foreground" : "text-muted-foreground"}`}
+              className="scoreboard-tab"
             >
               {t.label}
             </button>

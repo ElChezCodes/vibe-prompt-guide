@@ -359,3 +359,70 @@
     filter: drop-shadow(0 0 8px hsl(var(--song-b) / 0.85));
   }
 }
+
+/* Ranking / PI arcade styling */
+@layer components {
+  .scoreboard {
+    background: hsl(var(--background) / 0.7);
+    border: 1px solid hsl(var(--border));
+    box-shadow: inset 0 0 18px hsl(var(--song-a) / 0.08);
+  }
+  .scoreboard-tab {
+    @apply font-arcade uppercase tracking-widest text-[11px] font-bold text-muted-foreground rounded-md py-2 transition-all duration-200;
+  }
+  .scoreboard-tab[aria-selected="true"],
+  .scoreboard-tab[aria-pressed="true"] {
+    color: hsl(var(--energy-yellow));
+    background: hsl(var(--energy-yellow) / 0.1);
+    box-shadow: inset 0 0 0 1px hsl(var(--energy-yellow) / 0.55), 0 0 12px hsl(var(--energy-yellow) / 0.25);
+    text-shadow: 0 0 8px hsl(var(--energy-yellow) / 0.6);
+  }
+  .podium-1 { --podium: var(--energy-yellow); }
+  .podium-2 { --podium: var(--song-a); }
+  .podium-3 { --podium: var(--song-b); }
+  .podium-1, .podium-2, .podium-3 {
+    background: linear-gradient(90deg, hsl(var(--podium) / 0.16), hsl(var(--card) / 0.5) 70%);
+    border-left: 3px solid hsl(var(--podium));
+  }
+  .podium-badge {
+    color: hsl(var(--podium, var(--foreground)));
+    text-shadow: 0 0 10px hsl(var(--podium, var(--foreground)) / 0.6);
+  }
+  .rank-me {
+    outline: 1.5px solid hsl(var(--primary));
+    outline-offset: -1.5px;
+    box-shadow: 0 0 14px hsl(var(--primary) / 0.35), inset 0 0 10px hsl(var(--primary) / 0.12);
+  }
+  .player-card {
+    background:
+      radial-gradient(120% 80% at 0% 0%, hsl(var(--song-a) / 0.16), transparent 60%),
+      radial-gradient(120% 80% at 100% 100%, hsl(var(--song-b) / 0.16), transparent 60%),
+      hsl(var(--card) / 0.6);
+    border: 1px solid hsl(var(--border));
+  }
+  .pi-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 font-arcade font-bold;
+    color: hsl(var(--energy-yellow));
+    background: hsl(var(--energy-yellow) / 0.12);
+    box-shadow: inset 0 0 0 1px hsl(var(--energy-yellow) / 0.5), 0 0 12px hsl(var(--energy-yellow) / 0.25);
+  }
+  .neon-field {
+    @apply bg-background/60 border-border focus-visible:ring-primary/60;
+  }
+  .pi-pop {
+    animation: pi-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both, pi-glow 1.6s ease-out 0.2s both;
+  }
+  @keyframes pi-pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    60% { transform: scale(1.12); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes pi-glow {
+    0% { box-shadow: 0 0 0 0 hsl(var(--energy-yellow) / 0.7); }
+    40% { box-shadow: 0 0 18px 4px hsl(var(--energy-yellow) / 0.45); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--energy-yellow) / 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pi-pop { animation: none; }
+  }
+}
