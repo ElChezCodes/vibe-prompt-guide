@@ -505,6 +505,9 @@ additions (#1, #4 above), each marked where it lands.
    weights, k cap, ramp and "none in Sudden Death" unchanged
    (`supabase/sql/passive_vote_everyone_2026-10-28.sql`). Older rule text
    below says "PASIVO only": superseded.
+   **Steps 8+9 verified in-app by the user 2026-10-28** after the change
+   (an ACTIVO guest who didn't vote got 0.5 for their song and won; a host
+   who cancelled their vote abstained; no preference >= 0.7 = no vote).
    Superseded note: the Spotify-similarity formula below
    is superseded by step 8's own-data score (built together with it); the
    rest (lock-in snapshot, no-row rule) still stands.
