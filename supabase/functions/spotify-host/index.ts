@@ -868,8 +868,16 @@ async function propose(userId: string, jwt: string, body: any) {
     priority: 1,
   });
   if (error) {
-    // queues_arena_song_unique: someone already queued it
-    if (error.code === "23505") return { result: "already_queued" };
+    // Step 14: already queued (queues_arena_song_unique) -> a pre-assigned
+    // vote for its battle; fighting now -> a vote for it at once
+    if (error.code === "23505" || (error.code === "P0001" && error.message === "in_battle")) {
+      const { data: backed, error: backError } = await asUser(jwt).rpc("back_proposal", {
+        p_arena_id: arena.id,
+        p_song_id: songId,
+      });
+      if (backError) throw new HttpError(403, "propose_rejected", backError.message);
+      return { result: backed };
+    }
     // Step-12 queue rules (validate_queue_proposal): the message is the code
     if (error.code === "P0001" && QUEUE_RULE_CODES.has(error.message)) {
       return { result: error.message, available_at: error.hint ?? null };

@@ -252,9 +252,29 @@ const BattleRoomScreen = () => {
 
       if (battle?.battle_id) {
         syncFromBattle(battle.battle_id);
+        // Step 14: a pre-assigned vote is written with the battle itself
+        if (participant) {
+          const battleId = battle.battle_id;
+          getParticipantVote(battleId, participant.id).then((vote) => {
+            if (vote && prevBattleIdRef.current === battleId) setVoteRecord(vote);
+          });
+        }
       }
     }
-  }, [battle?.battle_id, syncFromBattle, resetClosure]);
+  }, [battle?.battle_id, participant, syncFromBattle, resetClosure]);
+
+  // Step 14: proposing the song that is fighting votes for it (Propose modal)
+  useEffect(() => {
+    const battleId = battle?.battle_id;
+    if (!battleId || !participant) return;
+    const onVoteCast = () => {
+      getParticipantVote(battleId, participant.id).then((vote) => {
+        if (vote) setVoteRecord(vote);
+      });
+    };
+    window.addEventListener("arena:vote_cast", onVoteCast);
+    return () => window.removeEventListener("arena:vote_cast", onVoteCast);
+  }, [battle?.battle_id, participant]);
 
   // Consume resolution result (UI-side only)
   useEffect(() => {

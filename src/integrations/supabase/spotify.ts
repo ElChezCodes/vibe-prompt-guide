@@ -219,6 +219,15 @@ export async function createSpotifyArena(
 // available_at only for recently_played (ISO, when it may be proposed again)
 export type ProposeResult =
   | 'proposed'
+  // Step 14 (back_proposal): already queued -> pre-assigned vote for its
+  // battle; fighting now -> voted at once
+  | 'backed'
+  | 'already_backed'
+  | 'own_proposal'
+  | 'backing_full'
+  | 'voted'
+  | 'already_voted'
+  | 'not_queued'
   | 'already_queued'
   | 'in_battle'
   | 'is_warmup'

@@ -23,6 +23,7 @@ interface VoteData {
   song_id: string;
   status: string;
   vote_type?: string;
+  preassigned?: boolean;
 }
 
 interface StageViewProps {
@@ -220,13 +221,14 @@ const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
 // Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
-const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPassive, isA, isLiked, onToggleLike }: {
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike }: {
   source?: string;
   trackId?: string;
   songTitle: string;
   artistName: string;
   showInfo: boolean;
   isSelected: boolean;
+  isPreassigned?: boolean;
   isPassive?: boolean;
   isA: boolean;
   isLiked?: boolean;
@@ -252,7 +254,7 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
         </a>
       )}
       {showInfo && isSelected && (
-        <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>Your vote</span>
+        <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>{isPreassigned ? "Your pre-assigned vote" : "Your vote"}</span>
       )}
       {showInfo && isPassive && (
         <span className={`text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
@@ -297,6 +299,8 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
   // vote row, after lock-in, shows like the passive preview: softer)
   const isSelected = currentVote?.status === "active" && currentVote?.vote_type !== "passive" && currentVote?.song_id === songId;
   const isPassive = !isSelected && !isWinner && !!songId && passiveVoteSongId === songId;
+  // Step 14: cast for them because they backed this song, until they touch it
+  const isPreassigned = isSelected && !!currentVote?.preassigned;
   const lit = isSelected || isWinner;
 
   return (
@@ -338,7 +342,7 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
                     isA ? "bg-song-a text-song-a-foreground" : "bg-song-b text-song-b-foreground"
                   }`}
                 >
-                  Your vote
+                  {isPreassigned ? "Your pre-assigned vote" : "Your vote"}
                 </span>
               )}
               {isPassive && (
@@ -368,6 +372,7 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
         artistName={artistName}
         showInfo={!!artworkUrl}
         isSelected={isSelected}
+        isPreassigned={isPreassigned}
         isPassive={isPassive}
         isA={isA}
         isLiked={isLiked}

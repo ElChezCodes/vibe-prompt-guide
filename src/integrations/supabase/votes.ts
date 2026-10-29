@@ -11,6 +11,9 @@ export interface Vote {
   song_id: string;
   status: "active" | "cancelled";
   vote_type: VoteType;
+  // Step 14: cast by Music Fighter because they backed this song (a duplicate
+  // proposal); false once they switch or toggle it
+  preassigned?: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -24,8 +24,13 @@ export type ProposalStatus =
   | 'purged'
   | 'withdrawn';
 
+// Step 14: 'backing' = they proposed a song someone had already queued, i.e.
+// a pre-assigned vote for its battle (vote_applied: cast or not, e.g. they
+// backed both songs of the battle or had left the arena)
+export type ProposalKind = 'proposal' | 'backing';
+
 export interface MyProposal {
-  queue_id: string | null; // only while queued (withdraw)
+  queue_id: string | null; // only while queued and their own proposal (withdraw)
   song_id: string;
   spotify_track_id: string;
   title: string;
@@ -35,6 +40,8 @@ export interface MyProposal {
   place: number | null;
   battles_left: number | null;
   at: string;
+  kind: ProposalKind;
+  vote_applied: boolean | null;
 }
 
 // Spotify search with the member's own account or the host's (step 7, see
@@ -95,6 +102,16 @@ export async function withdrawProposal(queueId: string): Promise<void> {
 
   if (error) {
     console.error('Failed to withdraw proposal:', error.message, error);
+    throw error;
+  }
+}
+
+// Step 14: remove their pre-assigned vote while the song is still queued
+export async function withdrawBacking(arenaId: string, songId: string): Promise<void> {
+  const { error } = await supabase.rpc('withdraw_backing', { p_arena_id: arenaId, p_song_id: songId });
+
+  if (error) {
+    console.error('Failed to remove pre-assigned vote:', error.message, error);
     throw error;
   }
 }

@@ -203,8 +203,7 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   affinity) and A (mood actually being used) and a venue-history concept that
   doesn't exist in any form yet.
 - Duplicate proposal → auto-assigned pre-vote (not a new queue entry) — *v3.0
-  §3.5, Backend_Block_3, PRD §6.3*. **Not started** — current behavior treats a
-  duplicate as a silent no-op, not an auto-vote.
+  §3.5, Backend_Block_3, PRD §6.3*. **Done** (step 14, 2026-10-28).
 - Queue structure: `active_10` (max 10) / `waiting_50` (max 50, FIFO),
   human-priority-first fill — *Backend_Block_1 §7, Backend_Block_4 §3, v3.2
   §2.2*. **Partial** — this session built real `waiting`/`active` promotion by
@@ -593,6 +592,18 @@ additions (#1, #4 above), each marked where it lands.
     doesn't exist yet in any form.
 14. **Duplicate-proposal auto-vote** — a repeat proposal becomes a pre-assigned
     vote instead of a new queue entry.
+    **Built 2026-10-28** (`supabase/sql/duplicate_backing_2026-10-28.sql`,
+    details in CLAUDE.md "Duplicate proposals"). User decisions: a real
+    regular vote (`preassigned`) written when its battle is created, counts
+    in the bar, changeable/abstainable like any vote (no passive vote then);
+    everything counts as activity (over v2.6/v4); cast unless the backer
+    left the arena; a song fighting now = vote at once; warm-up and
+    recently_played refusals kept; one backing per person and song, not by
+    the original proposer, 5 queued backings max (outside the 5-proposals
+    limit), no effect on queue order; both songs backed = the oldest; the
+    original withdrawn/purged = its backings go too; a backer may remove
+    theirs while queued. Recorded for step 15 in `proposal_history`
+    (`kind = 'backing'`, `vote_applied`).
 15. **PI award logic** — full/half PI on proposal wins, Sudden Death bonus,
     −5 PI on a first infraction. Use an idempotent, auditable ledger
     (engineering addition #2) so a retried event never double-awards.

@@ -12,6 +12,7 @@ import {
   ProposalStatus,
   proposeSong,
   searchSongs,
+  withdrawBacking,
   withdrawProposal,
 } from "@/integrations/supabase/proposals";
 import {
@@ -33,6 +34,21 @@ const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
   switch (result) {
     case "proposed":
       return "Song proposed";
+    // Step 14: a duplicate is a pre-assigned vote, not a new entry
+    case "backed":
+      return "That song was already proposed 🎶 Your vote for it is ready for its battle";
+    case "already_backed":
+      return "You already have your vote ready for that song";
+    case "own_proposal":
+      return "That song is already your proposal";
+    case "backing_full":
+      return "You already have 5 votes ready for queued songs: wait until one fights";
+    case "voted":
+      return "That song is fighting right now 🎶 You voted for it";
+    case "already_voted":
+      return "That song is fighting right now: you already voted for it";
+    case "not_queued":
+      return "That song just left the queue: try again";
     case "already_queued":
       return "That song is already in the queue";
     case "in_battle":
@@ -55,6 +71,18 @@ const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
 };
 
 const statusLabel = (p: MyProposal): string => {
+  // Step 14: songs they backed (someone else proposed them first)
+  if (p.kind === "backing") {
+    const backed: Partial<Record<ProposalStatus, string>> = {
+      next: `Your vote is ready · #${p.place} in the next 10`,
+      waiting: `Your vote is ready · waiting #${p.place}`,
+      competing: p.vote_applied ? "Fighting now · your vote is in" : "Fighting now · your vote wasn't cast",
+      withdrawn: "Your vote was removed",
+      purged: "Dropped after 20 battles waiting",
+    };
+    const outcome = backed[p.status];
+    if (outcome) return outcome;
+  }
   const labels: Record<ProposalStatus, string> = {
     next: `#${p.place} in the next 10`,
     waiting: `Waiting #${p.place} · ${p.battles_left} battles before it's dropped`,
@@ -155,6 +183,8 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     try {
       const outcome = await proposeSong(arenaId, selectedSongId, selectedAccount);
       setNotice(proposeNotice(outcome));
+      // The Battle Room shows the vote cast for a song fighting now
+      if (outcome.result === "voted") window.dispatchEvent(new CustomEvent("arena:vote_cast"));
       // The query and its results stay, so several songs of the same search
       // (e.g. one artist) can be proposed in a row (user request 2026-10-27)
       setSelectedSongId(null);
@@ -177,6 +207,17 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     } catch {
       // It may have just entered a battle
       setNotice("Couldn't withdraw it");
+    }
+    loadMyProposals();
+  };
+
+  const handleWithdrawBacking = async (songId: string) => {
+    try {
+      await withdrawBacking(arenaId, songId);
+      setNotice("Your vote for it was removed");
+    } catch {
+      // Its battle may have just started: then it is a normal vote
+      setNotice("Couldn't remove it");
     }
     loadMyProposals();
   };
@@ -333,17 +374,24 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
               <div className="space-y-2 pr-4">
                 {myProposals.map((proposal) => (
                   <SpotifyTrackRow
-                    key={proposal.queue_id ?? `${proposal.song_id}-${proposal.at}`}
+                    key={proposal.queue_id ?? `${proposal.kind}-${proposal.song_id}-${proposal.at}`}
                     track={{
                       ...proposal,
                       spotify_url: `https://open.spotify.com/track/${proposal.spotify_track_id}`,
                     }}
                     details={<p className="text-xs text-song-a truncate">{statusLabel(proposal)}</p>}
                     action={
-                      proposal.queue_id && (
+                      proposal.queue_id ? (
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdraw(proposal.queue_id)}>
                           Withdraw
                         </Button>
+                      ) : (
+                        proposal.kind === "backing" &&
+                        (proposal.status === "next" || proposal.status === "waiting") && (
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleWithdrawBacking(proposal.song_id)}>
+                            Remove my vote
+                          </Button>
+                        )
                       )
                     }
                   />
