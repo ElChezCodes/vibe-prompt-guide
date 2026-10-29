@@ -592,7 +592,8 @@ additions (#1, #4 above), each marked where it lands.
     doesn't exist yet in any form.
 14. **Duplicate-proposal auto-vote** — a repeat proposal becomes a pre-assigned
     vote instead of a new queue entry.
-    **Built 2026-10-28** (`supabase/sql/duplicate_backing_2026-10-28.sql`,
+    **Built and verified in-app 2026-10-28** (`supabase/sql/duplicate_backing_2026-10-28.sql`
+    + review fixes `duplicate_backing_review_2026-10-28.sql`,
     details in CLAUDE.md "Duplicate proposals"). User decisions: a real
     regular vote (`preassigned`) written when its battle is created, counts
     in the bar, changeable/abstainable like any vote (no passive vote then);
