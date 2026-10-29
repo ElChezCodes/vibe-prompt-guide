@@ -3,6 +3,7 @@ import { Search, Music, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import {
   getMyProposals,
@@ -18,6 +19,7 @@ import {
   getProposeSources,
   ProposeOutcome,
   ProposeSources,
+  setLendLibrary,
   SpotifyHostError,
   SpotifyTrack,
 } from "@/integrations/supabase/spotify";
@@ -184,6 +186,21 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
     setSelectedAccount(account);
   };
 
+  const handleLendLibrary = async (enabled: boolean) => {
+    setNotice("");
+    try {
+      const { lends_library } = await setLendLibrary(arenaId, enabled);
+      setSources((prev) => (prev ? { ...prev, lends_library } : prev));
+      setNotice(lends_library ? "Your Liked Songs may fill gaps in this arena" : "Your Liked Songs are no longer used here");
+    } catch (err) {
+      setNotice(
+        err instanceof SpotifyHostError && err.code === "needs_reconnect"
+          ? "Reconnect Spotify in Profile to lend your Liked Songs"
+          : "Couldn't change it",
+      );
+    }
+  };
+
   const switchTab = (next: "search" | "playlists") => {
     setTab(next);
     setSelectedSongId(null);
@@ -223,6 +240,25 @@ const ProposeSongPanel = ({ arenaId }: ProposeSongPanelProps) => {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Step 13: a guest may lend their Liked Songs when the queue runs dry */}
+      {canChooseAccount && (
+        <label className="flex-shrink-0 flex items-center justify-between gap-3 rounded-xl px-3 py-2 neon-row cursor-pointer">
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-foreground">Lend my Liked Songs</span>
+            <span className="block text-[11px] text-muted-foreground">
+              {sources.can_read_library
+                ? "If nobody proposes, songs that fit the arena may come from them. Nobody sees they're yours."
+                : "Reconnect Spotify in Profile to use this"}
+            </span>
+          </span>
+          <Switch
+            checked={!!sources.lends_library}
+            disabled={!sources.can_read_library}
+            onCheckedChange={handleLendLibrary}
+          />
+        </label>
       )}
 
       {tab === "playlists" ? (

@@ -50,6 +50,7 @@ import {
  * Step 7: a member's own Spotify, in any arena, only to pick songs to propose (never
  * for affinity/profiling, Developer Policy III.13; nothing of their library is stored):
  *   propose_sources -> what the caller can use: own connection, library scopes, host or not
+ *   lend_library    -> step 13: a guest's switch "my Liked Songs may fill this arena's gaps"
  *   my_playlists    -> Liked Songs + their owned/collaborative playlists
  *   playlist_tracks -> one page (50) of one of those
  *   search/propose  -> account "own" (default: the caller's token, falling back to the
@@ -629,11 +630,51 @@ async function arenaForProposing(userId: string, arenaId: string) {
 async function proposeSources(userId: string, body: any) {
   const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
   const account = await loadAccount(userId);
+  const { data: lending } = await admin
+    .from("arena_library_contributors")
+    .select("user_id")
+    .eq("arena_id", arena.id)
+    .eq("user_id", userId)
+    .maybeSingle();
   return {
     is_host: arena.host_id === userId,
     own_connected: !!account,
     can_read_library: canReadLibrary(account),
+    lends_library: !!lending,
   };
+}
+
+// Step 13: a guest lends their Liked Songs to fill this arena's gaps (off by
+// default, any time off; anonymous: the songs enter as system songs). The
+// host's own backup music is chosen at creation instead.
+async function lendLibrary(userId: string, body: any) {
+  const arena = await arenaForProposing(userId, String(body?.arena_id ?? ""));
+  if (arena.host_id === userId) throw new HttpError(409, "is_host", "The host's backup music is chosen when creating the arena");
+  const enabled = body?.enabled === true;
+  if (enabled) {
+    const { data: member } = await admin
+      .from("participants")
+      .select("id")
+      .eq("arena_id", arena.id)
+      .eq("identity_anchor_id", userId)
+      .is("left_at", null)
+      .maybeSingle();
+    if (!member) throw new HttpError(403, "not_member");
+    const account = await loadAccount(userId);
+    if (!account) throw new HttpError(409, "spotify_not_connected", "Connect your Spotify to lend your Liked Songs");
+    if (!canReadLibrary(account)) throw new HttpError(409, "needs_reconnect", "Reconnect Spotify to lend your Liked Songs");
+  }
+  const { error } = await admin.rpc("set_library_contribution", {
+    p_arena_id: arena.id,
+    p_user_id: userId,
+    p_enabled: enabled,
+  });
+  if (error) throw new HttpError(500, "db_error", error.message);
+  // Running arena: fetch their songs now rather than on the next watch tick
+  if (enabled && arena.state === "active") {
+    await refillReserve(arena).catch((err) => console.error("[spotify-host] reserve", arena.id, err));
+  }
+  return { lends_library: enabled };
 }
 
 // The caller's library only (their own token, never the host's); fetched live,
@@ -709,11 +750,16 @@ async function createArena(userId: string, body: any) {
 // host's source (Liked Songs or their chosen playlist) and catalog search by
 // the arena's artists, both with the host's token. Only what's missing is
 // fetched; failures just leave the reserve as it is (the arena waits).
+// Step 13 (supabase/sql/system_songs_fit_2026-10-28.sql): prepare_reserve also
+// prunes, rotates and ranks it by fit with the arena, and guests who switched
+// "lend my Liked Songs" on add theirs (their token, the host's country).
 const ARTIST_SEARCH_TRIES = 2;
 
 async function refillReserve(arena: { id: string; host_id: string }) {
-  const { data: needs, error } = await admin.rpc("reserve_needs", { p_arena_id: arena.id });
-  if (error || !needs || (needs.host_library <= 0 && needs.arena_artist <= 0)) return;
+  const { data: needs, error } = await admin.rpc("prepare_reserve", { p_arena_id: arena.id });
+  if (error || !needs) return;
+  const guests: { user_id: string; need: number }[] = needs.guests ?? [];
+  if (needs.host_library <= 0 && needs.arena_artist <= 0 && guests.length === 0) return;
 
   const own = await ownAccount(arena.host_id);
   if (!own) return;
@@ -721,18 +767,31 @@ async function refillReserve(arena: { id: string; host_id: string }) {
 
   if (needs.host_library > 0 && canReadLibrary(account)) {
     try {
-      const first = await provider.playlistTracks(needs.source, 0);
-      // A random page of the source, then shuffled
-      const pages = Math.ceil(first.total / LIBRARY_PAGE);
-      const page = pages > 1 ? await provider.playlistTracks(needs.source, Math.floor(Math.random() * pages) * LIBRARY_PAGE) : first;
       await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "host_library",
-        p_tracks: shuffle(page.tracks.filter(playable)),
+        p_tracks: await randomLibraryPage(provider, needs.source),
         p_limit: needs.host_library,
       });
     } catch (err) {
       console.error("[spotify-host] reserve host_library", arena.id, err);
+    }
+  }
+
+  // Only their Liked Songs, read live; the songs play in the host's country
+  for (const guest of guests) {
+    try {
+      const lender = await ownAccount(guest.user_id, account.country ?? null);
+      if (!lender || !canReadLibrary(lender.account)) continue;
+      await admin.rpc("add_reserve_songs", {
+        p_arena_id: arena.id,
+        p_source: "guest_library",
+        p_tracks: await randomLibraryPage(lender.provider, LIKED_SONGS_ID),
+        p_limit: guest.need,
+        p_contributor: guest.user_id,
+      });
+    } catch (err) {
+      console.error("[spotify-host] reserve guest_library", arena.id, err);
     }
   }
 
@@ -753,6 +812,14 @@ async function refillReserve(arena: { id: string; host_id: string }) {
       console.error("[spotify-host] reserve arena_artist", arena.id, err);
     }
   }
+}
+
+// A random page of a library source, shuffled, playable ones only
+async function randomLibraryPage(provider: SpotifyPlaybackProvider, source: string) {
+  const first = await provider.playlistTracks(source, 0);
+  const pages = Math.ceil(first.total / LIBRARY_PAGE);
+  const page = pages > 1 ? await provider.playlistTracks(source, Math.floor(Math.random() * pages) * LIBRARY_PAGE) : first;
+  return shuffle(page.tracks.filter(playable));
 }
 
 const playable = (t: CatalogTrack) => t.is_playable !== false;
@@ -1610,6 +1677,8 @@ Deno.serve(async (req) => {
         return json(await like(userId, jwt, body));
       case "propose_sources":
         return json(await proposeSources(userId, body));
+      case "lend_library":
+        return json(await lendLibrary(userId, body));
       case "my_playlists":
         return json(await myPlaylists(userId, body));
       case "playlist_tracks":

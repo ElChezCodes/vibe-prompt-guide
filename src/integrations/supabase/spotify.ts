@@ -156,10 +156,17 @@ export interface ProposeSources {
   is_host: boolean;
   own_connected: boolean;
   can_read_library: boolean;
+  // Step 13: this guest lends their Liked Songs to fill the arena's gaps
+  lends_library: boolean;
 }
 
 export const getProposeSources = (arenaId: string) =>
   callSpotifyHost<ProposeSources>({ action: 'propose_sources', arena_id: arenaId });
+
+// Guests only, per arena, off by default. The songs enter as system songs
+// (nobody sees whose they are). Errors: spotify_not_connected, needs_reconnect.
+export const setLendLibrary = (arenaId: string, enabled: boolean) =>
+  callSpotifyHost<{ lends_library: boolean }>({ action: 'lend_library', arena_id: arenaId, enabled });
 
 // The member's own library, only to pick a song to propose; never stored.
 // id "liked" = Liked Songs. Errors: spotify_not_connected, needs_reconnect,

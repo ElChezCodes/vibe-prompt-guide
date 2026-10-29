@@ -30,7 +30,10 @@ const PrivacyScreen = () => (
     <ul className="list-disc pl-5 space-y-1">
       <li>
         Your Spotify playlists and Liked Songs are read only while you browse them to propose a song, shown only to you
-        and never stored.
+        and never stored. The only exception is if you turn on "Lend my Liked Songs" in an arena: Music Fighter
+        then keeps a few of them in that arena's backup list, to play when nobody proposes, without saying they are
+        yours. They are deleted when you turn it off, leave the arena or the arena ends, unless they have already
+        played.
       </li>
       <li>We never build a taste profile from your Spotify data, never sell data and never show ads.</li>
     </ul>

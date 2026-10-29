@@ -567,7 +567,16 @@ additions (#1, #4 above), each marked where it lands.
     recommendations and Spotify's algorithmic playlists closed to new apps,
     and autoplay plays outside the arena playlist (`off_playlist`). Low-queue
     notice at < 4 human proposals.
-13. **TO BE REDEFINED (2026-10-27)** — sources change: own-data affinity
+13. **Done 2026-10-28** (`supabase/sql/system_songs_fit_2026-10-28.sql`,
+    details in CLAUDE.md "System songs that fit the arena"). User decisions
+    2026-10-28: scope = rank the fallback reserve by fit with the arena + let
+    guests lend their Liked Songs; fit = the arena's style (its warm-up,
+    proposals and winners, recent ones weighing more; same artist / related
+    artist / MusicBrainz tags) as the base and the present users' own
+    affinity to break ties, songs without MusicBrainz data behind in random
+    order; guests: per-arena switch, off by default, anonymous; system songs
+    still only when human proposals can't make a pair (revancha first).
+    Previously: **TO BE REDEFINED (2026-10-27)** — sources change: own-data affinity
     instead of Spotify, and no venue history (private gatherings). Candidate
     source proposed by the user 2026-10-27 (step-12 chat): fill empty slots
     with a song from the **host's or a user's Spotify Liked Songs** that fits
