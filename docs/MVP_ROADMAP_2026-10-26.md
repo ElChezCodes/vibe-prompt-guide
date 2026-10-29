@@ -189,7 +189,7 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - Real playback: winner auto-plays, next battle starts when previous winner
   starts playing, progress-synced timers, auto-append winners to the arena's
   playlist in the host's Spotify account (not a "local" playlist, 2026-10-27) — *v3.2 §Flujos clave, v3.0 §10, Backend_Block_3 §9,
-  Backend_Block_4 §9*. **Built 2026-10-28 (step 18).**
+  Backend_Block_4 §9*. **Built and verified in-app 2026-10-28 (step 18).**
 
 ### E. Song proposals & queue
 - Active/human proposal (1 per user per battle, high priority, never displaced
@@ -615,7 +615,16 @@ additions (#1, #4 above), each marked where it lands.
     drift corrected from 1 s, and a radio track that started is never cut
     (it lengthens the battle, the winner follows it):
     `supabase/sql/radio_lead_in_2026-10-28.sql`. NowPlaying: instant answer,
-    "Back to automatic" asks first.
+    "Back to automatic" asks first. Radio lead-in follows the radio track
+    really playing; Spotify's own song lengths replace the stored ones
+    (`radio_follow_2026-10-28.sql`, `real_lengths_2026-10-28.sql`).
+    **Verified in-app by the user 2026-10-28** (new timings, Sudden Death
+    and draws, auto/manual control and its buttons, radio lead-in then the
+    winner within ~0.4 s). Left to check when they happen (user decision
+    2026-10-28): a late battle over Autoplay (never occurred yet), a song
+    unplayable in the host's country skipped during an arena, and the greyed
+    out search result (e.g. "Twice"); `real length` corrections in the
+    spotify-host logs (none needed in the last test).
 19. (Stage View is the party's shared screen, not a venue display, since
     2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song
