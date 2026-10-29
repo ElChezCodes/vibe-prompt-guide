@@ -623,8 +623,10 @@ additions (#1, #4 above), each marked where it lands.
     winner within ~0.4 s). Left to check when they happen (user decision
     2026-10-28): a late battle over Autoplay (never occurred yet), a song
     unplayable in the host's country skipped during an arena, and the greyed
-    out search result (e.g. "Twice"); `real length` corrections in the
-    spotify-host logs (none needed in the last test).
+    out row in a member's own playlists (search never shows such songs:
+    Spotify filters them with `market`, user confirmed 2026-10-28 and chose
+    to keep it); `real length` corrections in the spotify-host logs (none
+    needed in the last test).
 19. (Stage View is the party's shared screen, not a venue display, since
     2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song
