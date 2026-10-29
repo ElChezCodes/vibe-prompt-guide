@@ -254,9 +254,16 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
   }
 
   async getTrack(trackId: string): Promise<CatalogTrack | null> {
-    if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return null;
+    return (await this.readTrack(trackId)).track;
+  }
+
+  // getTrack keeping Spotify's answer when the track can't be read, so a
+  // refusal can say why (404 = no such track; anything else = Spotify error)
+  async readTrack(trackId: string): Promise<{ track: CatalogTrack | null; status: number; message: string | null }> {
+    if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return { track: null, status: 400, message: "invalid track id" };
     const res = await this.api(`/tracks/${trackId}?${this.withMarket(new URLSearchParams())}`);
-    return res.status === 200 && res.body?.id ? toCatalogTrack(res.body, this.market) : null;
+    const track = res.status === 200 && res.body?.id ? toCatalogTrack(res.body, this.market) : null;
+    return { track, status: res.status, message: res.body?.error?.message ?? null };
   }
 
   async listPlaylists(ownerId: string): Promise<LibraryPlaylist[]> {

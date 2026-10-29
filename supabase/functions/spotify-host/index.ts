@@ -715,8 +715,14 @@ async function playlistTracks(userId: string, body: any) {
 }
 
 async function getTrackOrFail(provider: SpotifyPlaybackProvider, trackId: unknown): Promise<CatalogTrack> {
-  const track = await provider.getTrack(String(trackId ?? ""));
-  if (!track) throw new HttpError(404, "track_not_found", "That Spotify track isn't available");
+  const { track, status, message } = await provider.readTrack(String(trackId ?? ""));
+  if (!track) {
+    console.error("[spotify-host] track lookup failed", trackId, status, message);
+    if (status === 404 || status === 400) {
+      throw new HttpError(404, "track_not_found", `That Spotify track isn't available (Spotify ${status})`);
+    }
+    throw new HttpError(502, "spotify_error", `Spotify couldn't read that track (${status}${message ? `: ${message}` : ""})`);
+  }
   return track;
 }
 
@@ -840,12 +846,16 @@ async function propose(userId: string, jwt: string, body: any, retried = false):
   const arena = await arenaForMember(userId, String(body?.arena_id ?? ""));
   // Re-read from Spotify with the same account the caller picked it with
   const { result: track } = await withArenaCatalog(userId, arena, body?.account, async (p) => {
-    const t = await p.getTrack(String(body?.track_id ?? ""));
-    if (!t) throw new PlaybackError(404, null, "track not found with this account");
+    const { track: t, status, message } = await p.readTrack(String(body?.track_id ?? ""));
+    if (!t) {
+      console.error("[spotify-host] track lookup failed", body?.track_id, status, message);
+      // 400 (bad id) counts as not found; other answers keep Spotify's status
+      throw new PlaybackError(status === 400 ? 404 : status, null, message ?? "track not found with this account");
+    }
     return t;
   }).catch((err) => {
     if (err instanceof PlaybackError && err.status === 404) {
-      throw new HttpError(404, "track_not_found", "That Spotify track isn't available");
+      throw new HttpError(404, "track_not_found", "That Spotify track isn't available (Spotify 404)");
     }
     throw err;
   });
