@@ -111,6 +111,24 @@ function withRetryAfter(message: string, retryAfter: string | null) {
   const wait = s >= 3600 ? `${(s / 3600).toFixed(1)} h` : s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`;
   return `${message}, retry in ${wait}`;
 }
+
+// Told about every 429 with its Retry-After (seconds), so spotify-host can
+// stop background calls until then instead of prolonging the ban
+// (0 = a call succeeded: any recorded limit is over)
+let rateLimitListener: ((retryAfterS: number) => void) | null = null;
+export function onSpotifyRateLimit(listener: (retryAfterS: number) => void) {
+  rateLimitListener = listener;
+}
+
+const toDevice = (d: any): PlaybackDevice => ({
+  id: d.id,
+  name: d.name,
+  type: d.type,
+  is_active: !!d.is_active,
+  // Restricted devices can't be controlled through the Web API
+  is_restricted: !!d.is_restricted,
+});
+
 export const LIBRARY_PAGE = 50;
 // /me/playlists pages read per listing (50 each)
 const MAX_PLAYLIST_PAGES = 4;
@@ -156,7 +174,13 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     }
     // 429: Spotify says how long the app is rate-limited (seconds)
     const retryAfter = res.status === 429 ? res.headers.get("retry-after") : null;
-    if (retryAfter) console.warn("[spotify-host] Spotify 429 on", path.split("?")[0], "retry-after", retryAfter);
+    if (res.status === 429) {
+      console.warn("[spotify-host] Spotify 429 on", path.split("?")[0], "retry-after", retryAfter);
+      const s = Number(retryAfter);
+      rateLimitListener?.(retryAfter && Number.isFinite(s) ? s : 60);
+    } else if (res.status < 400) {
+      rateLimitListener?.(0);
+    }
     return { status: res.status, body, retryAfter };
   }
 
@@ -172,23 +196,28 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     return res.body;
   }
 
+  // One call while something plays (the player names its device); the device
+  // list only when nothing is active or the active device can't be controlled
+  // (2026-10-29: the watcher's two calls per check were half of a 429)
   async getStatus(): Promise<PlaybackStatus> {
     const sentAt = Date.now();
-    const [devicesRes, playerRes] = await Promise.all([this.api("/me/player/devices"), this.api("/me/player")]);
+    const playerRes = await this.api("/me/player");
     const observedAt = Math.round((sentAt + Date.now()) / 2);
-    if (devicesRes.status !== 200) {
-      throw new PlaybackError(devicesRes.status, null, `Spotify devices answered ${devicesRes.status}`);
+    // 204 = no active player; any other answer is an error, not "stopped"
+    if (playerRes.status !== 200 && playerRes.status !== 204) {
+      throw new PlaybackError(playerRes.status, null, `Spotify player answered ${playerRes.status}`);
     }
-    const devices: PlaybackDevice[] = (devicesRes.body?.devices ?? []).map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      type: d.type,
-      is_active: !!d.is_active,
-      // Restricted devices can't be controlled through the Web API
-      is_restricted: !!d.is_restricted,
-    }));
-    // 204 = no active player
     const player = playerRes.status === 200 ? playerRes.body : null;
+    let devices: PlaybackDevice[];
+    if (player?.device?.id && !player.device.is_restricted) {
+      devices = [toDevice(player.device)];
+    } else {
+      const devicesRes = await this.api("/me/player/devices");
+      if (devicesRes.status !== 200) {
+        throw new PlaybackError(devicesRes.status, null, `Spotify devices answered ${devicesRes.status}`);
+      }
+      devices = (devicesRes.body?.devices ?? []).map(toDevice);
+    }
     return {
       devices,
       activeDeviceId: player?.device?.id ?? null,

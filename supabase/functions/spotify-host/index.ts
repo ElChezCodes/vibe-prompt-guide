@@ -5,6 +5,7 @@ import {
   CatalogTrack,
   LIBRARY_PAGE,
   LIKED_SONGS_ID,
+  onSpotifyRateLimit,
   PlaybackError,
   PlaybackSession,
   PlaybackStatus,
@@ -104,6 +105,43 @@ const API = "https://api.spotify.com/v1";
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
 });
+
+// Spotify's rate limit (429 + Retry-After) is per app: while it runs, the
+// background work (watch, nudge, reserve refill) makes no Spotify calls, so
+// the ban isn't prolonged (2026-10-29: a 6 h arena earned a 14.3 h ban).
+// Stored in spotify_rate_limit, shared by every instance; read at most every 20 s.
+let limitedUntil = 0;
+let limitedReadAt = 0;
+onSpotifyRateLimit((retryAfterS) => {
+  if (retryAfterS === 0) {
+    // Spotify answered again before the recorded end: the ban is over (the
+    // table is looked at by this instance at most once a minute)
+    if (limitedUntil <= Date.now() && Date.now() - limitedReadAt < 60_000) return;
+    spotifyLimitedUntil(Date.now() - limitedReadAt >= 60_000).then((until) => {
+      if (!until) return;
+      limitedUntil = 0;
+      return admin.from("spotify_rate_limit").delete().eq("id", true)
+        .then(({ error }) => error && console.error("[spotify-host] rate limit clear", error.message));
+    });
+    return;
+  }
+  const until = Date.now() + retryAfterS * 1000;
+  if (until <= limitedUntil) return;
+  limitedUntil = until;
+  admin
+    .from("spotify_rate_limit")
+    .upsert({ id: true, until: new Date(until).toISOString(), updated_at: new Date().toISOString() })
+    .then(({ error }) => error && console.error("[spotify-host] rate limit record", error.message));
+});
+
+async function spotifyLimitedUntil(refresh = false): Promise<number> {
+  if (refresh || Date.now() - limitedReadAt > 20_000) {
+    const { data } = await admin.from("spotify_rate_limit").select("until").maybeSingle();
+    limitedUntil = Math.max(limitedUntil, data?.until ? new Date(data.until).getTime() : 0);
+    limitedReadAt = Date.now();
+  }
+  return limitedUntil > Date.now() ? limitedUntil : 0;
+}
 
 // As the caller: RLS, auth.uid() and the presence/proposer triggers apply
 function asUser(jwt: string) {
@@ -760,25 +798,34 @@ async function createArena(userId: string, body: any) {
 // prunes, rotates and ranks it by fit with the arena, and guests who switched
 // "lend my Liked Songs" on add theirs (their token, the host's country).
 const ARTIST_SEARCH_TRIES = 2;
+// Watcher pacing of refills (2026-10-29, Spotify 429): at most one a minute,
+// and one every 10 minutes while refills add nothing (small or used-up library)
+const RESERVE_REFILL_MS = 60_000;
+const RESERVE_IDLE_REFILL_MS = 10 * 60_000;
 
-async function refillReserve(arena: { id: string; host_id: string }) {
+// Returns whether Spotify was called and how many songs were added
+async function refillReserve(arena: { id: string; host_id: string }): Promise<{ called: boolean; added: number }> {
+  const none = { called: false, added: 0 };
   const { data: needs, error } = await admin.rpc("prepare_reserve", { p_arena_id: arena.id });
-  if (error || !needs) return;
+  if (error || !needs) return none;
   const guests: { user_id: string; need: number }[] = needs.guests ?? [];
-  if (needs.host_library <= 0 && needs.arena_artist <= 0 && guests.length === 0) return;
+  if (needs.host_library <= 0 && needs.arena_artist <= 0 && guests.length === 0) return none;
+  if (await spotifyLimitedUntil()) return none;
 
   const own = await ownAccount(arena.host_id);
-  if (!own) return;
+  if (!own) return none;
   const { account, provider } = own;
+  let total = 0;
 
   if (needs.host_library > 0 && canReadLibrary(account)) {
     try {
-      await admin.rpc("add_reserve_songs", {
+      const { data: added } = await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "host_library",
         p_tracks: await randomLibraryPage(provider, needs.source),
         p_limit: needs.host_library,
       });
+      total += added ?? 0;
     } catch (err) {
       console.error("[spotify-host] reserve host_library", arena.id, err);
     }
@@ -789,13 +836,14 @@ async function refillReserve(arena: { id: string; host_id: string }) {
     try {
       const lender = await ownAccount(guest.user_id, account.country ?? null);
       if (!lender || !canReadLibrary(lender.account)) continue;
-      await admin.rpc("add_reserve_songs", {
+      const { data: added } = await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "guest_library",
         p_tracks: await randomLibraryPage(lender.provider, LIKED_SONGS_ID),
         p_limit: guest.need,
         p_contributor: guest.user_id,
       });
+      total += added ?? 0;
     } catch (err) {
       console.error("[spotify-host] reserve guest_library", arena.id, err);
     }
@@ -814,10 +862,12 @@ async function refillReserve(arena: { id: string; host_id: string }) {
         p_limit: missing,
       });
       missing -= added ?? 0;
+      total += added ?? 0;
     } catch (err) {
       console.error("[spotify-host] reserve arena_artist", arena.id, err);
     }
   }
+  return { called: true, added: total };
 }
 
 // A random page of a library source, shuffled, playable ones only
@@ -1259,6 +1309,27 @@ const sameText = (a: string | null | undefined, b: string | null | undefined) =>
   !!a && !!b && a.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
     b.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
+// Spotify's answer for a track (per arena = the host's market), remembered for
+// 10 minutes: the watcher asked again every check while Autoplay or another
+// version played (2026-10-29, part of a Spotify 429). Errors aren't remembered
+// and read as "not found", as getTrack did.
+const TRACK_LOOKUP_TTL_MS = 10 * 60_000;
+const trackLookups = new Map<string, { at: number; track: CatalogTrack | null }>();
+
+async function lookupTrack(provider: SpotifyPlaybackProvider, arenaId: string, trackId: string) {
+  const key = `${arenaId}:${trackId}`;
+  const hit = trackLookups.get(key);
+  if (hit && Date.now() - hit.at < TRACK_LOOKUP_TTL_MS) return hit.track;
+  const { track, status, message } = await provider.readTrack(trackId);
+  // 429 is remembered like "not found": asking again only prolongs the limit
+  if (!track && status !== 404 && status !== 400 && status !== 429) {
+    console.warn("[spotify-host] track lookup", trackId, status, message);
+    return null;
+  }
+  trackLookups.set(key, { at: Date.now(), track });
+  return track;
+}
+
 async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, status: PlaybackStatus) {
   const uri = status.trackUri;
   const arenaUris: string[] = plan.arena_uris ?? [];
@@ -1271,10 +1342,10 @@ async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, p
   try {
     const expectedUri: string | undefined = plan.expected?.track_uri;
     if (expectedUri) {
-      const version = await provider.getTrack(idOf(expectedUri));
+      const version = await lookupTrack(provider, arenaId, idOf(expectedUri));
       if (version && trackUri(version.spotify_track_id) === uri) match = expectedUri;
     }
-    const track = match ? null : await provider.getTrack(idOf(uri));
+    const track = match ? null : await lookupTrack(provider, arenaId, idOf(uri));
     const expected = plan.expected;
     const onSchedule = !!expected && status.durationMs != null && status.progressMs != null &&
       Math.abs(status.durationMs - Number(expected.duration_ms)) <= RELINK_DURATION_MS &&
@@ -1310,15 +1381,22 @@ async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, p
 
 // A track reported on the arena playlist that is neither an arena song nor
 // in the playlist (added by hand) = Spotify's Autoplay/radio. Remembered per
-// instance; if the playlist can't be read it counts as on the playlist.
+// instance; if the playlist can't be read it counts as on the playlist. "In
+// the playlist" and "couldn't read it" are remembered for 5 minutes (each
+// check used to read up to 10 playlist pages again).
 const autoplayTracks = new Set<string>();
+const PLAYLIST_LOOKUP_TTL_MS = 5 * 60_000;
+const playlistLookups = new Map<string, number>();
 
 async function isAutoplayTrack(provider: SpotifyPlaybackProvider, arenaId: string, plan: any, session: PlaybackSession | null, uri: string | null) {
   if (!uri || !session || (plan.arena_uris ?? []).includes(uri)) return false;
   const key = `${arenaId}:${uri}`;
   if (autoplayTracks.has(key)) return true;
+  const seen = playlistLookups.get(key);
+  if (seen && Date.now() - seen < PLAYLIST_LOOKUP_TTL_MS) return false;
   const inPlaylist = await provider.playlistHas(session.id, uri);
   if (inPlaylist === false) autoplayTracks.add(key);
+  else playlistLookups.set(key, Date.now());
   return inPlaylist === false;
 }
 
@@ -1499,7 +1577,7 @@ async function checkArena(pb: any, arena: any) {
     // version); without it, two put-backs of it in a row didn't stick.
     const expectedUnplayable = async () => {
       if (account.country) {
-        const t = await provider.getTrack(expected.track_uri.replace("spotify:track:", ""));
+        const t = await lookupTrack(provider, arena.id, expected.track_uri.replace("spotify:track:", ""));
         if (t && trackUri(t.spotify_track_id) === expected.track_uri) return t.is_playable === false;
       }
       return pb.put_back_uri === expected.track_uri && (pb.put_back_count ?? 0) >= 2;
@@ -1618,6 +1696,8 @@ function checkSecret(req: Request) {
 
 async function watch(req: Request) {
   checkSecret(req);
+  const limited = await spotifyLimitedUntil();
+  if (limited) return { checked: 0, spotify_limited_until: new Date(limited).toISOString() };
 
   const { data: rows, error } = await admin
     .from("arena_playback")
@@ -1638,7 +1718,20 @@ async function watch(req: Request) {
       // Transient Spotify/network errors: next tick tries again
       console.error("[spotify-host] watch", row.arena_id, err);
     }
-    await refillReserve(row.arenas).catch((err) => console.error("[spotify-host] reserve", row.arena_id, err));
+    if (!row.reserve_refill_after || new Date(row.reserve_refill_after).getTime() <= Date.now()) {
+      try {
+        const { called, added } = await refillReserve(row.arenas);
+        if (called) {
+          const wait = added > 0 ? RESERVE_REFILL_MS : RESERVE_IDLE_REFILL_MS;
+          await admin
+            .from("arena_playback")
+            .update({ reserve_refill_after: new Date(Date.now() + wait).toISOString() })
+            .eq("arena_id", row.arena_id);
+        }
+      } catch (err) {
+        console.error("[spotify-host] reserve", row.arena_id, err);
+      }
+    }
   }
   return { checked };
 }
@@ -1647,6 +1740,7 @@ async function watch(req: Request) {
 // ending or starting late): append now, then check the player
 async function nudge(req: Request, body: any) {
   checkSecret(req);
+  if (await spotifyLimitedUntil()) return { checked: false, spotify_limited: true };
   const { data: row, error } = await admin
     .from("arena_playback")
     .select(`*, arenas!inner(${ARENA_COLUMNS})`)
