@@ -1084,12 +1084,12 @@ async function loadPlan(arenaId: string, at?: string | null) {
 
 // The battle clock follows the music: the plan entry playing re-anchors the
 // open battle (sync_arena_clock; a skip forward ends it early, v4 §8.3)
-async function syncClock(arena: any, playingUri: string | null, progressMs: number | null) {
+async function syncClock(arena: any, playingUri: string | null, progressMs: number | null, observedAt = Date.now()) {
   if (!playingUri || progressMs == null) return;
   const { error } = await admin.rpc("sync_arena_clock", {
     p_arena_id: arena.id,
     p_track_uri: playingUri,
-    p_track_started_at: new Date(Date.now() - progressMs).toISOString(),
+    p_track_started_at: new Date(observedAt - progressMs).toISOString(),
   });
   if (error) console.warn("[spotify-host] sync_arena_clock", arena.id, error.message);
 }
@@ -1315,6 +1315,28 @@ async function checkArena(pb: any, arena: any) {
       });
     }
 
+    // Spotify's Autoplay/radio began before an arena song was due (e.g. a
+    // winner appended in the previous song's last seconds): a song that is
+    // playing is never cut (user decision 2026-10-28). autoplay_lead_in
+    // lengthens the battle over that song by the radio track and wakes us when
+    // the track ends; then the arena song is started like any song due (kick).
+    const radio = status.isPlaying && !onPlaylist && !!playing && !(plan.arena_uris ?? []).includes(playing) &&
+      status.progressMs != null && status.durationMs != null;
+    if (radio && (!expected || Number(expected.position_ms) < KICK_MS ||
+                  Number(expected.duration_ms) - Number(expected.position_ms) < SEAM_MS)) {
+      const startedAt = status.observedAt - status.progressMs!;
+      const { data: lead, error: leadError } = await admin.rpc("autoplay_lead_in", {
+        p_arena_id: arena.id,
+        p_track_started_at: new Date(startedAt).toISOString(),
+        p_track_ends_at: new Date(startedAt + status.durationMs!).toISOString(),
+      });
+      if (leadError) console.warn("[spotify-host] autoplay_lead_in", arena.id, leadError.message);
+      if (lead) {
+        await record({ ...snapshot, strikes: 0, strike_reason: null });
+        return;
+      }
+    }
+
     // No arena song expected (waiting for songs / late battle): Autoplay or silence is fine
     if (!expected) {
       await record({ ...snapshot, strikes: 0, strike_reason: null });
@@ -1376,7 +1398,7 @@ async function checkArena(pb: any, arena: any) {
       if (error) throw new HttpError(500, "db_error", error.message);
       const next = (await loadPlan(arena.id)).expected ?? null;
       if (next && onPlaylist && status.isPlaying && playing === next.track_uri) {
-        await syncClock(arena, playing, status.progressMs);
+        await syncClock(arena, playing, status.progressMs, status.observedAt);
       } else if (next) {
         try {
           await provider.play({ deviceId: pick!.device.id, contextUri: session!.uri, offsetUri: next.track_uri, positionMs: Number(next.position_ms) });
@@ -1390,23 +1412,14 @@ async function checkArena(pb: any, arena: any) {
     let problem: string | null = null;
     if ((onExpected && status.isPlaying) || atSeam) {
       await record({ ...snapshot, strikes: 0, strike_reason: null, put_back_uri: null, put_back_count: 0 });
-      if (onExpected) await syncClock(arena, playing, status.progressMs);
+      if (onExpected) await syncClock(arena, playing, status.progressMs, status.observedAt);
       return;
     } else if (!pick || !session) {
       problem = "device_lost";
     } else if (!onPlaylist && status.isPlaying && remaining < SEAM_MS) {
-      // The expected song is ending and Spotify already went on to Autoplay (a
-      // winner appended in its last seconds may not be in the player's queue
-      // yet): not a manual change. MF starts the next arena song itself, or
-      // lets Autoplay fill until the winner is decided.
-      if (plan.next_uri) {
-        try {
-          await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: plan.next_uri, positionMs: 0 });
-          await syncClock(arena, plan.next_uri, 0);
-        } catch (err) {
-          console.warn("[spotify-host] next after autoplay failed", arena.id, err);
-        }
-      }
+      // The expected song is ending and Spotify already went on to Autoplay:
+      // not a manual change, and the radio track isn't cut (the next arena
+      // song waits for it, see autoplay_lead_in above)
       await record({ ...snapshot, strikes: 0, strike_reason: null });
       return;
     } else if (playing !== expected.track_uri && (onPlaylist || !status.isPlaying || position < KICK_MS) && await expectedUnplayable()) {
@@ -1425,7 +1438,7 @@ async function checkArena(pb: any, arena: any) {
     } else if (manual && onPlaylist && status.isPlaying && (plan.later_uris ?? []).includes(playing)) {
       // Manual control: a skip forward re-times the battle, it doesn't restart it
       await record({ ...snapshot, strikes: 0, strike_reason: null });
-      await syncClock(arena, playing, status.progressMs);
+      await syncClock(arena, playing, status.progressMs, status.observedAt);
       return;
     } else if (!status.isPlaying && playing === expected.track_uri) {
       problem = "playback_paused";

@@ -208,9 +208,9 @@ export function emitSuddenDeathStartedEvent(battleId: string): void {
 }
 
 // DISPLAY-ONLY constants
-// Step 18: 10 s, from lock-in (end - 15 s) to end - 5 s (v4 §5.3)
-const SUDDEN_DEATH_DURATION_MS = 10_000;
-const LOCKIN_OFFSET_MS = 15_000;
+// User decision 2026-10-28: 15 s, from lock-in (end - 25 s) to end - 10 s
+const SUDDEN_DEATH_DURATION_MS = 15_000;
+const LOCKIN_OFFSET_MS = 25_000;
 
 export function getSuddenDeathDurationMs(): number {
   return SUDDEN_DEATH_DURATION_MS;

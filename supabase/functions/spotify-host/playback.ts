@@ -60,6 +60,9 @@ export interface PlaybackStatus {
   trackUri: string | null;
   progressMs: number | null;
   durationMs: number | null;
+  // When progressMs was true (local ms, middle of the request): the battle
+  // clock follows Spotify from 1 s of drift, so processing time matters
+  observedAt: number;
 }
 
 export interface PlaybackSession {
@@ -159,7 +162,9 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
   }
 
   async getStatus(): Promise<PlaybackStatus> {
+    const sentAt = Date.now();
     const [devicesRes, playerRes] = await Promise.all([this.api("/me/player/devices"), this.api("/me/player")]);
+    const observedAt = Math.round((sentAt + Date.now()) / 2);
     if (devicesRes.status !== 200) {
       throw new PlaybackError(devicesRes.status, null, `Spotify devices answered ${devicesRes.status}`);
     }
@@ -181,6 +186,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       trackUri: player?.item?.uri ?? null,
       progressMs: player?.progress_ms ?? null,
       durationMs: player?.item?.duration_ms ?? null,
+      observedAt,
     };
   }
 

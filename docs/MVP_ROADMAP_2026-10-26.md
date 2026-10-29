@@ -607,6 +607,15 @@ additions (#1, #4 above), each marked where it lands.
     country when proposing (new `user-read-private` scope, soft re-consent):
     `supabase/sql/unplayable_tracks_2026-10-28.sql`. Still to test: a late
     battle over Autoplay, the unplayable skip.
+    Later the same day (found in-app: relinked versions of songs, Autoplay
+    radio reported as the playlist, a Sudden Death winner appended ~1 s
+    before the end): relinked tracks are matched (ISRC, Spotify relinking,
+    title/artist/length), Autoplay is told apart from hand-made changes, and
+    user decisions: lock-in at end − 25 s, Sudden Death 15 s until end − 10 s,
+    drift corrected from 1 s, and a radio track that started is never cut
+    (it lengthens the battle, the winner follows it):
+    `supabase/sql/radio_lead_in_2026-10-28.sql`. NowPlaying: instant answer,
+    "Back to automatic" asks first.
 19. (Stage View is the party's shared screen, not a venue display, since
     2026-10-27.) **Stage View, remaining host flows, and UX/cross-platform conformance** —
     real-data Stage View, pause/resume Arena, excluded genres, initial-song
