@@ -22,6 +22,7 @@ interface ParticipantData {
 interface VoteData {
   song_id: string;
   status: string;
+  vote_type?: string;
 }
 
 interface StageViewProps {
@@ -29,6 +30,8 @@ interface StageViewProps {
   battle: ArenaBattleView | null;
   participant: ParticipantData;
   currentVote?: VoteData | null;
+  // The viewer's passive vote (shown softer than an active vote)
+  passiveVoteSongId?: string | null;
   derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
   pausedAt?: string | null;
   // Battle Room only: the viewer's likes (step 8 signal) and the toggle
@@ -41,6 +44,7 @@ const StageView = ({
   battle,
   participant,
   currentVote,
+  passiveVoteSongId = null,
   derivedPhase,
   pausedAt = null,
   likedSongIds,
@@ -111,6 +115,7 @@ const StageView = ({
               source={battle?.song_a_source}
               trackId={battle?.song_a_spotify_track_id}
               currentVote={currentVote}
+              passiveVoteSongId={passiveVoteSongId}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
               isLiked={!!battle?.song_a_id && !!likedSongIds?.has(battle.song_a_id)}
@@ -136,6 +141,7 @@ const StageView = ({
               source={battle?.song_b_source}
               trackId={battle?.song_b_spotify_track_id}
               currentVote={currentVote}
+              passiveVoteSongId={passiveVoteSongId}
               tag={moodLabel}
               isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
               isLiked={!!battle?.song_b_id && !!likedSongIds?.has(battle.song_b_id)}
@@ -214,13 +220,14 @@ const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
 // Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
-const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isA, isLiked, onToggleLike }: {
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPassive, isA, isLiked, onToggleLike }: {
   source?: string;
   trackId?: string;
   songTitle: string;
   artistName: string;
   showInfo: boolean;
   isSelected: boolean;
+  isPassive?: boolean;
   isA: boolean;
   isLiked?: boolean;
   onToggleLike?: () => void;
@@ -246,6 +253,9 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
       )}
       {showInfo && isSelected && (
         <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>Your vote</span>
+      )}
+      {showInfo && isPassive && (
+        <span className={`text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
       )}
       {onToggleLike && (
         <button
@@ -273,17 +283,20 @@ interface StageSongCardProps {
   source?: string;
   trackId?: string;
   currentVote?: VoteData | null;
+  passiveVoteSongId?: string | null;
   tag?: string | null;
   isWinner?: boolean;
   isLiked?: boolean;
   onToggleLike?: () => void;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, tag, isWinner, isLiked, onToggleLike }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, isLiked, onToggleLike }: StageSongCardProps) => {
   const isA = position === "A";
 
-  // Determine selection by comparing songId against currentVote
-  const isSelected = currentVote?.status === "active" && currentVote?.song_id === songId;
+  // Determine selection by comparing songId against currentVote (a passive
+  // vote row, after lock-in, shows like the passive preview: softer)
+  const isSelected = currentVote?.status === "active" && currentVote?.vote_type !== "passive" && currentVote?.song_id === songId;
+  const isPassive = !isSelected && !isWinner && !!songId && passiveVoteSongId === songId;
   const lit = isSelected || isWinner;
 
   return (
@@ -294,6 +307,7 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
           bg-secondary border-2 transition-all duration-300 ease-out
           ${isA ? "border-song-a/40" : "border-song-b/40"}
           ${lit ? (isA ? "border-song-a glow-a scale-[1.02]" : "border-song-b glow-b scale-[1.02]") : ""}
+          ${isPassive ? (isA ? "border-song-a/70 glow-a-soft" : "border-song-b/70 glow-b-soft") : ""}
         `}
       >
         {artworkUrl ? (
@@ -327,6 +341,15 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
                   Your vote
                 </span>
               )}
+              {isPassive && (
+                <span
+                  className={`px-2 py-1 rounded-full text-[10px] lg:text-xs font-semibold uppercase tracking-wider border bg-background/70 ${
+                    isA ? "text-song-a border-song-a/60" : "text-song-b border-song-b/60"
+                  }`}
+                >
+                  Your passive vote
+                </span>
+              )}
             </div>
 
             {/* Song info */}
@@ -345,6 +368,7 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
         artistName={artistName}
         showInfo={!!artworkUrl}
         isSelected={isSelected}
+        isPassive={isPassive}
         isA={isA}
         isLiked={isLiked}
         onToggleLike={onToggleLike}

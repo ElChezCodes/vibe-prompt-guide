@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { getParticipantVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
+import { getParticipantVote, getMyPassiveVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
@@ -138,6 +138,26 @@ const BattleRoomScreen = () => {
     },
     [arena?.id, battle, participant],
   );
+
+  // The viewer's passive vote (step 9, 2026-10-28: everyone present who hasn't
+  // voted), decided by the backend: before lock-in the song MF would vote for
+  // them, then the one cast; re-read when the battle phase or their vote changes
+  const [passiveSongId, setPassiveSongId] = useState<string | null>(null);
+  const passiveBattleId = battle?.battle_id;
+  const passiveKey = [battle?.state, battle?.sudden_death_active, voteRecord?.id, voteRecord?.status, voteRecord?.song_id, likeCount].join(":");
+  useEffect(() => {
+    if (!passiveBattleId || !participant) {
+      setPassiveSongId(null);
+      return;
+    }
+    let cancelled = false;
+    getMyPassiveVote(passiveBattleId).then((songId) => {
+      if (!cancelled) setPassiveSongId(songId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [passiveBattleId, participant, passiveKey]);
 
   // ACTIVO/PASIVO/INACTIVO, decided by the backend; re-read after own votes/likes
   const presence = useArenaPresence(arena?.id, !!participant, [voteRecord?.id, voteRecord?.song_id, voteRecord?.status, voteRecord?.vote_type, voteRecord?.updated_at, likeCount].join(":"));
@@ -377,6 +397,10 @@ const BattleRoomScreen = () => {
   // In Sudden Death the tension bar counts only sudden_death votes, so only
   // highlight the user's pick once it is a sudden_death vote.
   const displayedVote = derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote ? null : voteRecord;
+  // An active vote of theirs replaces the passive one at once (the backend
+  // agrees on the next read); none in Sudden Death
+  const hasOwnVote = !!voteRecord && voteRecord.vote_type !== "passive";
+  const displayedPassive = hasOwnVote || derivedPhase === "SUDDEN_DEATH" ? null : passiveSongId;
 
   return (
     <div className="relative min-h-dvh w-full">
@@ -387,6 +411,7 @@ const BattleRoomScreen = () => {
         battle={battle}
         participant={participant!}
         currentVote={displayedVote}
+        passiveVoteSongId={displayedPassive}
         derivedPhase={derivedPhase}
         pausedAt={playback?.paused_at ?? null}
         likedSongIds={likedSongIds}

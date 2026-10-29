@@ -1,6 +1,7 @@
 import { supabase } from "./client";
 
-export type VoteType = "regular" | "sudden_death";
+// "passive": cast by the backend at lock-in (step 9), never by the client
+export type VoteType = "regular" | "sudden_death" | "passive";
 export type VotingPhase = "active" | "locked" | "sudden_death";
 
 export interface Vote {
@@ -76,6 +77,18 @@ function isRlsError(error: { code?: string; message?: string }): boolean {
     error.message?.includes("row-level security") ||
     error.message?.includes("violates row-level security policy")
   );
+}
+
+// The caller's passive vote in a battle (supabase/sql/passive_vote_everyone_2026-10-28.sql):
+// before lock-in the song Music Fighter would vote for them, after it the one
+// cast; null = none (they voted/abstained, no clear preference, Sudden Death)
+export async function getMyPassiveVote(battleId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_my_passive_vote", { p_battle_id: battleId });
+  if (error) {
+    console.error("Failed to fetch passive vote:", error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
 }
 
 export async function getParticipantVote(battleId: string, participantId: string): Promise<Vote | null> {

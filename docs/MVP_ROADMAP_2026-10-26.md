@@ -495,6 +495,16 @@ additions (#1, #4 above), each marked where it lands.
      check the affinity rules with Sergio (CLAUDE.md), together with step 9's
      k=1.25 and "≥75 % pasivos vs inactivos".
 9. **BUILT 2026-10-27 together with step 8** (rules below, score = step 8's v0).
+   **Tested in-app 2026-10-28** (likes OK; passive votes cast as specified,
+   but only PASIVO users voted, so 1-vs-1 battles ended in draws). **Rule
+   change, user decisions 2026-10-28:** everyone present who hasn't voted
+   gets a passive vote (ACTIVO, PASIVO, locked phone/minimised app/no
+   signal; not who left or closed the app); each user sees their own from
+   the start of the battle (softer glow, "Your passive vote"); voting any
+   song replaces it, cancelling an active vote = abstain; clear preference,
+   weights, k cap, ramp and "none in Sudden Death" unchanged
+   (`supabase/sql/passive_vote_everyone_2026-10-28.sql`). Older rule text
+   below says "PASIVO only": superseded.
    Superseded note: the Spotify-similarity formula below
    is superseded by step 8's own-data score (built together with it); the
    rest (lock-in snapshot, no-row rule) still stands.
