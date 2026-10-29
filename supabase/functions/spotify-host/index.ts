@@ -1224,10 +1224,16 @@ async function hostPlayer(pb: any) {
 // song "back", undoing the host's seeks and asking the host every check.
 // Mapped back to the arena song (matches remembered per instance; misses
 // aren't, the song may win later) by, in order: Spotify relinking the expected
-// song to that id itself, the same ISRC, the same title + artist + length, or,
-// for the expected song, the same length playing at its planned point.
+// song to that id itself, the same ISRC, the same title + first artist +
+// length, or, for the expected song, the same length playing at its planned point.
+// Found in-app 2026-10-28: Spotify's player played "Golpe de Estado" as two other
+// releases (other ids and ISRCs, 6 s and 16 s longer); taken for Autoplay, the
+// arena paused and the song got a lead-in. Versions of one song may differ by
+// that much, so title + first artist allow VERSION_DURATION_MS.
 const relinked = new Map<string, string>();
 const RELINK_DURATION_MS = 3_000;
+const VERSION_DURATION_MS = 20_000;
+const firstArtist = (artist: string | null | undefined) => (artist ?? "").split(",")[0];
 
 const sameText = (a: string | null | undefined, b: string | null | undefined) =>
   !!a && !!b && a.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
@@ -1262,8 +1268,8 @@ async function arenaUriFor(provider: SpotifyPlaybackProvider, arenaId: string, p
       const songs = (data ?? []) as any[];
       const hit = songs.find((r) => !!track.isrc && r.isrc === track.isrc) ??
         songs.find((r) =>
-          sameText(r.title, track.title) && sameText(r.artist, track.artist) &&
-          Math.abs(Number(r.duration_ms) - track.duration_ms) <= RELINK_DURATION_MS
+          sameText(r.title, track.title) && sameText(firstArtist(r.artist), firstArtist(track.artist)) &&
+          Math.abs(Number(r.duration_ms) - track.duration_ms) <= VERSION_DURATION_MS
         );
       if (hit) match = trackUri(hit.spotify_track_id);
       else if (onSchedule) match = expected.track_uri;
