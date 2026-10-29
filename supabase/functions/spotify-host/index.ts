@@ -1082,6 +1082,18 @@ async function loadPlan(arenaId: string, at?: string | null) {
   return (data ?? {}) as any;
 }
 
+// Spotify's length for an arena song replaces the stored one (relinked
+// versions differ); logged so the difference can be checked
+async function correctLength(arena: any, uri: string, durationMs: number) {
+  const { data: delta, error } = await admin.rpc("correct_track_duration", {
+    p_arena_id: arena.id,
+    p_track_uri: uri,
+    p_duration_ms: durationMs,
+  });
+  if (error) console.warn("[spotify-host] correct_track_duration", arena.id, error.message);
+  else if (delta) console.info("[spotify-host] real length", arena.id, uri, durationMs, "diff", delta);
+}
+
 // The battle clock follows the music: the plan entry playing re-anchors the
 // open battle (sync_arena_clock; a skip forward ends it early, v4 §8.3)
 async function syncClock(arena: any, playingUri: string | null, progressMs: number | null, observedAt = Date.now()) {
@@ -1426,15 +1438,22 @@ async function checkArena(pb: any, arena: any) {
         // The version Spotify plays may be longer/shorter than the stored one:
         // lock-in and Sudden Death are timed on its real end
         if (status.durationMs != null && Math.abs(status.durationMs - Number(expected.duration_ms)) >= 1000) {
-          const { error: durError } = await admin.rpc("correct_track_duration", {
-            p_arena_id: arena.id,
-            p_track_uri: playing,
-            p_duration_ms: status.durationMs,
-          });
-          if (durError) console.warn("[spotify-host] correct_track_duration", arena.id, durError.message);
+          await correctLength(arena, playing!, status.durationMs);
         }
         await syncClock(arena, playing, status.progressMs, status.observedAt);
       }
+      return;
+    } else if (
+      onPlaylist && status.isPlaying && !!plan.prev_uri && playing === plan.prev_uri && !!plan.prev_planned_start &&
+      status.progressMs != null && status.durationMs != null && status.progressMs < status.durationMs &&
+      Math.abs(status.observedAt - status.progressMs - new Date(plan.prev_planned_start).getTime()) < SEAM_MS
+    ) {
+      // The previous arena song is still playing the same playthrough past its
+      // planned end: the version Spotify plays is longer than stored (wasn't
+      // seen in time to correct it). Not a manual change: it finishes, and its
+      // real length replaces the stored one.
+      await correctLength(arena, playing!, status.durationMs);
+      await record({ ...snapshot, strikes: 0, strike_reason: null, put_back_uri: null, put_back_count: 0 });
       return;
     } else if (!pick || !session) {
       problem = "device_lost";
