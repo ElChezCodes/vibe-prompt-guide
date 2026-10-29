@@ -103,6 +103,14 @@ export class PlaybackError extends Error {
 }
 
 const API = "https://api.spotify.com/v1";
+
+// "Too many requests" + how long Spotify asks to wait, in a readable unit
+function withRetryAfter(message: string, retryAfter: string | null) {
+  const s = Number(retryAfter);
+  if (!retryAfter || !Number.isFinite(s)) return message;
+  const wait = s >= 3600 ? `${(s / 3600).toFixed(1)} h` : s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`;
+  return `${message}, retry in ${wait}`;
+}
 export const LIBRARY_PAGE = 50;
 // /me/playlists pages read per listing (50 each)
 const MAX_PLAYLIST_PAGES = 4;
@@ -146,7 +154,10 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     } catch {
       body = null;
     }
-    return { status: res.status, body };
+    // 429: Spotify says how long the app is rate-limited (seconds)
+    const retryAfter = res.status === 429 ? res.headers.get("retry-after") : null;
+    if (retryAfter) console.warn("[spotify-host] Spotify 429 on", path.split("?")[0], "retry-after", retryAfter);
+    return { status: res.status, body, retryAfter };
   }
 
   private async must(path: string, init: RequestInit = {}) {
@@ -155,7 +166,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       throw new PlaybackError(
         res.status,
         res.body?.error?.reason ?? null,
-        res.body?.error?.message ?? `Spotify answered ${res.status}`,
+        withRetryAfter(res.body?.error?.message ?? `Spotify answered ${res.status}`, res.retryAfter),
       );
     }
     return res.body;
@@ -263,7 +274,8 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     if (!/^[A-Za-z0-9]{10,40}$/.test(trackId)) return { track: null, status: 400, message: "invalid track id" };
     const res = await this.api(`/tracks/${trackId}?${this.withMarket(new URLSearchParams())}`);
     const track = res.status === 200 && res.body?.id ? toCatalogTrack(res.body, this.market) : null;
-    return { track, status: res.status, message: res.body?.error?.message ?? null };
+    const message = res.body?.error?.message ?? null;
+    return { track, status: res.status, message: message && withRetryAfter(message, res.retryAfter) };
   }
 
   async listPlaylists(ownerId: string): Promise<LibraryPlaylist[]> {
