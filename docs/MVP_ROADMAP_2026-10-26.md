@@ -625,6 +625,10 @@ additions (#1, #4 above), each marked where it lands.
     host's own MF profile (songs they voted/proposed/liked in other arenas,
     accounts only), a passive system song that gives no PI
     (`supabase/sql/host_profile_songs_2026-10-29.sql`).
+    Same day (user): that profile layer uses every present member's profile
+    (accounts), not only the host's; win/draw/SD/backing PI only when at least
+    2 different people voted explicitly in the battle
+    (`supabase/sql/fair_play_2026-10-29.sql`).
 16. **PI display in the UI** — inline next to the user's icon/profile/name
     wherever identity already appears (Battle Room, Stage View) — no dedicated
     Ranking screen, resolved 2026-10-26. **Changed by the user 2026-10-28:**
