@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Heart, Music } from "lucide-react";
 import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
 import BattleTimer from "@/components/battle/BattleTimer";
-import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
+import BattleStateOverlay, { OverlayMessage } from "@/components/battle/BattleStateOverlay";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
+import { DerivedBattlePhase, getResultSide } from "@/lib/derivedBattlePhase";
 import { getMoodLabel } from "@/integrations/supabase/arenas";
 import { QRCodeSVG } from "qrcode.react";
 import { SpotifyIcon } from "@/components/streaming/SpotifyTrackRow";
@@ -36,16 +37,33 @@ interface StageViewProps {
   currentVote?: VoteData | null;
   // The viewer's passive vote (shown softer than an active vote)
   passiveVoteSongId?: string | null;
-  derivedPhase: "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
+  derivedPhase: DerivedBattlePhase;
   pausedAt?: string | null;
+  // Battle Room only: tapping a card votes; passed only while the backend
+  // state allows voting
+  onVote?: (side: "A" | "B") => void;
   // Battle Room only: the viewer's likes (step 8 signal) and the toggle
   likedSongIds?: Set<string>;
   onToggleLike?: (songId: string) => void;
+  // A finished battle held on screen until the next one shows (useBattleDisplay)
+  preparingNext?: boolean;
   // Shared Stage View (/a/:code/stage): who proposed each song + a QR for
   // "Open Spotify" (nobody can click a TV)
   shared?: boolean;
   credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
 }
+
+// Paso_2 §6.2 resolution sequence (display only, from the backend result)
+const LOSER_EXIT_MS = 350;
+const WINNER_MOVE_MS = 450;
+const WINNER_SCALE = 1.35;
+const RESULT_GLOW_MS = 1800;
+const WINNER_FADE_MS = 450;
+// Paso_2 §7 messages
+const PHASE_MESSAGE_MS = 1600;
+const RESULT_MESSAGE_MS = 2500;
+
+const prefersReducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 const StageView = ({
   arena,
@@ -55,8 +73,10 @@ const StageView = ({
   passiveVoteSongId = null,
   derivedPhase,
   pausedAt = null,
+  onVote,
   likedSongIds,
   onToggleLike,
+  preparingNext = false,
   shared = false,
   credits = null,
 }: StageViewProps) => {
@@ -70,46 +90,143 @@ const StageView = ({
   const pointsB = votesB + passiveB;
   const totalPoints = pointsA + pointsB;
 
-  const percentageA =
-    totalPoints > 0 ? Math.round((pointsA / totalPoints) * 100) : 50;
+  const percentageA = totalPoints > 0 ? (pointsA / totalPoints) * 100 : 50;
 
-  const percentageB = 100 - percentageA;
-
-  const winnerSide =
-    battle?.winner_song_id === battle?.song_a_id
-      ? "A"
-      : battle?.winner_song_id === battle?.song_b_id
-        ? "B"
-        : null;
+  const resultSide = getResultSide(battle);
+  const isResolved = (derivedPhase === "RESULT" || derivedPhase === "FINISHED") && !!resultSide;
+  const winnerSide = resultSide === "A" || resultSide === "B" ? resultSide : null;
 
   const getTensionIntensity = (): BattleIntensity => {
-    if (derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN" || derivedPhase === "SUDDEN_DEATH") {
-      return "final";
-    }
+    if (derivedPhase === "SUDDEN_DEATH") return "sudden";
+    if (derivedPhase === "FINAL_30S") return "final";
     return "normal";
   };
 
   const moodLabel = getMoodLabel(arena.mood);
+
+  // --- Resolution sequence (Paso_2 §6.2): loser out by its side, winner to
+  // the centre, scaled, temporary glow; at the end the winner fades out. A
+  // draw keeps both cards, both glowing. Shown without motion when the view
+  // opens on an already decided battle.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wrapARef = useRef<HTMLDivElement>(null);
+  const wrapBRef = useRef<HTMLDivElement>(null);
+  const vsRef = useRef<HTMLDivElement>(null);
+  const openedPhaseRef = useRef(derivedPhase);
+  const [glowSides, setGlowSides] = useState<"A" | "B" | "draw" | null>(null);
+
+  useEffect(() => {
+    if (!isResolved) return;
+    const instant = openedPhaseRef.current === "RESULT" || openedPhaseRef.current === "FINISHED" || prefersReducedMotion();
+    const wraps = { A: wrapARef.current, B: wrapBRef.current };
+    const anims: Animation[] = [];
+
+    const pose = (duration: number) => {
+      if (!winnerSide) return;
+      const winner = wraps[winnerSide];
+      const loser = wraps[winnerSide === "A" ? "B" : "A"];
+      const box = containerRef.current?.getBoundingClientRect();
+      const area = containerRef.current?.parentElement?.getBoundingClientRect();
+      if (!winner || !loser || !box || !area) return;
+      // Measured untransformed (a resize cancels the pose first)
+      const rect = winner.getBoundingClientRect();
+      const dx = box.left + box.width / 2 - (rect.left + rect.width / 2);
+      // Never full screen nor over the timer/bar (§6.3): stays inside the
+      // cards' area
+      const cy = rect.top + rect.height / 2;
+      const scale = Math.max(
+        1,
+        Math.min(
+          WINNER_SCALE,
+          (box.width * 0.9) / Math.max(1, rect.width),
+          (2 * Math.min(cy - area.top, area.bottom - cy)) / Math.max(1, rect.height),
+        ),
+      );
+      anims.push(
+        loser.animate([{ transform: "translateX(0)" }, { transform: `translateX(${winnerSide === "A" ? 110 : -110}vw)` }], {
+          duration: duration ? LOSER_EXIT_MS : 0,
+          easing: "cubic-bezier(0.55, 0, 1, 0.45)",
+          fill: "forwards",
+        }),
+      );
+      if (vsRef.current) anims.push(vsRef.current.animate([{ opacity: 1 }, { opacity: 0 }], { duration: duration ? 200 : 0, fill: "forwards" }));
+      anims.push(
+        winner.animate([{ transform: "translateX(0) scale(1)" }, { transform: `translateX(${dx}px) scale(${scale})` }], {
+          duration,
+          delay: duration ? 120 : 0,
+          easing: "cubic-bezier(0.33, 1, 0.68, 1)",
+          fill: "forwards",
+        }),
+      );
+    };
+
+    pose(instant ? 0 : WINNER_MOVE_MS);
+    let glowTimer: ReturnType<typeof setTimeout> | undefined;
+    if (!instant) {
+      setGlowSides(resultSide);
+      glowTimer = setTimeout(() => setGlowSides(null), RESULT_GLOW_MS);
+    }
+    const onResize = () => {
+      anims.splice(0).forEach((a) => a.cancel());
+      pose(0);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (glowTimer) clearTimeout(glowTimer);
+    };
+  }, [isResolved, resultSide, winnerSide]);
+
+  // Battle over: the winner (both after a draw, both if cancelled) fades out
+  useEffect(() => {
+    if (derivedPhase !== "FINISHED") return;
+    const instant = openedPhaseRef.current === "FINISHED";
+    const targets = winnerSide ? [winnerSide === "A" ? wrapARef.current : wrapBRef.current] : [wrapARef.current, wrapBRef.current, vsRef.current];
+    setGlowSides(null);
+    targets.forEach((el) => el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: instant ? 0 : WINNER_FADE_MS, fill: "forwards" }));
+  }, [derivedPhase, winnerSide]);
+
+  // --- Paso_2 §7 status messages
+  const winnerTitle = winnerSide === "A" ? battle?.song_a_title : winnerSide === "B" ? battle?.song_b_title : null;
+  let message: OverlayMessage | null = null;
+  if (preparingNext) {
+    message = { key: "next", title: "PREPARING NEXT BATTLE", tone: "next", holdMs: null };
+  } else if (derivedPhase === "FINAL_30S") {
+    message = { key: "final", title: "FINAL DECISION", tone: "final", holdMs: PHASE_MESSAGE_MS };
+  } else if (derivedPhase === "SUDDEN_DEATH") {
+    message = { key: "sudden", title: "SUDDEN DEATH", subtitle: "One final vote each", tone: "sudden", holdMs: PHASE_MESSAGE_MS };
+  } else if (derivedPhase === "RESULT" && resultSide === "draw") {
+    message = { key: "draw", title: "DRAW", subtitle: "Both songs play next", tone: "draw", holdMs: RESULT_MESSAGE_MS, blocking: true };
+  } else if (derivedPhase === "RESULT" && winnerSide) {
+    message = { key: "winner", title: "WINNER", subtitle: winnerTitle || undefined, tone: winnerSide === "A" ? "a" : "b", holdMs: RESULT_MESSAGE_MS, blocking: true };
+  }
+
+  // Voting needs the backend state; a decided battle never takes votes
+  const voteHandler = (side: "A" | "B") => (onVote && !isResolved ? () => onVote(side) : undefined);
 
   return (
     <div className="relative min-h-dvh w-full flex flex-col space-bg overflow-hidden">
       {/* Arena ambient lighting: blue corner left, magenta corner right */}
       <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
 
-      {/* Tension Bar - Full width at top */}
-      <div className="relative w-full pt-8 px-8">
-        <TensionBar percentageA={percentageA} percentageB={percentageB} intensity={getTensionIntensity()} />
+      {/* Tension Bar - Full width at top, above the cards (never covered) */}
+      <div className="relative z-20 w-full pt-8 px-8">
+        <TensionBar percentageA={percentageA} intensity={getTensionIntensity()} />
         {passiveA + passiveB > 0 && <VoteBreakdown votesA={votesA} votesB={votesB} passiveA={passiveA} passiveB={passiveB} />}
       </div>
 
-      {/* Timer - Self-contained, re-renders independently */}
-      <BattleTimer battle={battle} pausedAt={pausedAt} />
+      {/* Timer - Self-contained, re-renders independently. The status
+          messages show over it: never over the bar or the artwork */}
+      <div className="relative z-20">
+        <BattleTimer battle={battle} pausedAt={pausedAt} highlight={derivedPhase === "FINAL_30S" || derivedPhase === "SUDDEN_DEATH"} />
+        <BattleStateOverlay message={message} />
+      </div>
 
       {/* Battle Arena - Song Cards with VS */}
-      <div className="relative flex-1 flex items-center justify-center px-8 lg:px-16">
-        <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
+      <div className="relative flex-1 flex items-center justify-center px-4 sm:px-8 lg:px-16">
+        <div ref={containerRef} className="w-full max-w-7xl flex items-center justify-center gap-3 sm:gap-8 lg:gap-16">
           {/* Song A - Left */}
-          <div className="flex-1 max-w-md animate-fade-in-up">
+          <div ref={wrapARef} className="flex-1 min-w-0 max-w-md animate-fade-in-up">
             <StageSongCard
               position="A"
               songId={battle?.song_a_id ?? ""}
@@ -121,7 +238,9 @@ const StageView = ({
               currentVote={currentVote}
               passiveVoteSongId={passiveVoteSongId}
               tag={moodLabel}
-              isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
+              isWinner={isResolved && (resultSide === "A" || resultSide === "draw")}
+              glowing={glowSides === "A" || glowSides === "draw"}
+              onVote={voteHandler("A")}
               isLiked={!!battle?.song_a_id && !!likedSongIds?.has(battle.song_a_id)}
               onToggleLike={onToggleLike && battle?.song_a_id ? () => onToggleLike(battle.song_a_id) : undefined}
               shared={shared}
@@ -130,14 +249,14 @@ const StageView = ({
           </div>
 
           {/* VS Emblem */}
-          <div className="flex-shrink-0 animate-fade-in" style={{ animationDelay: "150ms" }}>
-            <div className="vs-emblem w-16 h-16 lg:w-24 lg:h-24 rounded-full flex items-center justify-center">
-              <span className="text-2xl lg:text-4xl font-arcade font-black tracking-wider vs-text">VS</span>
+          <div ref={vsRef} className="flex-shrink-0 animate-fade-in" style={{ animationDelay: "150ms" }}>
+            <div className="vs-emblem w-12 h-12 sm:w-16 sm:h-16 lg:w-24 lg:h-24 rounded-full flex items-center justify-center">
+              <span className="text-lg sm:text-2xl lg:text-4xl font-arcade font-black tracking-wider vs-text">VS</span>
             </div>
           </div>
 
           {/* Song B - Right */}
-          <div className="flex-1 max-w-md animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+          <div ref={wrapBRef} className="flex-1 min-w-0 max-w-md animate-fade-in-up" style={{ animationDelay: "100ms" }}>
             <StageSongCard
               position="B"
               songId={battle?.song_b_id ?? ""}
@@ -149,7 +268,9 @@ const StageView = ({
               currentVote={currentVote}
               passiveVoteSongId={passiveVoteSongId}
               tag={moodLabel}
-              isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
+              isWinner={isResolved && (resultSide === "B" || resultSide === "draw")}
+              glowing={glowSides === "B" || glowSides === "draw"}
+              onVote={voteHandler("B")}
               isLiked={!!battle?.song_b_id && !!likedSongIds?.has(battle.song_b_id)}
               onToggleLike={onToggleLike && battle?.song_b_id ? () => onToggleLike(battle.song_b_id) : undefined}
               shared={shared}
@@ -167,41 +288,14 @@ const StageView = ({
         </p>
       </div>
 
-      {derivedPhase === "LOCK_IN" && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-          <div className="px-6 py-3 rounded-xl neon-panel text-energy-yellow text-2xl font-arcade font-black tracking-widest">LOCK IN</div>
-        </div>
-      )}
-
-      {derivedPhase === "SUDDEN_DEATH" && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-          <div className="px-6 py-3 rounded-xl bg-gradient-to-r from-song-a/80 to-song-b/80 text-foreground text-2xl font-arcade font-black tracking-widest animate-pulse">
-            SUDDEN DEATH
-          </div>
-        </div>
-      )}
-
-      {/* Battle State Overlay */}
-      <BattleStateOverlay
-        battleState={
-          derivedPhase === "FINISHED"
-            ? "FINISHED"
-            : derivedPhase === "SUDDEN_DEATH"
-              ? "FINAL_30S"
-              : derivedPhase === "FINAL_30S" || derivedPhase === "LOCK_IN"
-                ? "FINAL_30S"
-                : "NORMAL"
-        }
-        winnerSide={winnerSide}
-      />
     </div>
   );
 };
 
-// Fixed-height footer under each card. The Battle Room's vote hit areas are
-// the card's square plus a gap of this same height (STAGE_CARD_FOOTER_CLASS,
-// pointer-events off), so the "Open Spotify" link stays clickable.
-export const STAGE_CARD_FOOTER_CLASS = "h-16 lg:h-24";
+// Footer under each card (the square above it is the vote button), so "Open
+// Spotify" and the like stay their own taps; a minimum height keeps both
+// cards' squares level
+const STAGE_CARD_FOOTER_CLASS = "min-h-16 lg:min-h-24";
 
 const formatPoints = (n: number) => (Math.round(n * 100) / 100).toString();
 
@@ -251,7 +345,7 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
       </>
     )}
     {shared && showInfo && credit !== undefined && <SongCreditLine credit={credit} isA={isA} />}
-    <div className="mt-0.5 flex items-center gap-2">
+    <div className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
       {shared && source === "spotify" && trackId && (
         // Black on white with a quiet zone so phones read it
         <div className="bg-white rounded p-1" aria-hidden>
@@ -263,7 +357,7 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
           href={`https://open.spotify.com/track/${trackId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
+          className="flex items-center gap-1 whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
           aria-label={shared ? "Open Spotify" : undefined}
         >
           <SpotifyIcon className={shared ? "h-5 w-5 lg:h-6 lg:w-6" : "h-3.5 w-3.5"} />
@@ -271,10 +365,10 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
         </a>
       )}
       {showInfo && isSelected && (
-        <span className={`text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>{isPreassigned ? "Your pre-assigned vote" : "Your vote"}</span>
+        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>{isPreassigned ? "Your pre-assigned vote" : "Your vote"}</span>
       )}
       {showInfo && isPassive && (
-        <span className={`text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
+        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
       )}
       {onToggleLike && (
         <button
@@ -321,13 +415,16 @@ interface StageSongCardProps {
   passiveVoteSongId?: string | null;
   tag?: string | null;
   isWinner?: boolean;
+  // Temporary result glow (Paso_2 §6.2)
+  glowing?: boolean;
+  onVote?: () => void;
   isLiked?: boolean;
   onToggleLike?: () => void;
   shared?: boolean;
   credit?: StageSongCredit | null;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, isLiked, onToggleLike, shared, credit }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, glowing, onVote, isLiked, onToggleLike, shared, credit }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote (a passive
@@ -338,14 +435,35 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
   const isPreassigned = isSelected && !!currentVote?.preassigned;
   const lit = isSelected || isWinner;
 
+  // Paso_2 §6.1: brief glow when the vote lands on this card
+  const squareRef = useRef<HTMLDivElement>(null);
+  const wasSelectedRef = useRef(isSelected);
+  useEffect(() => {
+    if (isSelected && !wasSelectedRef.current && !prefersReducedMotion()) {
+      squareRef.current?.animate(
+        [{ filter: "brightness(1.6)", transform: "scale(1.05)" }, { filter: "brightness(1)", transform: "scale(1.02)" }],
+        { duration: 320, easing: "cubic-bezier(0.33, 1, 0.68, 1)" },
+      );
+    }
+    wasSelectedRef.current = isSelected;
+  }, [isSelected]);
+
   return (
     <>
       <div
+        ref={squareRef}
+        onClick={onVote}
+        onKeyDown={onVote ? (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onVote()) : undefined}
+        role={onVote ? "button" : undefined}
+        tabIndex={onVote ? 0 : undefined}
+        aria-label={onVote ? `Vote for ${songTitle || (isA ? "song A" : "song B")}` : undefined}
         className={`
           relative w-full aspect-square rounded-2xl overflow-hidden
           bg-secondary border-2 transition-all duration-300 ease-out
+          ${onVote ? "cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground" : ""}
           ${isA ? "border-song-a/40" : "border-song-b/40"}
-          ${lit ? (isA ? "border-song-a glow-a scale-[1.02]" : "border-song-b glow-b scale-[1.02]") : ""}
+          ${lit ? (isA ? "border-song-a scale-[1.02]" : "border-song-b scale-[1.02]") : ""}
+          ${(isSelected && !isWinner) || glowing ? (isA ? "glow-a" : "glow-b") : ""}
           ${isPassive ? (isA ? "border-song-a/70 glow-a-soft" : "border-song-b/70 glow-b-soft") : ""}
         `}
       >

@@ -8,7 +8,7 @@ import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
 import { useStageView } from "@/hooks/useStageView";
-import { getDerivedBattlePhase } from "@/lib/derivedBattlePhase";
+import { useBattleDisplay } from "@/hooks/useBattleDisplay";
 import { joinUrl } from "@/lib/arenaRoutes";
 import { StageViewData } from "@/integrations/supabase/stageView";
 import { PAUSE_REASON_LABELS, PauseReason } from "@/integrations/supabase/spotify";
@@ -26,7 +26,9 @@ const spotifyUrl = (trackId: string) => `https://open.spotify.com/track/${trackI
 const StageViewScreen = () => {
   const { code = "" } = useParams();
   const { data, status } = useStageView(code);
-  const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
+  const { battle: liveBattle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
+  // The finished battle stays on screen for its exit animation (display only)
+  const { battle, phase, preparingNext } = useBattleDisplay(liveBattle, data?.arena.paused_at ?? null);
 
   const arenaId = data?.arena.id;
   const isActive = data?.arena.state === "active";
@@ -52,7 +54,8 @@ const StageViewScreen = () => {
           key={battle?.battle_id}
           arena={{ id: data.arena.id, name: data.arena.name, state: data.arena.state, mood: data.arena.mood }}
           battle={battle}
-          derivedPhase={getDerivedBattlePhase(battle)}
+          derivedPhase={phase}
+          preparingNext={preparingNext}
           pausedAt={data.arena.paused_at}
           shared
           credits={credits}

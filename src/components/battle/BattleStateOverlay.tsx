@@ -1,111 +1,83 @@
 import { useEffect, useState } from "react";
 
-type BattleState = 'INIT' | 'NORMAL' | 'FINAL_30S' | 'SUDDEN_DEATH' | 'FINISHED';
+export type OverlayTone = "final" | "sudden" | "a" | "b" | "draw" | "next";
 
-interface BattleStateOverlayProps {
-  battleState: BattleState;
-  winnerSide?: 'A' | 'B' | null;
+export interface OverlayMessage {
+  // A new key shows the message again
+  key: string;
+  title: string;
+  subtitle?: string;
+  tone: OverlayTone;
+  // Shown this long, then fades out; null = while the message is passed
+  holdMs: number | null;
+  // Paso_2 §7: only the victory blocks interaction (the battle surface; the
+  // Battle Room's HUD above it stays usable)
+  blocking?: boolean;
 }
 
-const BattleStateOverlay = ({ battleState, winnerSide }: BattleStateOverlayProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+// Paso_2 §7: fade in / out ~150 ms
+const FADE_MS = 150;
+
+const TITLE_TONE: Record<OverlayTone, string> = {
+  final: "text-energy-yellow",
+  sudden: "text-destructive",
+  a: "text-song-a text-glow-a",
+  b: "text-song-b text-glow-b",
+  draw: "bg-gradient-to-r from-song-a to-song-b bg-clip-text text-transparent",
+  next: "text-foreground",
+};
+
+/**
+ * Status messages over the battle (Paso_2 §7): Final decision, Sudden Death,
+ * Winner / Draw, Preparing next battle. A banner over the timer row (its
+ * parent): never over the tension bar or the artwork, never full screen.
+ */
+const BattleStateOverlay = ({ message }: { message: OverlayMessage | null }) => {
+  const [shown, setShown] = useState<OverlayMessage | null>(null);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
-    if (battleState === 'NORMAL') {
-      setIsVisible(false);
-      setIsExiting(false);
-      return;
+    if (!message) {
+      // Fade out what is showing
+      setExiting(true);
+      const t = setTimeout(() => setShown(null), FADE_MS);
+      return () => clearTimeout(t);
     }
+    setShown(message);
+    setExiting(false);
+    if (message.holdMs === null) return;
+    const out = setTimeout(() => setExiting(true), message.holdMs);
+    const hide = setTimeout(() => setShown(null), message.holdMs + FADE_MS);
+    return () => {
+      clearTimeout(out);
+      clearTimeout(hide);
+    };
+    // Only a new message restarts it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message?.key]);
 
-    // Fade in
-    setIsVisible(true);
-    setIsExiting(false);
-
-    // For INIT, auto-fade out after short duration
-    if (battleState === 'INIT') {
-      const exitTimer = setTimeout(() => {
-        setIsExiting(true);
-      }, 1200);
-      
-      const hideTimer = setTimeout(() => {
-        setIsVisible(false);
-      }, 1500);
-
-      return () => {
-        clearTimeout(exitTimer);
-        clearTimeout(hideTimer);
-      };
-    }
-  }, [battleState]);
-
-  if (!isVisible && battleState === 'NORMAL') {
-    return null;
-  }
-
-  const getOverlayContent = () => {
-    switch (battleState) {
-      case 'INIT':
-        return {
-          title: 'FIGHT!',
-          subtitle: 'Get ready to vote',
-          bgStyle: 'bg-background/95',
-          titleStyle: 'text-5xl font-arcade font-black tracking-wider bg-gradient-to-r from-song-a via-primary to-song-b bg-clip-text text-transparent',
-          animationStyle: ''
-        };
-      case 'FINAL_30S':
-        return {
-          title: 'FINAL SECONDS',
-          subtitle: 'Make your decision now',
-          bgStyle: 'bg-background/70',
-          titleStyle: 'text-2xl font-arcade font-bold tracking-wide text-song-b text-glow-b',
-          animationStyle: 'animate-emphasis-pulse'
-        };
-      case 'SUDDEN_DEATH':
-        return {
-          title: 'SUDDEN DEATH',
-          subtitle: 'Every vote counts',
-          bgStyle: 'bg-background/85',
-          titleStyle: 'text-3xl font-arcade font-black tracking-wider text-destructive',
-          animationStyle: 'animate-emphasis-pulse'
-        };
-      case 'FINISHED':
-        return {
-          title: winnerSide === 'A' ? 'BLUE WINS!' : winnerSide === 'B' ? 'PINK WINS!' : 'WINNER',
-          subtitle: 'Battle complete',
-          bgStyle: 'bg-background/90',
-          titleStyle: `text-4xl font-arcade font-black tracking-wider ${winnerSide === 'A' ? 'text-song-a text-glow-a' : winnerSide === 'B' ? 'text-song-b text-glow-b' : 'text-primary'}`,
-          animationStyle: ''
-        };
-      default:
-        return null;
-    }
-  };
-
-  const content = getOverlayContent();
-  
-  if (!content) return null;
+  if (!shown) return null;
 
   return (
-    <div 
-      className={`
-        fixed inset-0 z-30 flex flex-col items-center justify-center
-        ${content.bgStyle}
-        ${isExiting ? 'animate-fade-out' : 'animate-fade-in'}
-      `}
-      aria-live="polite"
-    >
-      <h2 className={`${content.titleStyle} ${content.animationStyle}`}>
-        {content.title}
-      </h2>
-      <p className={`mt-3 text-muted-foreground text-sm tracking-wide uppercase ${isExiting ? '' : 'animate-fade-in-up'}`}
-         style={{ animationDelay: '0.1s' }}>
-        {content.subtitle}
-      </p>
-    </div>
+    <>
+      {shown.blocking && !exiting && <div className="fixed inset-0 z-10" aria-hidden />}
+      <div
+        className={`absolute inset-0 z-30 flex items-center justify-center px-4 pointer-events-none ${exiting ? "animate-fade-out" : "animate-fade-in"}`}
+        style={{ animationDuration: `${FADE_MS}ms`, animationFillMode: "forwards" }}
+        role="status"
+        aria-live="polite"
+      >
+        {/* Opaque (neon-panel is translucent) and at least the timer's size:
+            it covers the timer whole */}
+        <div className="max-w-[90%] rounded-2xl bg-background">
+          <div className="min-h-16 lg:min-h-24 min-w-[12rem] lg:min-w-[22rem] px-6 py-2 lg:px-10 lg:py-3 flex flex-col justify-center rounded-2xl neon-panel text-center">
+            <p className={`font-arcade font-black tracking-widest text-2xl lg:text-5xl ${TITLE_TONE[shown.tone]}`}>{shown.title}</p>
+            {shown.subtitle && <p className="mt-1 text-xs lg:text-lg text-text-secondary uppercase tracking-wide truncate">{shown.subtitle}</p>}
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 
 export default BattleStateOverlay;
-
-export type { BattleState };

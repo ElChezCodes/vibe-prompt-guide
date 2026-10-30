@@ -6,6 +6,8 @@ interface BattleTimerProps {
   // Arena paused (Spotify): the backend clock is frozen, so is the display.
   // On resume the backend shifts started_at by the paused time.
   pausedAt?: string | null;
+  // The final decision / Sudden Death (votes still open), from the derived phase
+  highlight?: boolean;
 }
 
 const getRemainingSecondsFromBattle = (battle: {
@@ -26,12 +28,13 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
-const BattleTimer = ({ battle, pausedAt = null }: BattleTimerProps) => {
+const BattleTimer = ({ battle, pausedAt = null, highlight = false }: BattleTimerProps) => {
   const [remainingTime, setRemainingTime] = useState<number>(0);
 
   useEffect(() => {
     if (!battle || !battle.started_at) {
-      setRemainingTime(0);
+      // Pending (not started yet): its whole length
+      setRemainingTime(battle ? Math.ceil(battle.duration_ms / 1000) : 0);
       return;
     }
 
@@ -56,7 +59,7 @@ const BattleTimer = ({ battle, pausedAt = null }: BattleTimerProps) => {
     };
   }, [battle?.battle_id, battle?.started_at, battle?.duration_ms, pausedAt]);
 
-  const isFinal = remainingTime > 0 && remainingTime <= 15;
+  const isFinal = highlight && remainingTime > 0;
 
   return (
     <div className="relative py-8">

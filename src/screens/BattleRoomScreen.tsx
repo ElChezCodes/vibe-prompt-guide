@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, getMyPassiveVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
-import { getDerivedBattlePhase } from "@/lib/derivedBattlePhase";
+import { useBattleDisplay } from "@/hooks/useBattleDisplay";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { useArenaWarmup } from "@/hooks/useArenaWarmup";
@@ -12,7 +12,7 @@ import NowPlaying from "@/components/streaming/NowPlaying";
 import { PAUSE_REASON_LABELS, resumeSpotifyArena } from "@/integrations/supabase/spotify";
 import { Pause, Play } from "lucide-react";
 import { ensureParticipant } from "@/integrations/supabase/participants";
-import StageView, { STAGE_CARD_FOOTER_CLASS } from "@/components/battle/StageView";
+import StageView from "@/components/battle/StageView";
 import ActionStrip from "@/components/battle/ActionStrip";
 import { getMoodLabel, normalizeArenaCode } from "@/integrations/supabase/arenas";
 import EndArenaButton from "@/components/arena/EndArenaButton";
@@ -190,6 +190,9 @@ const BattleRoomScreen = () => {
   // Step 12b: no pair for the next battle yet / few human proposals left
   const queueSummary = useArenaQueueSummary(arenaId, arena?.state === "active");
   const isPaused = !!playback?.paused_at;
+  // What the cards show: the live battle, or the finished one held for its
+  // exit animation (display only; votes always go to the live battle)
+  const display = useBattleDisplay(battle, playback?.paused_at ?? null);
   const [resumeError, setResumeError] = useState("");
   const handleResume = async () => {
     if (!arenaId) return;
@@ -364,7 +367,7 @@ const BattleRoomScreen = () => {
     return <ScreenMessage message="This arena has ended" />;
   }
 
-  const derivedPhase = getDerivedBattlePhase(battle);
+  const derivedPhase = display.phase;
 
   // Check if user has already voted in sudden death (vote_type === 'sudden_death')
   const hasSuddenDeathVote = voteRecord?.vote_type === "sudden_death";
@@ -374,7 +377,8 @@ const BattleRoomScreen = () => {
   const isVotingEnabled =
     arena?.state === "active" &&
     !isPaused &&
-    (battle?.state === "active" || (derivedPhase === "SUDDEN_DEATH" && !hasSuddenDeathVote));
+    display.isLive &&
+    (battle?.state === "active" || (battle?.state === "closing" && battle?.sudden_death_active && !hasSuddenDeathVote));
   const moodLabel = getMoodLabel(arena?.mood);
 
   // In Sudden Death the tension bar counts only sudden_death votes, so only
@@ -389,66 +393,19 @@ const BattleRoomScreen = () => {
     <div className="relative min-h-dvh w-full">
       {/* Presentational layer */}
       <StageView
-        key={battle?.battle_id}
+        key={display.battle?.battle_id}
         arena={arena!}
-        battle={battle}
+        battle={display.battle}
         participant={participant!}
-        currentVote={displayedVote}
-        passiveVoteSongId={displayedPassive}
+        currentVote={display.isLive ? displayedVote : null}
+        passiveVoteSongId={display.isLive ? displayedPassive : null}
         derivedPhase={derivedPhase}
         pausedAt={playback?.paused_at ?? null}
+        onVote={isVotingEnabled ? handleVote : undefined}
         likedSongIds={likedSongIds}
-        onToggleLike={arena?.state === "active" ? handleToggleLike : undefined}
+        onToggleLike={arena?.state === "active" && display.isLive ? handleToggleLike : undefined}
+        preparingNext={display.preparingNext}
       />
-
-      {/* Invisible interaction layer - positioned above StageView */}
-      {isVotingEnabled && (
-        <div className="absolute inset-0 z-50 pointer-events-none">
-          {/* Match the layout of StageView's battle arena section */}
-          <div className="min-h-dvh w-full flex flex-col">
-            {/* Spacer for tension bar + timer */}
-            <div className="pt-8 px-8">
-              <div className="h-3" />
-            </div>
-            <div className="py-8">
-              <div className="h-16 lg:h-24" />
-            </div>
-
-            {/* Clickable song areas */}
-            <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
-              <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
-                {/* Song A hit area */}
-                <div className="flex-1 max-w-md">
-                  <div
-                    className="aspect-square pointer-events-auto cursor-pointer"
-                    onClick={() => handleVote("A")}
-                    role="button"
-                    aria-label="Vote for Song A"
-                  />
-                  {/* StageView's card footer ("Open Spotify") stays clickable */}
-                  <div className={STAGE_CARD_FOOTER_CLASS} />
-                </div>
-
-                {/* VS spacer */}
-                <div className="flex-shrink-0 w-16 lg:w-24" />
-
-                {/* Song B hit area */}
-                <div className="flex-1 max-w-md">
-                  <div
-                    className="aspect-square pointer-events-auto cursor-pointer"
-                    onClick={() => handleVote("B")}
-                    role="button"
-                    aria-label="Vote for Song B"
-                  />
-                  <div className={STAGE_CARD_FOOTER_CLASS} />
-                </div>
-              </div>
-            </div>
-
-            <div className="h-16 lg:h-24" />
-          </div>
-        </div>
-      )}
 
       {/* Arena-level status (backend arenas.state) */}
       {arena?.state === "waiting" && (

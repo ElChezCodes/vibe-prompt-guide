@@ -263,9 +263,8 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 - Real-data Stage View wiring — **Done in step 19a (2026-10-29)**, see step 19.
 - Tension bar exact behavior (50/50 start, interpolated not instant, micro-
   oscillation, percentages pinned to the divider), battle-card exit/win
-  animation sequence, status-overlay timing — *Paso_2 §5-7*. **Partial** —
-  current components implement a version of this; not verified against the
-  exact spec'd behavior/timings in this re-read.
+  animation sequence, status-overlay timing — *Paso_2 §5-7*. **Built in step
+  19c (2026-10-30)**, see step 19.
 
 ### J. Validation & closure (process, not code)
 - Pilot (**a private gathering, not a venue, since 2026-10-27**; the
@@ -783,6 +782,33 @@ additions (#1, #4 above), each marked where it lands.
     in a draw (only `NowPlaying` has a host branch, for manual Spotify
     changes). Kept by design: step-18 manual control (re-times battles with
     the host's own Spotify skips, never picks songs or winners).
+    **19c built 2026-10-30 in the same chat as 19b** (user: 19b had nothing
+    left to build; all in code, no Lovable pass; QA = my headless screenshots
+    at 375/768/1280 px + the user's devices). Display only, the backend still
+    decides everything. Paso_2 §5 tension bar: starts 50/50 per battle,
+    eases to the backend points (never jumps), integer percentages inside
+    the bar pinned to the divider (kept inside near the edges), constant
+    micro-oscillation ±1.5 px / ±3.5 px final decision / ±0.8 px + intense
+    colours in Sudden Death, none with reduced motion. §6 cards: the card is
+    the vote button (the old invisible hit layer is gone), brief glow on
+    vote; resolution = loser exits by its side (~350 ms, no fade), winner to
+    the centre scaled up to 1.35× (bounded so it never covers the bar/timer
+    or fills the screen) with a temporary glow, then at the end it fades out
+    and the next battle fades in. **Shown when the backend decides** (lock-in
+    at end − 25 s, or Sudden Death's close at end − 10 s: the winner is
+    already in the playlist), held until the battle completes; the finished
+    battle stays ~1.1 s ("Preparing next battle") because the backend creates
+    the next one in the same statement (`useBattleDisplay`). Draw (user
+    decision 2026-10-30): both cards stay, both glow, "DRAW · Both songs play
+    next". §7 overlays (fade 150 ms): FINAL DECISION (the 30 s before
+    lock-in = the passive ramp), SUDDEN DEATH, WINNER/DRAW (block the battle
+    surface 2.5 s, not the HUD), PREPARING NEXT BATTLE; shown over the timer
+    row, never over the bar or the artwork (Spotify: artwork uncovered).
+    QA fixes: a long title pushed the other card off a phone (flex
+    `min-w-0`), tighter phone spacing, footer rows wrap, pending battle timer
+    shows its length. Kept over Paso_2 §5.6 "never explain affinity": the
+    "N votes + X passive" line and "Your passive vote" (user decisions of
+    step 9).
 20. **Pilot validation, hardening, closure** — the pilot (a private
     gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything
