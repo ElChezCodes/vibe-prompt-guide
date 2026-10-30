@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Check, Music } from "lucide-react";
+import { Ban, Check, Music } from "lucide-react";
 import { SpotifyTrack } from "@/integrations/supabase/spotify";
 import { formatDuration } from "@/integrations/supabase/arenas";
 
@@ -48,9 +48,18 @@ const SpotifyTrackRow = ({
     onClick={disabled ? undefined : onSelect}
     role={onSelect ? "button" : undefined}
     aria-pressed={onSelect ? selected : undefined}
+    aria-disabled={onSelect && disabled ? true : undefined}
     className={`flex items-center gap-3 p-2 pr-2.5 rounded-xl transition-all ${
       onSelect && !disabled ? "cursor-pointer" : ""
-    } ${disabled ? "opacity-60" : ""} ${selected ? "neon-row-selected" : "neon-row hover:border-song-a/60"}`}
+    } ${
+      unavailable
+        ? "border border-dashed border-border/70 bg-transparent cursor-not-allowed"
+        : disabled
+          ? "opacity-60 neon-row"
+          : selected
+            ? "neon-row-selected"
+            : "neon-row hover:border-song-a/60"
+    }`}
   >
     {track.artwork_url ? (
       <img
@@ -66,7 +75,7 @@ const SpotifyTrackRow = ({
     <div className="flex-1 min-w-0">
       <p
         className={`flex items-center gap-1 text-sm font-semibold truncate ${
-          selected ? "text-primary" : "text-foreground"
+          unavailable ? "text-muted-foreground" : selected ? "text-primary" : "text-foreground"
         }`}
       >
         {selected && <Check className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={3} />}
@@ -81,7 +90,12 @@ const SpotifyTrackRow = ({
           </span>
         ) : null}
       </p>
-      {unavailable && <p className="text-[11px] text-destructive">{unavailableLabel}</p>}
+      {unavailable && (
+        <p className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-muted/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          <Ban className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate">{unavailableLabel}</span>
+        </p>
+      )}
       {details}
     </div>
     {action}

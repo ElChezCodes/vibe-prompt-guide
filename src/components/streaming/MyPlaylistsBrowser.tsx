@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, ListMusic, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, ListMusic, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -74,17 +74,25 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
 
   if (reconnect) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
-        <p className="text-sm text-text-secondary">
-          Reconnect Spotify to propose from your playlists and Liked Songs.
-        </p>
+      <div className="h-full flex flex-col justify-center">
+      <div className="rounded-xl border border-energy-yellow/50 bg-energy-yellow/10 p-3 space-y-3">
+        <div className="flex items-start gap-2">
+          <span className="w-8 h-8 flex-shrink-0 rounded-lg bg-energy-yellow/15 flex items-center justify-center">
+            <RefreshCw className="w-4 h-4 text-energy-yellow" />
+          </span>
+          <p className="text-sm text-text-secondary">
+            Reconnect Spotify to propose from your playlists and Liked Songs.
+          </p>
+        </div>
         <Button
+          variant="neon"
           className="w-full"
           onClick={() => startSpotifyConnect(window.location.pathname).catch((err) => setError(err.message))}
         >
           Reconnect Spotify
         </Button>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      </div>
       </div>
     );
   }
@@ -92,10 +100,10 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
   if (!open) {
     if (!playlists) {
       return error ? (
-        <p className="text-sm text-center text-destructive">{error}</p>
+        <p role="alert" className="rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-center text-destructive">{error}</p>
       ) : (
-        <div className="flex justify-center py-6">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <div className="flex justify-center py-6" role="status" aria-label="Loading">
+          <Loader2 className="w-5 h-5 motion-safe:animate-spin text-song-a" />
         </div>
       );
     }
@@ -109,7 +117,9 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
                 key={playlist.id}
                 role="button"
                 onClick={() => openPlaylist(playlist)}
-                className="flex items-center gap-3 p-2 pr-2.5 rounded-xl cursor-pointer transition-all neon-row hover:border-song-a/60"
+                className={`flex items-center gap-3 p-2 pr-2 rounded-xl cursor-pointer transition-all hover:border-song-a/60 ${
+                  isLiked ? "neon-row border-song-b/50 shadow-[0_0_14px_-6px_hsl(var(--song-b)/0.7)]" : "neon-row"
+                }`}
               >
                 {isLiked ? (
                   <div className="w-12 h-12 flex-shrink-0 rounded-md flex items-center justify-center bg-gradient-to-br from-nebula-glow/70 via-song-b/50 to-song-a/40">
@@ -187,11 +197,11 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
             />
           ))}
           {!loading && tracks.length === 0 && !error && (
-            <p className="text-sm text-center text-muted-foreground">No songs that can be proposed here</p>
+            <p className="rounded-xl border border-dashed border-border px-3 py-4 text-sm text-center text-muted-foreground">No songs that can be proposed here</p>
           )}
           {loading && (
             <div className="flex justify-center py-3">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <Loader2 className="w-5 h-5 motion-safe:animate-spin text-song-a" />
             </div>
           )}
           {!loading && nextOffset !== null && (
@@ -206,7 +216,7 @@ const MyPlaylistsBrowser = ({ arenaId, needsReconnect, selectedTrackId, onSelect
               </Button>
             </div>
           )}
-          {error && <p className="text-sm text-center text-destructive">{error}</p>}
+          {error && <p role="alert" className="rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-center text-destructive">{error}</p>}
         </div>
       </ScrollArea>
     </div>
