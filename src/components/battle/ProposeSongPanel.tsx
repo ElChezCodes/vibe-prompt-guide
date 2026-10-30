@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Search, Music, X } from "lucide-react";
+import { Search, Music, X, ListMusic, Heart } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -309,12 +309,13 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
               role="tab"
               aria-selected={tab === value}
               onClick={() => switchTab(value)}
-              className={`h-9 rounded-lg text-sm font-semibold transition-all ${
+              className={`h-10 inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-bold transition-all ${
                 tab === value
                   ? "bg-primary text-primary-foreground glow-primary"
-                  : "text-text-secondary hover:text-foreground"
+                  : "text-text-secondary hover:text-foreground hover:bg-muted/40"
               }`}
             >
+              {value === "search" ? <Search className="w-4 h-4" /> : <ListMusic className="w-4 h-4" />}
               {label}
             </button>
           ))}
@@ -323,10 +324,22 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
 
       {/* Step 13: a guest may lend their Liked Songs when the queue runs dry */}
       {canChooseAccount && (
-        <label className="flex-shrink-0 flex items-center justify-between gap-3 rounded-xl px-3 py-2 neon-row cursor-pointer">
-          <span className="min-w-0">
+        <label
+          className={`flex-shrink-0 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+            sources.can_read_library ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+          } ${sources.lends_library ? "neon-row border-song-b/60 shadow-[0_0_14px_-6px_hsl(var(--song-b)/0.7)]" : "neon-row"}`}
+        >
+          <span
+            aria-hidden
+            className={`w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center ${
+              sources.lends_library ? "bg-song-b/20 text-song-b" : "bg-muted/60 text-muted-foreground"
+            }`}
+          >
+            <Heart className="w-4 h-4" fill={sources.lends_library ? "currentColor" : "none"} />
+          </span>
+          <span className="flex-1 min-w-0">
             <span className="block text-sm font-semibold text-foreground">Lend my Liked Songs</span>
-            <span className="block text-[11px] text-muted-foreground">
+            <span className="block mt-0.5 text-xs leading-snug text-muted-foreground">
               {sources.can_read_library
                 ? "If nobody proposes, songs that fit the arena may come from them. Nobody sees they're yours."
                 : "Reconnect Spotify in Profile to use this"}
@@ -353,17 +366,17 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
       <>
       {canChooseAccount && (
         <div className="flex-shrink-0 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>Search with</span>
-          <div className="inline-flex p-0.5 rounded-full neon-row">
+          <span className="flex-shrink-0">Search with</span>
+          <div className="inline-flex p-0.5 rounded-full neon-row min-w-0">
             {(["own", "host"] as const).map((account) => (
               <button
                 key={account}
                 type="button"
                 aria-pressed={searchAccount === account}
                 onClick={() => setSearchAccount(account)}
-                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                   searchAccount === account
-                    ? "bg-song-a/20 text-song-a"
+                    ? "bg-song-a/20 text-song-a ring-1 ring-song-a/60 shadow-[0_0_10px_-3px_hsl(var(--song-a)/0.7)]"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
