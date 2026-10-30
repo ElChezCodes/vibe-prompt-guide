@@ -663,6 +663,13 @@ additions (#1, #4 above), each marked where it lands.
     human = the human anyway (human-first); system songs by compatibility with
     the human + ref, fit as tiebreak; internal log + "Next up to fight" list
     (positions 1-10, artwork/title/artist/Open Spotify) on the Propose screen.
+    Tested in-app 2026-10-29/30 (log of 15 battles reviewed): no self-battles,
+    forced entry after 3 skips, same-artist continuity and system songs by
+    compatibility worked. Fixes 2026-10-30: MusicBrainz genres only (junk
+    folksonomy tags), "nothing to compare" = neutral not 0, log components;
+    Next up rows slide to their new place. User decision 2026-10-30: a
+    revancha only once (a song that already fought twice here never returns
+    as revancha; "By Design" had come back in battles 9, 11 and 13).
 18. **Real playback wiring end-to-end** — winner auto-plays, battle starts when
     the previous winner starts, synced timers, playlist auto-append (winners
     appended to the arena's private playlist after the warm-up; no
