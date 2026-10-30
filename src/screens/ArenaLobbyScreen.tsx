@@ -182,17 +182,23 @@ const ArenaLobbyScreen = () => {
 
         {/* Who's here: ACTIVO / PASIVO / INACTIVO counts from the backend */}
         {!isClosed && presence && (
-          <div className="w-full grid grid-cols-3 gap-2 animate-fade-in-up" style={{ animationDelay: "75ms" }}>
-            {[
-              { label: "Active", count: presence.active_count, dot: "bg-primary shadow-[0_0_6px_hsl(var(--primary))]" },
-              { label: "Passive", count: presence.passive_count, dot: "bg-energy-yellow shadow-[0_0_6px_hsl(var(--energy-yellow)/0.8)]" },
-              { label: "Inactive", count: presence.inactive_count, dot: "bg-muted-foreground/70" },
-            ].map((stat) => (
-              <div key={stat.label} className="neon-row rounded-xl px-2 py-2.5 text-center">
-                <p className="text-xl font-bold text-foreground tabular-nums leading-none">{stat.count}</p>
-                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <span aria-hidden className={`w-1.5 h-1.5 rounded-full ${stat.dot}`} />
-                  {stat.label}
+          <div className="w-full grid grid-cols-3 gap-2 motion-safe:animate-fade-in-up" style={{ animationDelay: "75ms" }}>
+            {([
+              { key: "active", count: presence.active_count },
+              { key: "passive", count: presence.passive_count },
+              { key: "inactive", count: presence.inactive_count },
+            ] as const).map((stat) => (
+              <div
+                key={stat.key}
+                data-presence={stat.key}
+                title={PRESENCE_HINTS[stat.key]}
+                aria-label={`${stat.count} ${PRESENCE_LABELS[stat.key]}: ${PRESENCE_HINTS[stat.key]}`}
+                className="neon-row min-w-0 rounded-xl px-1.5 py-3 text-center"
+              >
+                <p className={`text-3xl font-arcade font-bold tabular-nums leading-none ${PRESENCE_TEXT[stat.key]}`}>{stat.count}</p>
+                <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
+                  <span aria-hidden className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PRESENCE_DOTS[stat.key]}`} />
+                  {PRESENCE_LABELS[stat.key]}
                 </p>
               </div>
             ))}
