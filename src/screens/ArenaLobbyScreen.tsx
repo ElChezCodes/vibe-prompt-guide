@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
 import { useRefreshCurrentArena } from "@/hooks/useCurrentArena";
 import EndArenaButton from "@/components/arena/EndArenaButton";
+import { PRESENCE_DOTS, PRESENCE_HINTS, PRESENCE_LABELS, PRESENCE_TEXT } from "@/components/arena/PresenceChip";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import { arenaPath, joinUrl, stageUrl } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
