@@ -25,6 +25,8 @@ interface Props {
   // Shown (and the row can't be picked) when Spotify can't play it in the
   // host's country (is_playable false)
   unavailableLabel?: string;
+  // Shared Stage View: the link back is the Spotify logo alone (user, 2026-10-29)
+  iconOnlyLink?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ const SpotifyTrackRow = ({
   details,
   action,
   unavailableLabel = "Not available in the host's country",
+  iconOnlyLink = false,
 }: Props) => {
   const unavailable = track.is_playable === false;
   const disabled = disabledProp || unavailable;
@@ -105,9 +108,10 @@ const SpotifyTrackRow = ({
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
       className={SPOTIFY_LINK_CLASS}
+      aria-label={iconOnlyLink ? "Open Spotify" : undefined}
     >
       <SpotifyIcon className="w-3.5 h-3.5" />
-      Open Spotify
+      {!iconOnlyLink && "Open Spotify"}
     </a>
   </div>
   );

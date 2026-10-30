@@ -273,13 +273,14 @@ begin
                   'title', n.title, 'artist', n.artist, 'artwork_url', n.artwork_url,
                   'duration_ms', n.duration_ms, 'pair_no', n.pair_no, 'vs_system', n.vs_system,
                   'is_mine', false, 'available_at', n.available_at) order by n.pos)
-                from arena_next_up(v_arena.id, null) n), '[]'::jsonb)
+                -- The first 5 only (user, 2026-10-29: the top PI must fit without scrolling)
+                from arena_next_up(v_arena.id, null) n where n.pos <= 5), '[]'::jsonb)
       else '[]'::jsonb end,
-    -- Top 5 during the arena, the whole ranking once finished
+    -- Top 3 during the arena (user, 2026-10-29), the whole ranking once finished
     'leaderboard', coalesce((select jsonb_agg(jsonb_build_object(
                      'place', r.place, 'display_name', r.display_name, 'pi', r.pi, 'is_host', r.is_host))
                    from (select * from arena_pi_ranking(v_arena.id, null)
-                         limit case when v_arena.state = 'finished' then null else 5 end) r), '[]'::jsonb)
+                         limit case when v_arena.state = 'finished' then null else 3 end) r), '[]'::jsonb)
   );
   return v_result;
 end;

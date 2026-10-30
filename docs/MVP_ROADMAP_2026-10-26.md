@@ -743,10 +743,10 @@ additions (#1, #4 above), each marked where it lands.
     only, no playback controls (v3.2/v4 "controles de playback, selector de
     dispositivo" not adopted: the host keeps NowPlaying + their Spotify app,
     and a song is never cut); shows the live battle, now playing/next, Next up
-    to fight, join QR + code, presence counts, top 5 PI; proposers' MF
+    to fight (first 5), join QR + code, presence counts, top 3 PI; proposers' MF
     nickname + arena PI on the cards (system songs and lent Liked Songs
     anonymous: "Picked by Music Fighter"), backers count; Spotify logo +
-    uncropped artwork + "Open Spotify" with a small QR per card; lobby = big
+    uncropped artwork + a small QR per card, the link back = the logo alone (no "Open Spotify" text, user 2026-10-29); lobby = big
     QR + warm-up + people, finished = final ranking. Database only, no Spotify
     calls. Cleanup done: debug logs removed, `identity_anchors` dropped,
     `useBattleEndedTrigger` deleted, lint 0 errors.

@@ -264,9 +264,10 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
+          aria-label={shared ? "Open Spotify" : undefined}
         >
-          <SpotifyIcon className="h-3.5 w-3.5" />
-          Open Spotify
+          <SpotifyIcon className={shared ? "h-5 w-5 lg:h-6 lg:w-6" : "h-3.5 w-3.5"} />
+          {!shared && "Open Spotify"}
         </a>
       )}
       {showInfo && isSelected && (

@@ -24,7 +24,7 @@ const detail = (song: NextUpSong): string => {
  * slides from its old place to its new one, so it shows which songs went up
  * or down and where they are now; new songs fade in.
  */
-const NextUpList = ({ songs }: { songs: NextUpSong[] }) => {
+const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; iconOnlyLink?: boolean }) => {
   const rows = useRef(new Map<string, HTMLLIElement>());
   const lastTops = useRef(new Map<string, number>());
 
@@ -86,6 +86,7 @@ const NextUpList = ({ songs }: { songs: NextUpSong[] }) => {
                 <SpotifyTrackRow
                   track={{ ...song, spotify_url: `https://open.spotify.com/track/${song.spotify_track_id}` }}
                   details={label ? <p className="text-xs text-song-a truncate">{label}</p> : undefined}
+                  iconOnlyLink={iconOnlyLink}
                 />
               </div>
             </li>

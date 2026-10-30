@@ -44,7 +44,7 @@ export interface StageViewData {
   } | null;
   battle: { battle_id: string; a: StageSongCredit | null; b: StageSongCredit | null } | null;
   next_up: NextUpSong[];
-  // Top 5 during the arena, everyone once it finished
+  // Top 3 during the arena, everyone once it finished; next_up = the first 5
   leaderboard: { place: number; display_name: string; pi: number; is_host: boolean }[];
 }
 

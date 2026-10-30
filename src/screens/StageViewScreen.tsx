@@ -66,7 +66,7 @@ const StageViewScreen = () => {
         {data.next_up.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">Next up to fight</h2>
-            <NextUpList songs={data.next_up} />
+            <NextUpList songs={data.next_up} iconOnlyLink />
           </section>
         )}
         <Leaderboard rows={data.leaderboard} title="Top PI" />
@@ -126,6 +126,7 @@ const NowPlayingCard = ({ data }: { data: StageViewData }) => {
           artwork_url: pb.now_playing_artwork_url,
           spotify_url: pb.now_playing_spotify_track_id ? spotifyUrl(pb.now_playing_spotify_track_id) : null,
         }}
+        iconOnlyLink
       />
       {pb.next_title && (
         <p className="mt-2 text-sm text-text-secondary truncate">
@@ -200,6 +201,7 @@ const StageLobby = ({ data }: { data: StageViewData }) => (
               artwork_url: data.warmup.artwork_url,
               spotify_url: data.warmup.spotify_track_id ? spotifyUrl(data.warmup.spotify_track_id) : null,
             }}
+            iconOnlyLink
           />
         </section>
       )}
@@ -207,7 +209,7 @@ const StageLobby = ({ data }: { data: StageViewData }) => (
       {data.next_up.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">Next up to fight</h2>
-          <NextUpList songs={data.next_up} />
+          <NextUpList songs={data.next_up} iconOnlyLink />
         </section>
       )}
     </div>
