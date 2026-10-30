@@ -55,7 +55,7 @@ const SpotifyTrackRow = ({
       unavailable
         ? "border border-dashed border-border/70 bg-transparent cursor-not-allowed"
         : disabled
-          ? "opacity-60 neon-row"
+          ? `opacity-60 ${selected ? "neon-row-selected" : "neon-row"}`
           : selected
             ? "neon-row-selected"
             : "neon-row hover:border-song-a/60"
