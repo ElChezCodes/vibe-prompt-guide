@@ -193,6 +193,9 @@ const StageView = ({
     message = { key: "next", title: "PREPARING NEXT BATTLE", tone: "next", holdMs: null };
   } else if (derivedPhase === "FINAL_30S") {
     message = { key: "final", title: "FINAL DECISION", tone: "final", holdMs: PHASE_MESSAGE_MS };
+  } else if (derivedPhase === "LOCK_IN" && battle?.resolution_type === "normal") {
+    // Votes closed at lock-in; the result is revealed just before the end
+    message = { key: "lockin", title: "VOTES LOCKED", subtitle: "Result at the end", tone: "final", holdMs: PHASE_MESSAGE_MS };
   } else if (derivedPhase === "SUDDEN_DEATH") {
     message = { key: "sudden", title: "SUDDEN DEATH", subtitle: "One final vote each", tone: "sudden", holdMs: PHASE_MESSAGE_MS };
   } else if (derivedPhase === "RESULT" && resultSide === "draw") {

@@ -9,10 +9,24 @@ export const LOCKIN_LEAD_MS = 25_000;
 // ramp in (passive_vote_config ramp)
 export const FINAL_DECISION_MS = 30_000;
 
+// The decided result is revealed this long before the end (user decision
+// 2026-10-30): after Sudden Death's close (end − 10 s), so a result decided
+// there is already recorded and in the playlist
+export const RESULT_REVEAL_LEAD_MS = 4_000;
+
+const battleEndAt = (battle: ArenaBattleView | null): number | null =>
+  battle?.started_at && battle.duration_ms ? new Date(battle.started_at).getTime() + battle.duration_ms : null;
+
+// When the decided result is shown
+export const getResultRevealAt = (battle: ArenaBattleView | null): number | null => {
+  const end = battleEndAt(battle);
+  return end === null ? null : end - RESULT_REVEAL_LEAD_MS;
+};
+
 // When the "final decision" window starts, from the backend's clock fields
 export const getFinalDecisionAt = (battle: ArenaBattleView | null): number | null => {
-  if (!battle?.started_at || !battle.duration_ms) return null;
-  return new Date(battle.started_at).getTime() + battle.duration_ms - LOCKIN_LEAD_MS - FINAL_DECISION_MS;
+  const end = battleEndAt(battle);
+  return end === null ? null : end - LOCKIN_LEAD_MS - FINAL_DECISION_MS;
 };
 
 /**
@@ -24,7 +38,8 @@ export const getFinalDecisionAt = (battle: ArenaBattleView | null): number | nul
  * - battle.sudden_death_active: boolean (source of truth for sudden death)
  * - battle.resolution_type / winner_song_id: set when the result is decided
  *   (at lock-in, or when Sudden Death closes 10 s before the end)
- * - started_at / duration_ms: only to time the "final decision" message
+ * - started_at / duration_ms: only to time the "final decision" message and
+ *   the result's reveal
  *
  * It never triggers state changes.
  */
@@ -33,9 +48,13 @@ export const getDerivedBattlePhase = (battle: ArenaBattleView | null, nowMs: num
   if (battle.state === "completed") return "FINISHED";
   // resolution_type is only set once decided, so it can't detect an ongoing SD
   if (battle.state === "closing" && battle.sudden_death_active) return "SUDDEN_DEATH";
-  // Decided: the winner (or both songs, draw) already in the playlist, while
-  // this battle's soundtrack plays out
-  if (battle.state === "closing") return battle.resolution_type ? "RESULT" : "LOCK_IN";
+  // Decided (the winner, or both songs on a draw, already in the playlist) but
+  // shown only RESULT_REVEAL_LEAD_MS before the end; until then votes are
+  // locked and the result kept for the reveal
+  if (battle.state === "closing") {
+    const revealAt = getResultRevealAt(battle);
+    return battle.resolution_type && (revealAt === null || nowMs >= revealAt) ? "RESULT" : "LOCK_IN";
+  }
   const finalAt = getFinalDecisionAt(battle);
   if (battle.state === "active" && finalAt !== null && nowMs >= finalAt) return "FINAL_30S";
   return "NORMAL";

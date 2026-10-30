@@ -794,9 +794,11 @@ additions (#1, #4 above), each marked where it lands.
     vote; resolution = loser exits by its side (~350 ms, no fade), winner to
     the centre scaled up to 1.35× (bounded so it never covers the bar/timer
     or fills the screen) with a temporary glow, then at the end it fades out
-    and the next battle fades in. **Shown when the backend decides** (lock-in
-    at end − 25 s, or Sudden Death's close at end − 10 s: the winner is
-    already in the playlist), held until the battle completes; the finished
+    and the next battle fades in. **Revealed 4 s before the end** (user
+    decision 2026-10-30, changed the same day from "at lock-in"): after
+    Sudden Death's close (end − 10 s), so a result decided there is already
+    recorded; between lock-in and the reveal the cards stay ("VOTES LOCKED ·
+    Result at the end" after a normal lock-in); the finished
     battle stays ~1.1 s ("Preparing next battle") because the backend creates
     the next one in the same statement (`useBattleDisplay`). Draw (user
     decision 2026-10-30): both cards stay, both glow, "DRAW · Both songs play

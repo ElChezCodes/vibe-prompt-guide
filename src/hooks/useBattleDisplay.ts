@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from "react";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
-import { DerivedBattlePhase, getDerivedBattlePhase, getFinalDecisionAt } from "@/lib/derivedBattlePhase";
+import { DerivedBattlePhase, getDerivedBattlePhase, getFinalDecisionAt, getResultRevealAt } from "@/lib/derivedBattlePhase";
 
 // How long a finished battle stays on screen once the next one exists: the
 // winner fades out, then "Preparing next battle" (Paso_2 §6.2 steps 5-6)
@@ -11,8 +11,8 @@ export const BATTLE_HOLD_MS = 1100;
  * View. The backend completes a battle and creates the next one in the same
  * statement, so without this the finished battle would vanish at once: the
  * previous battle stays on screen (as completed) for BATTLE_HOLD_MS. Also
- * re-renders when the "final decision" window opens (a time-based display
- * phase). Decides nothing: voting stays gated on the live battle's state.
+ * re-renders when a time-based display phase starts (the "final decision"
+ * window, the result's reveal). Decides nothing: voting stays gated on the live battle's state.
  */
 export const useBattleDisplay = (battle: ArenaBattleView | null, pausedAt: string | null = null) => {
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -41,14 +41,20 @@ export const useBattleDisplay = (battle: ArenaBattleView | null, pausedAt: strin
   const phaseNow = pausedAt ? new Date(pausedAt).getTime() : now;
   const phase: DerivedBattlePhase = getDerivedBattlePhase(displayBattle, phaseNow);
 
-  const finalAt = getFinalDecisionAt(displayBattle);
+  // Next time-based phase change, if any
+  const nextAt =
+    phase === "NORMAL" && displayBattle?.state === "active"
+      ? getFinalDecisionAt(displayBattle)
+      : phase === "LOCK_IN" && displayBattle?.resolution_type
+        ? getResultRevealAt(displayBattle)
+        : null;
   useEffect(() => {
-    if (pausedAt || phase !== "NORMAL" || displayBattle?.state !== "active" || finalAt === null) return;
-    const wait = finalAt - Date.now();
+    if (pausedAt || nextAt === null) return;
+    const wait = nextAt - Date.now();
     if (wait <= 0) return;
     const t = setTimeout(rerender, wait + 20);
     return () => clearTimeout(t);
-  }, [finalAt, phase, pausedAt, displayBattle?.state]);
+  }, [nextAt, pausedAt]);
 
   return {
     battle: displayBattle,
