@@ -20,7 +20,7 @@ const ConnectStreamingScreen = () => {
   const lobbyPath = arenaPath(code, "lobby");
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-4 sm:px-6 pt-20 pb-12">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-4 pt-20 pb-12">
       <BackButton onClick={() => navigate(lobbyPath)} label="Lobby" />
       <div className="w-full max-w-md flex flex-col gap-6">
         <div className="text-center space-y-2 animate-fade-in-up">
