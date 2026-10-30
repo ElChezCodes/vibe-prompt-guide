@@ -2,6 +2,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import BackButton from "@/components/nav/BackButton";
 import ScreenMessage from "@/components/nav/ScreenMessage";
 import SpotifyConnectionPanel from "@/components/streaming/SpotifyConnectionPanel";
+import SpotifyScreenState from "@/components/streaming/SpotifyScreenState";
 import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
 import { arenaPath } from "@/lib/arenaRoutes";
 
@@ -11,7 +12,7 @@ const ConnectStreamingScreen = () => {
   const navigate = useNavigate();
   const { code, isHost, status } = useArenaFromRoute();
 
-  if (status === "loading") return <ScreenMessage message="Loading..." showHomeButton={false} />;
+  if (status === "loading") return <SpotifyScreenState message="Loading..." />;
   if (status === "not_found") return <ScreenMessage message="Arena not found" isError />;
   if (status === "error") return <ScreenMessage message="Failed to load arena" isError />;
   if (!isHost) return <Navigate to={arenaPath(code, "battle")} replace />;

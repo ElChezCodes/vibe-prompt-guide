@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import ScreenMessage from "@/components/nav/ScreenMessage";
+import { Button } from "@/components/ui/button";
+import SpotifyScreenState from "@/components/streaming/SpotifyScreenState";
 import { completeSpotifyConnect } from "@/integrations/supabase/spotify";
 
 // Spotify's redirect target (registered redirect URI). The Edge Function
@@ -29,7 +30,15 @@ const SpotifyCallbackScreen = () => {
       });
   }, [params, navigate]);
 
-  return <ScreenMessage message={message} isError={failed} showHomeButton={failed} />;
+  return (
+    <SpotifyScreenState message={message} isError={failed}>
+      {failed && (
+        <Button variant="neon" className="w-full" onClick={() => navigate("/")}>
+          Back to start
+        </Button>
+      )}
+    </SpotifyScreenState>
+  );
 };
 
 export default SpotifyCallbackScreen;
