@@ -253,8 +253,11 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
 ### H. Host arena-management flows
 - Pause/resume Arena, choose initial song if no previous winner exists,
   configure excluded genres (Host cannot veto specific songs, isn't notified of
-  ties) — *v3.0 §9, v3.2 §Administrador, Backend_Block_2*. **Not started**
-  beyond create/view.
+  ties) — *v3.0 §9, v3.2 §Administrador, Backend_Block_2*. **Closed in step
+  19b (2026-10-30)**, see step 19: no manual pause/playback controls in MF
+  (Spotify app + step-6 auto pause/resume), no excluded genres (not adopted),
+  initial song = warm-up, battle mode on/off = Start battles / End Arena;
+  host-power holes closed (`host_powers_2026-10-30.sql`).
 
 ### I. Stage View & UX conformance
 - Real-data Stage View wiring — **Done in step 19a (2026-10-29)**, see step 19.
@@ -750,6 +753,36 @@ additions (#1, #4 above), each marked where it lands.
     QR + warm-up + people, finished = final ranking. Database only, no Spotify
     calls. Cleanup done: debug logs removed, `identity_anchors` dropped,
     `useBattleEndedTrigger` deleted, lint 0 errors.
+    **19b closed 2026-10-30, no new feature** (user decisions 2026-10-30):
+    (1) **no playback controls in MF** — no manual arena pause/resume, no
+    play/pause/skip/device: the host controls the music from their own
+    Spotify app; MF pauses the arena by itself (step 6) and resumes when the
+    music comes back or the host taps "Resume on Spotify". This closes PRD
+    6.1 "Activar / Pausar Arena", v4 §10.1 "control de playback desde Stage
+    View" and Block 5 §2.1 "controla playback (play/pause/device)".
+    (2) **no excluded genres per arena** — the user considers it censorship:
+    v3.0 §9 / v3.2 / v4 "configurar géneros excluidos" **not adopted**.
+    (3) "Elegir la canción inicial si no hay ganadora previa" = the warm-up
+    (step 2: chosen at creation, "winner of battle 0"); (4) "activar/
+    desactivar modo batalla" = Start battles / End Arena (+ the expiry cron);
+    "iniciar/cerrar sesión de Arena" = create / End Arena. (5) Audit of
+    "can't veto songs / doesn't start battles, decide pairings or control
+    results / isn't notified of ties" (v3.0 §9, v4 §10.1, Block 5 §2.1),
+    holes closed in `supabase/sql/host_powers_2026-10-30.sql`: the RLS
+    policy `host_can_create_initial_battle` (the host could insert battles
+    with any pair) and the old `create-battle` Edge Function (service role,
+    host-only) deleted; the regular-vote INSERT didn't check that
+    `participant_id` is the caller's (anyone, the host included, could vote
+    in guests' name) → restrictive `votes_insert_own_participant`; unused
+    client grants revoked (battle/arena/song writes, queue update/delete,
+    vote/participant delete, legacy cron debug tables, EXECUTE on
+    `process_battle_lifecycle`/`calculate_lockin_vote_totals`/
+    `ensure_mock_songs_for_arena`). Verified: queues have no client
+    update/delete (only `withdraw_proposal`, owner only); matchmaking/
+    reserve/config tables are service-only; the host sees nothing different
+    in a draw (only `NowPlaying` has a host branch, for manual Spotify
+    changes). Kept by design: step-18 manual control (re-times battles with
+    the host's own Spotify skips, never picks songs or winners).
 20. **Pilot validation, hardening, closure** — the pilot (a private
     gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything
