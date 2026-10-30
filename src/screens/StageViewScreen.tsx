@@ -1,145 +1,234 @@
-import TensionBar, { BattleIntensity } from "@/components/battle/TensionBar";
-import BattleTimer from "@/components/battle/BattleTimer";
-import BattleStateOverlay, { BattleState } from "@/components/battle/BattleStateOverlay";
+import { useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
+import { Pause, Users, Trophy } from "lucide-react";
+import StageView from "@/components/battle/StageView";
+import NextUpList from "@/components/battle/NextUpList";
+import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import ScreenMessage from "@/components/nav/ScreenMessage";
-import { useArenaFromRoute } from "@/hooks/useArenaFromRoute";
+import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
+import { useStageView } from "@/hooks/useStageView";
+import { getDerivedBattlePhase } from "@/lib/derivedBattlePhase";
+import { joinUrl } from "@/lib/arenaRoutes";
+import { StageViewData } from "@/integrations/supabase/stageView";
+import { PAUSE_REASON_LABELS, PauseReason } from "@/integrations/supabase/spotify";
 
-// Venue display, opened from a shared link (/a/:code/stage). Read-only, no
-// buttons. The arena comes from the URL; battle data is still placeholder
-// until roadmap step 19.
+const spotifyUrl = (trackId: string) => `https://open.spotify.com/track/${trackId}`;
+
+/**
+ * Step 19a: the party's shared screen (TV / projector), opened by anyone with
+ * the link (/a/:code/stage). Read-only and never a participant: no heartbeat
+ * (App.tsx skips /stage), no presence, no votes. Battle data comes from the
+ * same backend view as the Battle Room (useBattleOrchestrator); everything
+ * around it from get_stage_view (database only, no Spotify calls). No
+ * playback controls: the host keeps those on their phone and in Spotify.
+ */
 const StageViewScreen = () => {
-  const { arena, status } = useArenaFromRoute();
+  const { code = "" } = useParams();
+  const { data, status } = useStageView(code);
+  const { battle, initBattleLoop, stopBattleLoop } = useBattleOrchestrator();
 
-  // Placeholder battle state - will be connected to real data later
-  // Using type assertion since this will be replaced with real state
-  const battleState = 'NORMAL' as BattleState;
-  const percentageA = 52;
-  const percentageB = 48;
-  const winnerSide: 'A' | 'B' | null = null;
-
-  const getTensionIntensity = (): BattleIntensity => {
-    switch (battleState) {
-      case 'FINAL_30S': return 'final';
-      case 'SUDDEN_DEATH': return 'sudden';
-      default: return 'normal';
-    }
-  };
+  const arenaId = data?.arena.id;
+  const isActive = data?.arena.state === "active";
+  useEffect(() => {
+    if (!arenaId || !isActive) return;
+    initBattleLoop(arenaId);
+    return () => stopBattleLoop();
+  }, [arenaId, isActive, initBattleLoop, stopBattleLoop]);
 
   if (status === "loading") return <ScreenMessage message="Loading..." showHomeButton={false} />;
-  if (status !== "ready") return <ScreenMessage message="Arena not found" isError showHomeButton={false} />;
+  if (status === "not_found" || !data) return <ScreenMessage message="Arena not found" isError showHomeButton={false} />;
+
+  if (data.arena.state === "waiting") return <StageLobby data={data} />;
+  if (data.arena.state === "finished") return <StageFinished data={data} />;
+
+  // Credits belong to the battle on screen only (the poll may lag a new battle)
+  const credits = battle && data.battle?.battle_id === battle.battle_id ? data.battle : null;
 
   return (
-    <div className="min-h-dvh w-full flex flex-col bg-background overflow-hidden">
-      {/* Arena + how to join */}
-      <div className="w-full pt-6 px-8 flex items-center justify-between text-muted-foreground">
-        <span className="text-xl lg:text-2xl font-semibold text-foreground">{arena.name}</span>
-        <span className="text-lg lg:text-2xl">
-          {arena.state === "finished"
-            ? "Arena finished"
-            : <>Join with code <span className="font-mono font-bold text-foreground tracking-widest">{arena.arena_code}</span></>}
-        </span>
-      </div>
-
-      {/* Tension Bar - Full width at top */}
-      <div className="w-full pt-8 px-8">
-        <TensionBar 
-          percentageA={percentageA} 
-          percentageB={percentageB}
-          intensity={getTensionIntensity()}
+    <div className="min-h-dvh w-full bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="relative min-w-0">
+        <StageView
+          key={battle?.battle_id}
+          arena={{ id: data.arena.id, name: data.arena.name, state: data.arena.state, mood: data.arena.mood }}
+          battle={battle}
+          derivedPhase={getDerivedBattlePhase(battle)}
+          pausedAt={data.arena.paused_at}
+          shared
+          credits={credits}
         />
+        <StageStatusBanner data={data} />
       </div>
-
-      {/* Timer - Prominent center */}
-      <div className="py-8">
-        <div className="flex items-center justify-center">
-          <span className="text-6xl lg:text-8xl font-semibold text-foreground tracking-widest tabular-nums">
-            01:23
-          </span>
-        </div>
-      </div>
-
-      {/* Battle Arena - Song Cards with VS */}
-      <div className="flex-1 flex items-center justify-center px-8 lg:px-16">
-        <div className="w-full max-w-7xl flex items-center justify-center gap-8 lg:gap-16">
-          {/* Song A - Left */}
-          <div className="flex-1 max-w-md animate-fade-in-up">
-            <StageSongCard 
-              position="A"
-              songTitle="Blinding Lights"
-              artistName="The Weeknd"
-            />
-          </div>
-
-          {/* VS Indicator */}
-          <div className="flex-shrink-0 animate-fade-in" style={{ animationDelay: '150ms' }}>
-            <span className="text-4xl lg:text-6xl font-arcade font-black text-muted-foreground tracking-wider">
-              VS
-            </span>
-          </div>
-
-          {/* Song B - Right */}
-          <div className="flex-1 max-w-md animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-            <StageSongCard 
-              position="B"
-              songTitle="Levitating"
-              artistName="Dua Lipa"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Spacer for bottom balance */}
-      <div className="h-16 lg:h-24" />
-
-      {/* Battle State Overlay */}
-      <BattleStateOverlay battleState={battleState} winnerSide={winnerSide} />
+      <aside className="flex flex-col gap-5 p-4 sm:p-6 lg:border-l lg:border-border/60 lg:max-h-dvh lg:overflow-y-auto">
+        <JoinCard code={data.arena.code} size={112} />
+        <NowPlayingCard data={data} />
+        <PeopleCard data={data} />
+        {data.next_up.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">Next up to fight</h2>
+            <NextUpList songs={data.next_up} />
+          </section>
+        )}
+        <Leaderboard rows={data.leaderboard} title="Top PI" />
+      </aside>
     </div>
   );
 };
 
-// Stage-optimized Song Card (read-only, larger text)
-interface StageSongCardProps {
-  position: 'A' | 'B';
-  songTitle: string;
-  artistName: string;
-}
-
-const StageSongCard = ({ position, songTitle, artistName }: StageSongCardProps) => {
-  const isA = position === 'A';
-  
+// Paused (step 6 frozen clock) or no pair to fight yet: over the battle, not
+// covering the tension bar or the cards' artwork
+const StageStatusBanner = ({ data }: { data: StageViewData }) => {
+  let text: string | null = null;
+  if (data.arena.paused_at) {
+    const reason = PAUSE_REASON_LABELS[data.arena.pause_reason as PauseReason];
+    text = `Paused${reason ? ` · ${reason}` : ""}. Voting resumes when the music does.`;
+  } else if (data.waiting_for_songs) {
+    text = "Waiting for songs · propose one from your phone";
+  }
+  if (!text) return null;
   return (
-    <div 
-      className={`
-        relative w-full aspect-square rounded-2xl overflow-hidden
-        bg-surface border-2
-        ${isA ? 'border-song-a/30' : 'border-song-b/30'}
-      `}
-    >
-      {/* Album art placeholder */}
-      <div className="absolute inset-0 bg-gradient-to-br from-secondary/50 to-background/50" />
-      
-      {/* Song info overlay */}
-      <div className="absolute inset-0 flex flex-col items-center justify-end p-6 lg:p-8">
-        <div className={`
-          w-full text-center
-          ${isA ? 'text-song-a' : 'text-song-b'}
-        `}>
-          <h3 className="text-2xl lg:text-4xl font-bold truncate mb-2">
-            {songTitle}
-          </h3>
-          <p className="text-lg lg:text-2xl text-muted-foreground truncate">
-            {artistName}
-          </p>
-        </div>
+    <div className="absolute inset-x-0 bottom-4 flex justify-center px-4 pointer-events-none">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-xl neon-panel text-sm lg:text-lg text-foreground">
+        {data.arena.paused_at && <Pause className="h-4 w-4 lg:h-5 lg:w-5" />}
+        {text}
       </div>
-
-      {/* Side indicator glow */}
-      <div className={`
-        absolute inset-0 pointer-events-none
-        ${isA ? 'shadow-[inset_0_0_60px_rgba(59,130,246,0.1)]' : 'shadow-[inset_0_0_60px_rgba(236,72,153,0.1)]'}
-      `} />
     </div>
   );
 };
+
+const JoinCard = ({ code, size }: { code: string; size: number }) => (
+  <div className="flex items-center gap-4">
+    {/* Black on white with a quiet zone so phones read it */}
+    <div className="bg-white rounded-xl p-2 flex-shrink-0">
+      <QRCodeSVG value={joinUrl(code)} size={size} marginSize={1} />
+    </div>
+    <div className="min-w-0">
+      <p className="text-sm text-text-secondary">Scan to join, or enter the code</p>
+      <p className="font-mono font-bold text-2xl lg:text-3xl tracking-widest text-foreground">{code}</p>
+    </div>
+  </div>
+);
+
+// What the host's Spotify plays (warm-up or a winner) and what follows; from
+// what spotify-host already stored, no Spotify call
+const NowPlayingCard = ({ data }: { data: StageViewData }) => {
+  const pb = data.playback;
+  if (!pb?.now_playing_title) return null;
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">
+        {pb.now_playing_kind === "warmup" ? "Now playing · warm-up" : "Now playing · winner"}
+      </h2>
+      <SpotifyTrackRow
+        track={{
+          title: pb.now_playing_title,
+          artist: pb.now_playing_artist ?? "",
+          artwork_url: pb.now_playing_artwork_url,
+          spotify_url: pb.now_playing_spotify_track_id ? spotifyUrl(pb.now_playing_spotify_track_id) : null,
+        }}
+      />
+      {pb.next_title && (
+        <p className="mt-2 text-sm text-text-secondary truncate">
+          Then: <span className="text-foreground">{pb.next_title}</span> · {pb.next_artist}
+        </p>
+      )}
+      {pb.unplayable_title && (
+        <p className="mt-1 text-xs text-text-secondary truncate">
+          "{pb.unplayable_title}" isn't available in the host's country: skipped
+        </p>
+      )}
+    </section>
+  );
+};
+
+const PeopleCard = ({ data }: { data: StageViewData }) => (
+  <div className="flex items-center gap-2 text-sm text-text-secondary">
+    <Users className="h-4 w-4" />
+    <span>
+      <span className="text-foreground font-semibold">{data.people.joined}</span> in the arena ·{" "}
+      {data.people.active} active · {data.people.passive} listening
+    </span>
+  </div>
+);
+
+const Leaderboard = ({ rows, title }: { rows: StageViewData["leaderboard"]; title: string }) => {
+  if (rows.length === 0) return null;
+  return (
+    <section>
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">
+        <Trophy className="h-4 w-4" />
+        {title}
+      </h2>
+      <ol className="space-y-1">
+        {rows.map((r, i) => (
+          <li key={`${r.display_name}-${i}`} className="flex items-center gap-3 text-base lg:text-lg">
+            <span className="w-6 text-right tabular-nums text-text-secondary">{r.place}</span>
+            <span className="flex-1 min-w-0 truncate text-foreground">
+              {r.display_name}
+              {r.is_host && <span className="ml-2 text-xs uppercase text-text-secondary">host</span>}
+            </span>
+            <span className="tabular-nums font-semibold text-foreground">{r.pi} PI</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+};
+
+// Before Start: how to join, the warm-up that will open the playlist, who is in
+const StageLobby = ({ data }: { data: StageViewData }) => (
+  <div className="min-h-dvh w-full space-bg flex flex-col items-center justify-center gap-8 px-4 py-8 text-center">
+    <div>
+      <h1 className="text-3xl lg:text-6xl font-arcade font-black text-foreground">{data.arena.name}</h1>
+      <p className="mt-2 text-base lg:text-2xl text-text-secondary">Waiting for the host to start the battles</p>
+    </div>
+    <div className="flex flex-col items-center gap-3">
+      <div className="bg-white rounded-2xl p-4">
+        <QRCodeSVG value={joinUrl(data.arena.code)} size={240} marginSize={1} />
+      </div>
+      <p className="text-base lg:text-xl text-text-secondary">Scan to join, or enter the code</p>
+      <p className="font-mono font-bold text-4xl lg:text-6xl tracking-widest text-foreground">{data.arena.code}</p>
+    </div>
+    <div className="w-full max-w-md flex flex-col gap-4 text-left">
+      {data.warmup && (
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">Warm-up song</h2>
+          <SpotifyTrackRow
+            track={{
+              title: data.warmup.title,
+              artist: data.warmup.artist,
+              artwork_url: data.warmup.artwork_url,
+              spotify_url: data.warmup.spotify_track_id ? spotifyUrl(data.warmup.spotify_track_id) : null,
+            }}
+          />
+        </section>
+      )}
+      <PeopleCard data={data} />
+      {data.next_up.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">Next up to fight</h2>
+          <NextUpList songs={data.next_up} />
+        </section>
+      )}
+    </div>
+  </div>
+);
+
+// After End Arena: the final ranking of the arena
+const StageFinished = ({ data }: { data: StageViewData }) => (
+  <div className="min-h-dvh w-full space-bg flex flex-col items-center justify-center gap-8 px-4 py-8">
+    <div className="text-center">
+      <h1 className="text-3xl lg:text-6xl font-arcade font-black text-foreground">{data.arena.name}</h1>
+      <p className="mt-2 text-base lg:text-2xl text-text-secondary">Arena finished · thanks for playing</p>
+    </div>
+    <div className="w-full max-w-md">
+      {data.leaderboard.length > 0 ? (
+        <Leaderboard rows={data.leaderboard} title="Final ranking" />
+      ) : (
+        <p className="text-center text-text-secondary">No PI was won in this arena</p>
+      )}
+    </div>
+  </div>
+);
 
 export default StageViewScreen;

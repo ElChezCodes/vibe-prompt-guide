@@ -217,15 +217,6 @@ export const useBattleOrchestrator = (): UseBattleOrchestratorReturn => {
             const newRow = payload.new as Record<string, unknown> | undefined;
             const eventType = payload.eventType;
 
-            console.log("[Realtime Debug]", {
-              event: eventType,
-              battle_id: newRow?.id,
-              new_state: newRow?.state,
-              lockin_at: newRow?.lockin_at,
-              winner_song_id: newRow?.winner_song_id,
-              timestamp: Date.now(),
-            });
-
             // INSERT (new battle) → immediate render from payload, async backfill
             if (eventType === "INSERT" && newRow) {
               const newBattleId = newRow.id as string;

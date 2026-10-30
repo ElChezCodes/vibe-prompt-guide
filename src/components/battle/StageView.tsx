@@ -5,7 +5,9 @@ import BattleTimer from "@/components/battle/BattleTimer";
 import BattleStateOverlay from "@/components/battle/BattleStateOverlay";
 import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { getMoodLabel } from "@/integrations/supabase/arenas";
+import { QRCodeSVG } from "qrcode.react";
 import { SpotifyIcon } from "@/components/streaming/SpotifyTrackRow";
+import { StageSongCredit } from "@/integrations/supabase/stageView";
 
 interface ArenaData {
   id: string;
@@ -29,7 +31,8 @@ interface VoteData {
 interface StageViewProps {
   arena: ArenaData;
   battle: ArenaBattleView | null;
-  participant: ParticipantData;
+  // Battle Room only (the shared Stage View has no viewer)
+  participant?: ParticipantData;
   currentVote?: VoteData | null;
   // The viewer's passive vote (shown softer than an active vote)
   passiveVoteSongId?: string | null;
@@ -38,6 +41,10 @@ interface StageViewProps {
   // Battle Room only: the viewer's likes (step 8 signal) and the toggle
   likedSongIds?: Set<string>;
   onToggleLike?: (songId: string) => void;
+  // Shared Stage View (/a/:code/stage): who proposed each song + a QR for
+  // "Open Spotify" (nobody can click a TV)
+  shared?: boolean;
+  credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
 }
 
 const StageView = ({
@@ -50,13 +57,9 @@ const StageView = ({
   pausedAt = null,
   likedSongIds,
   onToggleLike,
+  shared = false,
+  credits = null,
 }: StageViewProps) => {
-  console.log("[StageView Render]", {
-    battle_id: battle?.battle_id,
-    state: battle?.state,
-    derivedPhase,
-    timestamp: Date.now(),
-  });
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
   // Passive points (step 9), already 0 in Sudden Death; the bar shows the
@@ -121,6 +124,8 @@ const StageView = ({
               isWinner={derivedPhase === "FINISHED" && winnerSide === "A"}
               isLiked={!!battle?.song_a_id && !!likedSongIds?.has(battle.song_a_id)}
               onToggleLike={onToggleLike && battle?.song_a_id ? () => onToggleLike(battle.song_a_id) : undefined}
+              shared={shared}
+              credit={credits?.a}
             />
           </div>
 
@@ -147,6 +152,8 @@ const StageView = ({
               isWinner={derivedPhase === "FINISHED" && winnerSide === "B"}
               isLiked={!!battle?.song_b_id && !!likedSongIds?.has(battle.song_b_id)}
               onToggleLike={onToggleLike && battle?.song_b_id ? () => onToggleLike(battle.song_b_id) : undefined}
+              shared={shared}
+              credit={credits?.b}
             />
           </div>
         </div>
@@ -221,7 +228,7 @@ const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
 // Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
-const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike }: {
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike, shared, credit }: {
   source?: string;
   trackId?: string;
   songTitle: string;
@@ -233,15 +240,24 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
   isA: boolean;
   isLiked?: boolean;
   onToggleLike?: () => void;
+  shared?: boolean;
+  credit?: StageSongCredit | null;
 }) => (
-  <div className={`${STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
+  <div className={`${shared ? "" : STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
     {showInfo && (
       <>
         <p className="w-full text-sm lg:text-2xl font-semibold text-foreground truncate">{songTitle || "—"}</p>
         <p className="w-full text-xs lg:text-lg text-text-secondary truncate">{artistName}</p>
       </>
     )}
+    {shared && showInfo && credit !== undefined && <SongCreditLine credit={credit} isA={isA} />}
     <div className="mt-0.5 flex items-center gap-2">
+      {shared && source === "spotify" && trackId && (
+        // Black on white with a quiet zone so phones read it
+        <div className="bg-white rounded p-1" aria-hidden>
+          <QRCodeSVG value={`https://open.spotify.com/track/${trackId}`} size={56} marginSize={1} />
+        </div>
+      )}
       {source === "spotify" && trackId && (
         <a
           href={`https://open.spotify.com/track/${trackId}`}
@@ -275,6 +291,22 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
   </div>
 );
 
+// Shared Stage View: MF nickname + arena PI of the proposer (step 16), never
+// a Spotify name; system songs (and lent Liked Songs) stay anonymous
+const SongCreditLine = ({ credit, isA }: { credit: StageSongCredit | null; isA: boolean }) => (
+  <p className="w-full text-xs lg:text-base text-text-secondary truncate">
+    {credit?.proposer ? (
+      <>
+        Proposed by <span className={`font-semibold ${isA ? "text-song-a" : "text-song-b"}`}>{credit.proposer}</span>
+        <span> · {credit.pi} PI</span>
+      </>
+    ) : (
+      "Picked by Music Fighter"
+    )}
+    {credit?.backers > 0 && <span> · +{credit.backers} backed it</span>}
+  </p>
+);
+
 // Stage-optimized Song Card (read-only, larger text)
 interface StageSongCardProps {
   position: "A" | "B";
@@ -290,9 +322,11 @@ interface StageSongCardProps {
   isWinner?: boolean;
   isLiked?: boolean;
   onToggleLike?: () => void;
+  shared?: boolean;
+  credit?: StageSongCredit | null;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, isLiked, onToggleLike }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, isLiked, onToggleLike, shared, credit }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote (a passive
@@ -377,6 +411,8 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
         isA={isA}
         isLiked={isLiked}
         onToggleLike={onToggleLike}
+        shared={shared}
+        credit={credit}
       />
     </>
   );

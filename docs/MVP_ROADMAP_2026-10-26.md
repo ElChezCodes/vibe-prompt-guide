@@ -243,9 +243,12 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   Supabase-infra-level (reasonable to assume done), streaming tokens encrypted
   at rest since step 5 (AES-256-GCM, key in Edge secrets), vote-level encryption not implemented (relies on
   DB-level RLS, not field encryption).
-- Arena TTL / archival of abandoned arenas — *Backend_Block_5 §6*. **Not
-  started** (102 stale "Test Arena" rows from the cron incident are exactly the
-  kind of thing this rule would have prevented from piling up).
+- Arena TTL / archival of abandoned arenas — *Backend_Block_5 §6*. **Done**
+  (step 1 closure, 2026-10-26): `arena_expiry_job` → `expire_stale_arenas`
+  (waiting idle 6 h → expired, active idle 2 h → finished) and
+  `arena_vote_purge_job` (votes deleted 30 days after an arena closes, final
+  tallies kept); see CLAUDE.md "Arena states". The vestigial
+  `identity_anchors` table was dropped in step 19.
 
 ### H. Host arena-management flows
 - Pause/resume Arena, choose initial song if no previous winner exists,
@@ -254,9 +257,7 @@ Status key: **Done** (built and verified this session or earlier) / **Partial**
   beyond create/view.
 
 ### I. Stage View & UX conformance
-- Real-data Stage View wiring — already scoped in the prior roadmap doc as
-  unblocked. **Not started** (confirmed still true — `StageViewScreen.tsx` is
-  hardcoded).
+- Real-data Stage View wiring — **Done in step 19a (2026-10-29)**, see step 19.
 - Tension bar exact behavior (50/50 start, interpolated not instant, micro-
   oscillation, percentages pinned to the divider), battle-card exit/win
   animation sequence, status-overlay timing — *Paso_2 §5-7*. **Partial** —
@@ -645,7 +646,9 @@ additions (#1, #4 above), each marked where it lands.
     country and world, this month and all-time, accounts only), generated
     nickname editable in Profile, optional declared country, "Your PI" chip +
     award notice in the Battle Room. **Still to do (step 19): PI next to names
-    in the Stage View** (it shows no proposer names yet).
+    in the Stage View** (it shows no proposer names yet). **Done in step 19a
+    (2026-10-29):** proposer nickname + arena PI on the Stage View cards, top
+    5 PI beside the battle, final ranking when the arena finishes.
 17. **Battle pair selection / matchmaking** — popularity/BPM/energy/genre
     compatibility, continuity with the previous winner. Needs #12 and #13 (a
     real, populated queue) to select from. Its Spotify inputs (popularity,
@@ -729,6 +732,24 @@ additions (#1, #4 above), each marked where it lands.
     stub (check nothing imports/references them first), and fix the 3
     pre-existing lint errors (empty interfaces in `src/components/ui/command.tsx`
     and `textarea.tsx`, `require()` in `tailwind.config.ts`).
+    **Split by the user 2026-10-29:** 19a Stage View + technical cleanup,
+    19b host flows (manual pause/resume, excluded genres, close "initial song"
+    = warm-up), 19c tension bar/overlays vs PASO_2 §5-7 + phone/tablet/desktop
+    QA.
+    **19a built 2026-10-29** (`supabase/sql/stage_view_2026-10-29.sql`,
+    `cleanup_identity_anchors_2026-10-29.sql`; details in CLAUDE.md "Stage
+    View"). User decisions: anyone with the link opens it; never a
+    participant (no heartbeat/presence/passive vote/PI count); information
+    only, no playback controls (v3.2/v4 "controles de playback, selector de
+    dispositivo" not adopted: the host keeps NowPlaying + their Spotify app,
+    and a song is never cut); shows the live battle, now playing/next, Next up
+    to fight, join QR + code, presence counts, top 5 PI; proposers' MF
+    nickname + arena PI on the cards (system songs and lent Liked Songs
+    anonymous: "Picked by Music Fighter"), backers count; Spotify logo +
+    uncropped artwork + "Open Spotify" with a small QR per card; lobby = big
+    QR + warm-up + people, finished = final ranking. Database only, no Spotify
+    calls. Cleanup done: debug logs removed, `identity_anchors` dropped,
+    `useBattleEndedTrigger` deleted, lint 0 errors.
 20. **Pilot validation, hardening, closure** — the pilot (a private
     gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything

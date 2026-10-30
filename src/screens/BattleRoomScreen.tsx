@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getParticipantVote, getMyPassiveVote, applyVoteIntent, Vote } from "@/integrations/supabase/votes";
 import { useBattleOrchestrator, ArenaBattleView } from "@/hooks/useBattleOrchestrator";
+import { getDerivedBattlePhase } from "@/lib/derivedBattlePhase";
 import { useBattleClosureOrchestrator } from "@/hooks/useBattleClosureOrchestrator";
 import { useArenaFlow } from "@/hooks/useArenaFlow";
 import { useArenaWarmup } from "@/hooks/useArenaWarmup";
@@ -42,48 +43,6 @@ interface ParticipantData {
   id: string;
   is_host: boolean;
 }
-
-type DerivedBattlePhase = "NORMAL" | "FINAL_30S" | "LOCK_IN" | "SUDDEN_DEATH" | "FINISHED";
-
-/**
- * Derives the UI battle phase from BACKEND STATE + remaining time for display.
- *
- * Backend-authoritative fields used:
- * - battle.state: 'pending' | 'active' | 'closing' | 'completed'
- * - battle.sudden_death_active: boolean (source of truth for sudden death)
- * - battle.locked_at: string | null (source of truth for lock-in)
- * - battle.winner_song_id: string | null (source of truth for resolution)
- *
- * The remainingTime is DISPLAY-ONLY and does not trigger any state changes.
- */
-const getDerivedBattlePhase = (battle: ArenaBattleView | null): DerivedBattlePhase => {
-  if (!battle) return "NORMAL";
-
-  const debugInfo = { battle_id: battle.battle_id, state: battle.state, resolution_type: battle.resolution_type };
-
-  if (battle.state === "completed") {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "FINISHED", timestamp: Date.now() });
-    return "FINISHED";
-  }
-
-  // resolution_type is only set at completion, so it can't detect an ongoing SD
-  if (battle.state === "closing" && battle.sudden_death_active) {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "SUDDEN_DEATH", timestamp: Date.now() });
-    return "SUDDEN_DEATH";
-  }
-
-  if (battle.state === "closing") {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "LOCK_IN", timestamp: Date.now() });
-    return "LOCK_IN";
-  }
-
-  if (battle.state === "active") {
-    console.log("[DerivedPhase Debug]", { ...debugInfo, returned_phase: "NORMAL", timestamp: Date.now() });
-    return "NORMAL";
-  }
-
-  return "NORMAL";
-};
 
 const BattleRoomScreen = () => {
   const navigate = useNavigate();

@@ -43,18 +43,7 @@ const BattleTimer = ({ battle, pausedAt = null }: BattleTimerProps) => {
       const clientNow = pausedAt ? new Date(pausedAt).getTime() : Date.now();
       const elapsedMs = clientNow - startedAt;
       const remainingMs = battle.duration_ms - elapsedMs;
-      const remaining_seconds = Math.max(0, Math.ceil(remainingMs / 1000));
-      console.log("[BattleTimer Debug]", {
-        battle_id: battle.battle_id,
-        state: battle.state,
-        started_at: battle.started_at,
-        duration_ms: battle.duration_ms,
-        remaining_seconds,
-        elapsed_ms: elapsedMs,
-        remaining_ms: remainingMs,
-        client_now: clientNow,
-      });
-      setRemainingTime(remaining_seconds);
+      setRemainingTime(Math.max(0, Math.ceil(remainingMs / 1000)));
     };
 
     updateRemaining();
