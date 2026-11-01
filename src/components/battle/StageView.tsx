@@ -303,13 +303,16 @@ const StageView = ({
         </div>
       </div>
 
-      {/* Bottom balance spacer, carries arena name + mood */}
-      <div className="h-16 lg:h-24 flex items-center justify-center">
-        <p className="text-sm lg:text-base text-muted-foreground">
-          {arena.name}
-          {getMoodLabel(arena.mood) && <span> · {getMoodLabel(arena.mood)}</span>}
-        </p>
-      </div>
+      {/* Bottom balance spacer, carries arena name + mood. Not in the Battle
+          Room (user, 2026-11-01): it pushed NowPlaying + Propose below the fold */}
+      {!withTabBar && (
+        <div className="h-16 lg:h-24 flex items-center justify-center">
+          <p className="text-sm lg:text-base text-muted-foreground">
+            {arena.name}
+            {getMoodLabel(arena.mood) && <span> · {getMoodLabel(arena.mood)}</span>}
+          </p>
+        </div>
+      )}
 
     </div>
   );
