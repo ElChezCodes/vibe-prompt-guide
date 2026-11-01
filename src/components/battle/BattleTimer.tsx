@@ -65,8 +65,9 @@ const BattleTimer = ({ battle, pausedAt = null, highlight = false }: BattleTimer
     <div className="relative py-8">
       <div className="flex items-center justify-center">
         <span
-          className={`h-16 lg:h-24 flex items-center px-6 rounded-2xl border bg-secondary/70 backdrop-blur font-arcade text-4xl lg:text-7xl font-black tracking-widest tabular-nums transition-colors duration-300 ${
-            isFinal ? "text-energy-yellow border-energy-yellow/50 animate-pulse" : "text-foreground border-border"
+          // Just the numbers, no frame (user, 2026-11-01: a cleaner screen)
+          className={`h-16 lg:h-24 flex items-center font-arcade text-4xl lg:text-7xl font-black tracking-widest tabular-nums transition-colors duration-300 ${
+            isFinal ? "text-energy-yellow animate-pulse" : "text-foreground"
           }`}
         >
           {formatTime(remainingTime)}

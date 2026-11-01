@@ -53,6 +53,9 @@ interface StageViewProps {
   credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
   // Battle Room since step 20: the app's tab bar (4rem) sits below it
   withTabBar?: boolean;
+  // Height of what the Battle Room lays over its bottom (NowPlaying + Propose):
+  // the cards' area ends above it, so the winner's pose never goes under it
+  bottomInset?: number;
 }
 
 // Paso_2 §6.2 resolution sequence (display only, from the backend result)
@@ -82,6 +85,7 @@ const StageView = ({
   shared = false,
   credits = null,
   withTabBar = false,
+  bottomInset = 0,
 }: StageViewProps) => {
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
@@ -221,7 +225,10 @@ const StageView = ({
   const voteHandler = (side: "A" | "B") => (onVote && !isResolved ? () => onVote(side) : undefined);
 
   return (
-    <div className={`relative ${withTabBar ? "min-h-[calc(100dvh-4rem)]" : "min-h-dvh"} w-full flex flex-col space-bg overflow-hidden`}>
+    <div
+      className={`relative ${withTabBar ? "min-h-[calc(100dvh-4rem)]" : "min-h-dvh"} w-full flex flex-col space-bg overflow-hidden`}
+      style={bottomInset ? { paddingBottom: bottomInset } : undefined}
+    >
       {/* Arena ambient lighting: blue corner left, magenta corner right */}
       <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
 

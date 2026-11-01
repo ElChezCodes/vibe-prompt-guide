@@ -195,6 +195,24 @@ const BattleRoomScreen = () => {
   // exit animation (display only; votes always go to the live battle)
   const display = useBattleDisplay(battle, playback?.paused_at ?? null);
   const [resumeError, setResumeError] = useState("");
+  // Height of the bottom stack (NowPlaying + Propose), so the cards end above
+  // it: the winner's pose covered its title/artist (user, 2026-11-01)
+  const [bottomInset, setBottomInset] = useState(0);
+  const bottomObserverRef = useRef<ResizeObserver | null>(null);
+  const bottomStackRef = useCallback((el: HTMLDivElement | null) => {
+    bottomObserverRef.current?.disconnect();
+    bottomObserverRef.current = null;
+    if (!el) {
+      setBottomInset(0);
+      return;
+    }
+    const measure = () => setBottomInset(Math.round(el.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      bottomObserverRef.current = new ResizeObserver(measure);
+      bottomObserverRef.current.observe(el);
+    }
+  }, []);
   const handleResume = async () => {
     if (!arenaId) return;
     setResumeError("");
@@ -408,6 +426,7 @@ const BattleRoomScreen = () => {
         onToggleLike={arena?.state === "active" && display.isLive ? handleToggleLike : undefined}
         preparingNext={display.preparingNext}
         withTabBar
+        bottomInset={bottomInset}
       />
 
       {/* Arena-level status (backend arenas.state) */}
@@ -550,7 +569,7 @@ const BattleRoomScreen = () => {
       {/* Bottom stack (above the vote layer, so taps here never vote): what the
           host's Spotify plays (step 18), then Propose Song, one under the other */}
       {(arena?.state === "waiting" || arena?.state === "active") && (
-        <div className="absolute bottom-0 inset-x-0 z-[55] flex flex-col items-center">
+        <div ref={bottomStackRef} className="absolute bottom-0 inset-x-0 z-[55] flex flex-col items-center">
           {/* PI award notice, floating above the stack: it doesn't grow the stack's
               box, and pointer-events-none lets taps through to the vote layer */}
           {myPi.notice.length > 0 && (

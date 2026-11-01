@@ -318,9 +318,11 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       const params = this.withMarket(new URLSearchParams({ q: query, type: "track", limit: "10", offset: String(start) }));
       const body = await this.must(`/search?${params}`);
       const items = (body?.tracks?.items ?? []).filter((t: any) => t?.id);
+      // Spotify's `next` isn't reliable here (found in-app 2026-11-01: never
+      // set), so a page with results means there may be another
       return {
         tracks: items.map((t: any) => toCatalogTrack(t, this.market)),
-        next_offset: body?.tracks?.next && start + 10 < 100 ? start + 10 : null,
+        next_offset: items.length > 0 && start + 10 < 100 ? start + 10 : null,
       };
     }
     const params = this.withMarket(new URLSearchParams({ q: query, type: "track,artist", limit: "10" }));
@@ -340,7 +342,7 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     }
     const seen = new Set<string>();
     const tracks = [...own, ...general].filter((t) => !seen.has(t.id) && !!seen.add(t.id));
-    return { tracks: tracks.map((t: any) => toCatalogTrack(t, this.market)), next_offset: body?.tracks?.next ? 10 : null };
+    return { tracks: tracks.map((t: any) => toCatalogTrack(t, this.market)), next_offset: general.length > 0 ? 10 : null };
   }
 
   async getTrack(trackId: string): Promise<CatalogTrack | null> {
