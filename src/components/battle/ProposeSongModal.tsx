@@ -16,17 +16,17 @@ interface ProposeSongModalProps {
 const ProposeSongModal = ({ open, onOpenChange, arenaId }: ProposeSongModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="neon-panel max-w-md mx-auto h-[80vh] flex flex-col gap-4 rounded-2xl">
+      {/* Step 20: the dialog scrolls as a whole (a fixed-height box left 2-3
+          result rows on phones); the send button sticks at its bottom */}
+      <DialogContent className="neon-panel max-w-md mx-auto max-h-[88dvh] overflow-y-auto flex flex-col gap-4 rounded-2xl pb-3">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="neon-heading text-xl">
             Propose a Song
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0">
-          {/* Stays open after proposing (more songs from the same search); closed by the user */}
-          <ProposeSongPanel arenaId={arenaId} />
-        </div>
+        {/* Stays open after proposing (more songs from the same search); closed by the user */}
+        <ProposeSongPanel arenaId={arenaId} layout="page" stickyClassName="bottom-0" />
       </DialogContent>
     </Dialog>
   );

@@ -24,7 +24,8 @@ const AppShell = () => {
     <div className="min-h-dvh w-full space-bg pb-16">
       <Outlet />
 
-      <nav className="fixed bottom-0 inset-x-0 z-50 h-16 tabbar-glass">
+      {/* z 70: above the Battle Room's HUD (55-60) when its page scrolls, below dialogs (90) */}
+      <nav className="fixed bottom-0 inset-x-0 z-[70] h-16 tabbar-glass">
         <div className="mx-auto max-w-md h-full grid grid-cols-5">
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <NavLink

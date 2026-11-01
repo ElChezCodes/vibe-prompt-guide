@@ -138,18 +138,22 @@ export async function searchSpotifyTracks(query: string): Promise<SpotifyTrack[]
 // one actually answered.
 export type CatalogAccount = 'own' | 'host';
 
+// Step 20: the artist's own tracks first when the query is their name;
+// next_offset = more results ("More results", 10 at a time, Spotify's cap)
 export async function searchArenaTracks(
   arenaId: string,
   query: string,
   account: CatalogAccount,
-): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount }> {
-  const res = await callSpotifyHost<{ tracks: SpotifyTrack[]; account: CatalogAccount }>({
+  offset = 0,
+): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount; next_offset: number | null }> {
+  const res = await callSpotifyHost<{ tracks: SpotifyTrack[]; account: CatalogAccount; next_offset: number | null }>({
     action: 'search',
     query,
     arena_id: arenaId,
     account,
+    offset,
   });
-  return { tracks: res.tracks ?? [], account: res.account };
+  return { tracks: res.tracks ?? [], account: res.account, next_offset: res.next_offset ?? null };
 }
 
 export interface ProposeSources {

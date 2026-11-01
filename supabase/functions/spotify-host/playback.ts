@@ -81,6 +81,9 @@ export interface PlaybackProvider {
   // Session = the arena's private playlist, first track = the warm-up
   createSession(name: string, firstTrackUri: string): Promise<PlaybackSession>;
   search(query: string, offset?: number): Promise<CatalogTrack[]>;
+  // What people search to propose: the artist's own tracks first when the
+  // query is an artist's name, then Spotify's results; next_offset = more
+  searchCatalog(query: string, offset?: number): Promise<{ tracks: CatalogTrack[]; next_offset: number | null }>;
   getTrack(trackId: string): Promise<CatalogTrack | null>;
   // The token owner's own library, only to pick a song to propose (step 7)
   listPlaylists(ownerId: string): Promise<LibraryPlaylist[]>;
@@ -138,6 +141,11 @@ const MAX_PLAYLIST_PAGES = 4;
 export const LIKED_SONGS_ID = "liked";
 
 export const trackUri = (id: string) => `spotify:track:${id}`;
+
+// Case/accents/punctuation-insensitive name, to tell an artist search apart
+function normalizeName(s: string): string {
+  return String(s).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
 
 function toCatalogTrack(t: any, market: string | null): CatalogTrack {
   const images: any[] = t.album?.images ?? [];
@@ -298,6 +306,41 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     if (offset > 0) params.set("offset", String(Math.floor(offset)));
     const body = await this.must(`/search?${params}`);
     return (body?.tracks?.items ?? []).filter((t: any) => t?.id).map((t: any) => toCatalogTrack(t, this.market));
+  }
+
+  // Step 20 (user, 2026-11-01): typing "saqi" returned 5 tracks, none by Saqi,
+  // and 10 results (Spotify's cap since Feb 2026) were often too few. One
+  // call asks for tracks + artists; when an artist's name is the query, their
+  // own tracks go first (one more call); "More results" pages by 10.
+  async searchCatalog(query: string, offset = 0): Promise<{ tracks: CatalogTrack[]; next_offset: number | null }> {
+    const start = Math.max(0, Math.min(90, Math.floor(offset)));
+    if (start > 0) {
+      const params = this.withMarket(new URLSearchParams({ q: query, type: "track", limit: "10", offset: String(start) }));
+      const body = await this.must(`/search?${params}`);
+      const items = (body?.tracks?.items ?? []).filter((t: any) => t?.id);
+      return {
+        tracks: items.map((t: any) => toCatalogTrack(t, this.market)),
+        next_offset: body?.tracks?.next && start + 10 < 100 ? start + 10 : null,
+      };
+    }
+    const params = this.withMarket(new URLSearchParams({ q: query, type: "track,artist", limit: "10" }));
+    const body = await this.must(`/search?${params}`);
+    const general: any[] = (body?.tracks?.items ?? []).filter((t: any) => t?.id);
+    const q = normalizeName(query);
+    const artists: any[] = (body?.artists?.items ?? []).filter((a: any) => a?.id && a?.name);
+    const artist = artists.find((a) => normalizeName(a.name) === q) ??
+      (q.length >= 4 && artists[0] && normalizeName(artists[0].name).startsWith(q) ? artists[0] : null);
+    let own: any[] = [];
+    if (artist) {
+      const byArtist = this.withMarket(new URLSearchParams({ q: `artist:"${String(artist.name).replace(/"/g, "")}"`, type: "track", limit: "10" }));
+      const res = await this.api(`/search?${byArtist}`);
+      if (res.status === 200) {
+        own = (res.body?.tracks?.items ?? []).filter((t: any) => t?.id && (t.artists ?? []).some((a: any) => a?.id === artist.id));
+      }
+    }
+    const seen = new Set<string>();
+    const tracks = [...own, ...general].filter((t) => !seen.has(t.id) && !!seen.add(t.id));
+    return { tracks: tracks.map((t: any) => toCatalogTrack(t, this.market)), next_offset: body?.tracks?.next ? 10 : null };
   }
 
   async getTrack(trackId: string): Promise<CatalogTrack | null> {

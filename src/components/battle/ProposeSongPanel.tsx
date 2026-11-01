@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Search, Music, X, ListMusic, Heart } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,8 @@ interface ProposeSongPanelProps {
   // with inner scrolling. Step 20: on a phone with own Spotify + "Lend my
   // Liked Songs" the fixed box left one row for Next up.
   layout?: "fill" | "page";
+  // Page layout: where the send button sticks (above the tab bar by default)
+  stickyClassName?: string;
 }
 
 // Shared by the Battle Room modal and the Proponer screen. Both mount it
@@ -115,7 +117,7 @@ interface ProposeSongPanelProps {
 // done in the other. Step 7: a member with their own Spotify connected can
 // also search with it (falling back to the host's) and pick from their own
 // playlists; every proposal still goes through the same spotify-host propose.
-const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: ProposeSongPanelProps) => {
+const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill", stickyClassName = "bottom-16" }: ProposeSongPanelProps) => {
   const page = layout === "page";
   // A plain function (not a component), so the list isn't remounted on each render
   const scroll = (children: ReactNode) =>
@@ -127,6 +129,11 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
   // Which account the selected song was found with (propose re-reads it with that one)
   const [selectedAccount, setSelectedAccount] = useState<CatalogAccount>("own");
   const [results, setResults] = useState<SpotifyTrack[]>([]);
+  // Step 20: "More results" (Spotify answers 10 at a time)
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // The query on screen now, so late "More results" pages of an older one are dropped
+  const queryRef = useRef("");
   const [sources, setSources] = useState<ProposeSources | null>(null);
   const [tab, setTab] = useState<"search" | "playlists">("search");
   const [searchAccount, setSearchAccount] = useState<CatalogAccount>("own");
@@ -161,17 +168,20 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
   }, [loadMyProposals]);
 
   useEffect(() => {
+    queryRef.current = searchQuery;
     if (!showResults) {
       setResults([]);
+      setNextOffset(null);
       return;
     }
 
     let cancelled = false;
     const timeout = setTimeout(() => {
       searchSongs(arenaId, searchQuery, searchAccount)
-        .then(({ tracks, account }) => {
+        .then(({ tracks, account, next_offset }) => {
           if (cancelled) return;
           setResults(tracks);
+          setNextOffset(next_offset);
           setSearchedWith(account);
         })
         .catch((err) => {
@@ -190,6 +200,26 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
       clearTimeout(timeout);
     };
   }, [searchQuery, showResults, arenaId, searchAccount]);
+
+  const handleMoreResults = async () => {
+    if (nextOffset == null || loadingMore) return;
+    const query = searchQuery;
+    queryRef.current = query;
+    setLoadingMore(true);
+    try {
+      const { tracks, next_offset } = await searchSongs(arenaId, query, searchedWith ?? searchAccount, nextOffset);
+      if (query !== queryRef.current) return;
+      setResults((prev) => {
+        const seen = new Set(prev.map((t) => t.spotify_track_id));
+        return [...prev, ...tracks.filter((t) => !seen.has(t.spotify_track_id))];
+      });
+      setNextOffset(next_offset);
+    } catch {
+      setNextOffset(null);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!selectedSongId || isSubmitting) return;
@@ -301,7 +331,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
 
   return (
     <div className={page ? "flex flex-col gap-3" : "h-full flex flex-col gap-3"}>
-      {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
+      {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && !showResults && (
         <p className="flex-shrink-0 self-center inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-song-b bg-song-b/10 border border-song-b/30">
           <span className="w-1.5 h-1.5 rounded-full bg-song-b animate-pulse" />
           The queue is running low: propose a song!
@@ -335,8 +365,9 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
         </div>
       )}
 
-      {/* Step 13: a guest may lend their Liked Songs when the queue runs dry */}
-      {canChooseAccount && (
+      {/* Step 13: a guest may lend their Liked Songs when the queue runs dry
+          (hidden while searching: the results need the room, step 20) */}
+      {canChooseAccount && !showResults && (
         <label
           className={`flex-shrink-0 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
             sources.can_read_library ? "cursor-pointer" : "cursor-not-allowed opacity-70"
@@ -459,6 +490,16 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
                   onSelect={() => selectTrack(track, searchedWith ?? searchAccount)}
                 />
               ))}
+              {nextOffset != null && results.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMoreResults}
+                  disabled={loadingMore}
+                  className="w-full h-10 rounded-xl neon-row text-sm font-semibold text-text-secondary hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? "Loading..." : "More results"}
+                </button>
+              )}
             </div>,
           )
         )}
@@ -478,7 +519,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: Prop
 
       {/* Send the picked song (step 20: named after it, not "Propose Song"
           like the button that opens this panel) */}
-      <div className={page ? "sticky bottom-16 z-10 -mx-1 px-1 pt-2 pb-1 bg-background/85 backdrop-blur-md rounded-xl" : "flex-shrink-0 pt-2"}>
+      <div className={page ? `sticky ${stickyClassName} z-10 -mx-1 px-1 pt-2 pb-1 bg-background/85 backdrop-blur-md rounded-xl` : "flex-shrink-0 pt-2"}>
         <Button
           onClick={handleSubmit}
           disabled={!selectedSongId || isSubmitting}

@@ -53,8 +53,9 @@ export async function searchSongs(
   arenaId: string,
   query: string,
   account: CatalogAccount,
-): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount }> {
-  return searchArenaTracks(arenaId, query, account);
+  offset = 0,
+): Promise<{ tracks: SpotifyTrack[]; account: CatalogAccount; next_offset: number | null }> {
+  return searchArenaTracks(arenaId, query, account, offset);
 }
 
 export async function proposeSong(

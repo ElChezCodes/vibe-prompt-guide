@@ -647,16 +647,17 @@ async function withArenaCatalog<T>(
 
 async function search(userId: string, body: any) {
   const query = String(body?.query ?? "").trim().slice(0, 100);
-  if (!query) return { tracks: [] };
+  if (!query) return { tracks: [], next_offset: null };
+  const offset = Math.max(0, Math.floor(Number(body?.offset) || 0));
 
   if (body?.arena_id) {
     const arena = await arenaForMember(userId, String(body.arena_id));
-    const { result, account } = await withArenaCatalog(userId, arena, body?.account, (p) => p.search(query));
-    return { tracks: result, account };
+    const { result, account } = await withArenaCatalog(userId, arena, body?.account, (p) => p.searchCatalog(query, offset));
+    return { ...result, account };
   }
   const account = await loadAccount(userId);
   if (!account) throw new HttpError(409, "spotify_not_connected", "Connect Spotify first");
-  return { tracks: await (await providerFor(account)).search(query), account: "own" };
+  return { ...(await (await providerFor(account)).searchCatalog(query, offset)), account: "own" };
 }
 
 // A member of an arena that still takes proposals (same states as queues RLS)
