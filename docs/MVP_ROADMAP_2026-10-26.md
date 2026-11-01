@@ -868,5 +868,14 @@ additions (#1, #4 above), each marked where it lands.
        continuity with what just sounded, then random. Passive votes were
        rare because 6/9 (anonymous) participants had < 3 own songs
        (`min_signals`): no profile; user chose to keep the rule.
-    Then the GO/NO-GO write-up (Paso_4): still missing the user's notes on
-    reactions and whether they'd repeat.
+    **Reactions (user, 2026-11-01):** people liked it, understood it easily
+    and found it easy to put music on at the party; most would use it again
+    in similar settings and find it easier than joining a Spotify Jam and
+    adding songs to the queue without interrupting the music. Product
+    insight (user): most guests stay for hours but only want to propose a
+    couple of songs; few keep proposing. So the passive affinity of the
+    users and of the arena must visibly drive the music: a "collective mind"
+    steers the party's flow. Pilot data agrees: 94/115 battles were system vs
+    system, passive votes came from 3 of 9 people (the others had no
+    profile), 32 battles had no vote at all. Next: define how the collective
+    mind works for guests who barely act (to decide with the user).
