@@ -51,6 +51,8 @@ interface StageViewProps {
   // "Open Spotify" (nobody can click a TV)
   shared?: boolean;
   credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
+  // Battle Room since step 20: the app's tab bar (4rem) sits below it
+  withTabBar?: boolean;
 }
 
 // Paso_2 §6.2 resolution sequence (display only, from the backend result)
@@ -79,6 +81,7 @@ const StageView = ({
   preparingNext = false,
   shared = false,
   credits = null,
+  withTabBar = false,
 }: StageViewProps) => {
   const votesA = battle?.votes_a ?? 0;
   const votesB = battle?.votes_b ?? 0;
@@ -218,7 +221,7 @@ const StageView = ({
   const voteHandler = (side: "A" | "B") => (onVote && !isResolved ? () => onVote(side) : undefined);
 
   return (
-    <div className="relative min-h-dvh w-full flex flex-col space-bg overflow-hidden">
+    <div className={`relative ${withTabBar ? "min-h-[calc(100dvh-4rem)]" : "min-h-dvh"} w-full flex flex-col space-bg overflow-hidden`}>
       {/* Arena ambient lighting: blue corner left, magenta corner right */}
       <div aria-hidden className="pointer-events-none absolute inset-0 arena-ambient" />
 

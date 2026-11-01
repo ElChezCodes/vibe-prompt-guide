@@ -391,7 +391,8 @@ const BattleRoomScreen = () => {
   const displayedPassive = hasOwnVote || derivedPhase === "SUDDEN_DEATH" ? null : passiveSongId;
 
   return (
-    <div className="relative min-h-dvh w-full">
+    // Step 20 (user, 2026-11-01): inside the app shell, above its tab bar
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full">
       {/* Presentational layer */}
       <StageView
         key={display.battle?.battle_id}
@@ -406,6 +407,7 @@ const BattleRoomScreen = () => {
         likedSongIds={likedSongIds}
         onToggleLike={arena?.state === "active" && display.isLive ? handleToggleLike : undefined}
         preparingNext={display.preparingNext}
+        withTabBar
       />
 
       {/* Arena-level status (backend arenas.state) */}
@@ -438,16 +440,10 @@ const BattleRoomScreen = () => {
         </div>
       )}
 
-      {/* Way out of the battle without leaving the arena (Paso_2 §3 keeps the
-          battle itself menu-free; this only switches to the app zone) */}
+      {/* Step 20 (user, 2026-11-01): the app's tab bar is shown here too, so
+          "← App" is gone; the host keeps Lobby, guests get Invite */}
       {arena?.state !== "finished" && (
         <div className="absolute top-2 left-2 z-[55] flex gap-2">
-          <button
-            onClick={() => navigate("/")}
-            className="hud-chip px-3 py-1 rounded-full text-xs font-medium transition-colors"
-          >
-            ← App
-          </button>
           {participant?.is_host && (
             <button
               onClick={() => navigate(arenaPath(arena.arena_code, "lobby"))}

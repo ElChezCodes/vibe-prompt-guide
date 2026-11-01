@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Search, Music, X, ListMusic, Heart } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -103,6 +103,11 @@ interface ProposeSongPanelProps {
   arenaId: string;
   // Step 17: the next 10 to fight, under the search (Propose screen only)
   showNextUp?: boolean;
+  // "page" (Propose screen): the panel grows and the screen scrolls, the send
+  // button sticks above the tab bar. "fill" (modal): fills a fixed-height box
+  // with inner scrolling. Step 20: on a phone with own Spotify + "Lend my
+  // Liked Songs" the fixed box left one row for Next up.
+  layout?: "fill" | "page";
 }
 
 // Shared by the Battle Room modal and the Proponer screen. Both mount it
@@ -110,7 +115,11 @@ interface ProposeSongPanelProps {
 // done in the other. Step 7: a member with their own Spotify connected can
 // also search with it (falling back to the host's) and pick from their own
 // playlists; every proposal still goes through the same spotify-host propose.
-const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps) => {
+const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill" }: ProposeSongPanelProps) => {
+  const page = layout === "page";
+  // A plain function (not a component), so the list isn't remounted on each render
+  const scroll = (children: ReactNode) =>
+    page ? <div>{children}</div> : <ScrollArea className="h-full">{children}</ScrollArea>;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   // Shown on the send button, so it can't be mistaken for "Propose a song"
@@ -291,7 +300,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
   );
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    <div className={page ? "flex flex-col gap-3" : "h-full flex flex-col gap-3"}>
       {queueSummary && queueSummary.human_queued < LOW_QUEUE_THRESHOLD && (
         <p className="flex-shrink-0 self-center inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-song-b bg-song-b/10 border border-song-b/30">
           <span className="w-1.5 h-1.5 rounded-full bg-song-b animate-pulse" />
@@ -358,7 +367,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
       )}
 
       {tab === "playlists" ? (
-        <div className="flex-1 min-h-0">
+        <div className={page ? "h-[65dvh]" : "flex-1 min-h-0"}>
           <MyPlaylistsBrowser
             arenaId={arenaId}
             needsReconnect={!sources?.can_read_library}
@@ -411,17 +420,19 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
       </div>
 
       {/* Results Area */}
-      <div className="flex-1 min-h-0">
+      <div className={page ? "" : "flex-1 min-h-0"}>
         {!showResults ? (
           showNextUp && nextUp.length > 0 ? (
             // Step 17: the next 10 to fight, then their own proposals
-            <ScrollArea className="h-full">
-              <NextUpList songs={nextUp} />
-              {myProposals.length > 0 && <div className="mt-5">{proposalsList}</div>}
-            </ScrollArea>
+            scroll(
+              <>
+                <NextUpList songs={nextUp} />
+                {myProposals.length > 0 && <div className="mt-5">{proposalsList}</div>}
+              </>,
+            )
           ) : myProposals.length === 0 ? (
             // Empty state
-            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+            <div className={`${page ? "py-8" : "h-full"} flex flex-col items-center justify-center text-center px-6`}>
               <div className="w-20 h-20 rounded-full neon-outline flex items-center justify-center mb-5">
                 <Music className="h-9 w-9 text-song-b icon-glow-b" />
               </div>
@@ -430,11 +441,11 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
             </div>
           ) : (
             // My proposals still waiting in the queue
-            <ScrollArea className="h-full">{proposalsList}</ScrollArea>
+            scroll(proposalsList)
           )
         ) : (
           // Search results
-          <ScrollArea className="h-full">
+          scroll(
             <div className="space-y-2 pr-4">
               {/* Their own account failed (or was revoked): the host's answered */}
               {canChooseAccount && searchAccount === "own" && searchedWith === "host" && (
@@ -448,8 +459,8 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
                   onSelect={() => selectTrack(track, searchedWith ?? searchAccount)}
                 />
               ))}
-            </div>
-          </ScrollArea>
+            </div>,
+          )
         )}
       </div>
       </>
@@ -467,7 +478,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
 
       {/* Send the picked song (step 20: named after it, not "Propose Song"
           like the button that opens this panel) */}
-      <div className="flex-shrink-0 pt-2">
+      <div className={page ? "sticky bottom-16 z-10 -mx-1 px-1 pt-2 pb-1 bg-background/85 backdrop-blur-md rounded-xl" : "flex-shrink-0 pt-2"}>
         <Button
           onClick={handleSubmit}
           disabled={!selectedSongId || isSubmitting}

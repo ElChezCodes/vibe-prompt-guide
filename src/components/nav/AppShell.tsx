@@ -3,8 +3,8 @@ import { Home, Music, Swords, Trophy, User } from "lucide-react";
 import { useCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaHomePath, arenaPath } from "@/lib/arenaRoutes";
 
-// App zone: every screen except the Battle Room and the Stage View gets the
-// bottom tab bar (Paso_2 §3 "no navigation" applies only inside the battle).
+// App zone: every screen except the Stage View gets the bottom tab bar (the
+// Battle Room too since step 20, user decision 2026-11-01, over Paso_2 §3).
 const AppShell = () => {
   const { data: current } = useCurrentArena();
 

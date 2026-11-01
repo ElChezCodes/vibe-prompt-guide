@@ -48,10 +48,10 @@ const AppRoutes = () => {
         <Route path="/a/:code/lobby" element={<ArenaLobbyScreen />} />
         <Route path="/a/:code/connect" element={<ConnectStreamingScreen />} />
         <Route path="/a/:code/propose" element={<ProposeSongScreen />} />
+        {/* Battle Room: with the tab bar since step 20 (user decision
+            2026-11-01, over Paso_2 §3 "no navigation inside the battle") */}
+        <Route path="/a/:code/battle" element={<BattleRoomScreen />} />
       </Route>
-
-      {/* Battle Room: no tab bar or menus inside the battle (Paso_2 §3) */}
-      <Route path="/a/:code/battle" element={<BattleRoomScreen />} />
       {/* Stage view for venue displays, opened from a shared link */}
       <Route path="/a/:code/stage" element={<StageViewScreen />} />
 

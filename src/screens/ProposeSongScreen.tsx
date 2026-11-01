@@ -31,7 +31,8 @@ const ProposeSongScreen = () => {
   if (membership === "not_member") return <Navigate to={arenaPath(code, "battle")} replace />;
 
   return (
-    <div className="h-[calc(100dvh-4rem)] w-full flex flex-col gap-4 px-6 py-8 max-w-md mx-auto">
+    // Step 20: the page scrolls (a fixed-height box left one row for Next up on phones)
+    <div className="min-h-[calc(100dvh-4rem)] w-full flex flex-col gap-4 px-4 sm:px-6 py-8 max-w-md mx-auto">
       <div className="flex-shrink-0">
         <h1 className="neon-heading text-2xl">Propose a Song</h1>
         <p className="mt-1 text-sm text-text-secondary">
@@ -39,8 +40,8 @@ const ProposeSongScreen = () => {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 neon-panel rounded-2xl p-4">
-        <ProposeSongPanel arenaId={arena.id} showNextUp />
+      <div className="neon-panel rounded-2xl p-4">
+        <ProposeSongPanel arenaId={arena.id} showNextUp layout="page" />
       </div>
 
       <Button variant="neon" className="flex-shrink-0 h-11" onClick={() => navigate(arenaPath(code, "battle"))}>
