@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import { ArenaPlayback, ControlMode, setArenaControlMode } from "@/integrations/supabase/spotify";
 
@@ -6,6 +7,11 @@ interface Props {
   arenaId: string;
   playback: ArenaPlayback | null;
   isHost: boolean;
+  // Like the song playing now (user request 2026-11-01), same as the battle
+  // cards' like: mirrored in the liker's own Spotify Liked Songs, removed on
+  // unlike if MF added it. Never a vote (the song isn't in the open battle).
+  likedSongIds?: Set<string>;
+  onToggleLike?: (songId: string) => void;
 }
 
 /**
@@ -19,7 +25,7 @@ interface Props {
  * option): buttons are disabled while it saves, and "Back to automatic" asks
  * for confirmation.
  */
-const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
+const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: Props) => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   // The mode the host just chose, until a poll of get_arena_playback shows it
@@ -56,6 +62,9 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
       .finally(() => setSaving(false));
   };
 
+  const nowSongId = playback.now_playing_song_id;
+  const isLiked = !!nowSongId && !!likedSongIds?.has(nowSongId);
+
   const showPrompt =
     isHost && !!playback.manual_change_at && mode !== "manual" && playback.manual_change_at !== answeredChangeAt;
 
@@ -81,6 +90,23 @@ const NowPlaying = ({ arenaId, playback, isHost }: Props) => {
                 </span>
                 {playback.next_title ? <span className="truncate">· next: {playback.next_title}</span> : null}
               </p>
+            }
+            action={
+              onToggleLike && nowSongId ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleLike(nowSongId);
+                  }}
+                  aria-pressed={isLiked}
+                  aria-label={isLiked ? "Unlike song" : "Like song"}
+                  className="flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-text-secondary hover:text-foreground transition-colors"
+                >
+                  <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-primary text-primary" : ""}`} />
+                  <span className="hidden min-[380px]:inline">{isLiked ? "Liked" : "Like"}</span>
+                </button>
+              ) : undefined
             }
           />
         </div>

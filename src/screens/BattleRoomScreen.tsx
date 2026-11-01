@@ -579,7 +579,13 @@ const BattleRoomScreen = () => {
           )}
           {arena.state === "active" && !isPaused && (
             <div className="w-full max-w-sm px-4 pt-2">
-              <NowPlaying arenaId={arena.id} playback={playback} isHost={!!participant?.is_host} />
+              <NowPlaying
+                arenaId={arena.id}
+                playback={playback}
+                isHost={!!participant?.is_host}
+                likedSongIds={likedSongIds}
+                onToggleLike={handleToggleLike}
+              />
             </div>
           )}
           {/* Proposals allowed in waiting and active (Block 2 §8); RLS enforces it too */}

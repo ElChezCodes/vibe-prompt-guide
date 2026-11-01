@@ -295,6 +295,8 @@ export interface ArenaPlayback {
   now_playing_artist: string | null;
   now_playing_artwork_url: string | null;
   now_playing_spotify_track_id: string | null;
+  // The arena's songs row playing now (like button in NowPlaying, 2026-11-01)
+  now_playing_song_id: string | null;
   next_title: string | null;
   next_artist: string | null;
   control_mode: ControlMode | null;
