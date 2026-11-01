@@ -30,11 +30,16 @@ const formatTime = (seconds: number): string => {
 
 const BattleTimer = ({ battle, pausedAt = null, highlight = false }: BattleTimerProps) => {
   const [remainingTime, setRemainingTime] = useState<number>(0);
+  // Only these fields drive the clock (the battle object is rebuilt on every
+  // vote poll, so depending on it would restart the interval every 2 s)
+  const hasBattle = !!battle;
+  const battleStartedAt = battle?.started_at ?? null;
+  const battleDurationMs = battle?.duration_ms ?? 0;
 
   useEffect(() => {
-    if (!battle || !battle.started_at) {
+    if (!hasBattle || !battleStartedAt) {
       // Pending (not started yet): its whole length
-      setRemainingTime(battle ? Math.ceil(battle.duration_ms / 1000) : 0);
+      setRemainingTime(hasBattle ? Math.ceil(battleDurationMs / 1000) : 0);
       return;
     }
 
@@ -42,10 +47,10 @@ const BattleTimer = ({ battle, pausedAt = null, highlight = false }: BattleTimer
 
     const updateRemaining = () => {
       if (cancelled) return;
-      const startedAt = new Date(battle.started_at!).getTime();
+      const startedAt = new Date(battleStartedAt).getTime();
       const clientNow = pausedAt ? new Date(pausedAt).getTime() : Date.now();
       const elapsedMs = clientNow - startedAt;
-      const remainingMs = battle.duration_ms - elapsedMs;
+      const remainingMs = battleDurationMs - elapsedMs;
       setRemainingTime(Math.max(0, Math.ceil(remainingMs / 1000)));
     };
 
@@ -57,7 +62,7 @@ const BattleTimer = ({ battle, pausedAt = null, highlight = false }: BattleTimer
       cancelled = true;
       clearInterval(interval);
     };
-  }, [battle?.battle_id, battle?.started_at, battle?.duration_ms, pausedAt]);
+  }, [battle?.battle_id, hasBattle, battleStartedAt, battleDurationMs, pausedAt]);
 
   const isFinal = highlight && remainingTime > 0;
 
