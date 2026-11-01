@@ -22,6 +22,7 @@ import { arenaPath } from "@/lib/arenaRoutes";
 import { useArenaPresence } from "@/hooks/useArenaPresence";
 import PresenceChip from "@/components/arena/PresenceChip";
 import PiChip, { PiNotice } from "@/components/arena/PiChip";
+import InviteButton from "@/components/arena/InviteButton";
 import { useMyPi } from "@/hooks/useMyPi";
 import { useArenaQueueSummary } from "@/hooks/useArenaQueueSummary";
 import { LOW_QUEUE_THRESHOLD } from "@/integrations/supabase/proposals";
@@ -454,6 +455,10 @@ const BattleRoomScreen = () => {
             >
               Lobby
             </button>
+          )}
+          {/* Step 20: guests invite too (the host has the QR in the Lobby) */}
+          {!participant?.is_host && arena?.arena_code && (arena.state === "waiting" || arena.state === "active") && (
+            <InviteButton arenaCode={arena.arena_code} arenaName={arena.name} />
           )}
           <PresenceChip state={presence?.my_state} />
         </div>

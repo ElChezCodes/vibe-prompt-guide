@@ -119,7 +119,9 @@ export async function withdrawBacking(arenaId: string, songId: string): Promise<
 
 // Step 17: the next 10 in the order matchmaking would send them to fight
 // (pair_no 1 = the next battle; vs_system: it will face a system song;
-// available_at: can't sound yet, 60-min rule). Decided server-side.
+// available_at: can't sound yet, 60-min rule). Step 20: plus the system songs
+// that would fill the next 5 battles (is_system; the next battle's is the one
+// picked unless the queue changes, later ones a forecast). Decided server-side.
 export interface NextUpSong {
   pos: number;
   song_id: string;
@@ -132,6 +134,7 @@ export interface NextUpSong {
   vs_system: boolean;
   is_mine: boolean;
   available_at: string | null;
+  is_system: boolean;
 }
 
 export async function getArenaNextUp(arenaId: string): Promise<NextUpSong[]> {

@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   CatalogTrack,
   LIBRARY_PAGE,
+  LibraryPage,
   LIKED_SONGS_ID,
   onSpotifyRateLimit,
   PlaybackError,
@@ -797,7 +798,13 @@ async function createArena(userId: string, body: any) {
 // Step 13 (supabase/sql/system_songs_fit_2026-10-28.sql): prepare_reserve also
 // prunes, rotates and ranks it by fit with the arena, and guests who switched
 // "lend my Liked Songs" on add theirs (their token, the host's country).
-const ARTIST_SEARCH_TRIES = 2;
+const ARTIST_SEARCH_TRIES = 3;
+// Step 20: a system song never sounds twice in an arena (user decision
+// 2026-11-01), so the sources must go deeper: up to 3 random pages of the
+// host's source, and the arena's artists plus their MusicBrainz/ListenBrainz
+// related artists, searched past the first page when it is used up
+const LIBRARY_PAGE_TRIES = 3;
+const ARTIST_DEEP_OFFSETS = [10, 20, 30, 40];
 // Watcher pacing of refills (2026-10-29, Spotify 429): at most one a minute,
 // and one every 10 minutes while refills add nothing (small or used-up library)
 const RESERVE_REFILL_MS = 60_000;
@@ -819,13 +826,21 @@ async function refillReserve(arena: { id: string; host_id: string }): Promise<{ 
 
   if (needs.host_library > 0 && canReadLibrary(account)) {
     try {
-      const { data: added } = await admin.rpc("add_reserve_songs", {
-        p_arena_id: arena.id,
-        p_source: "host_library",
-        p_tracks: await randomLibraryPage(provider, needs.source),
-        p_limit: needs.host_library,
-      });
-      total += added ?? 0;
+      let missingLib = needs.host_library;
+      const tried = new Set<number>();
+      const cache: { first?: LibraryPage } = {};
+      for (let i = 0; i < LIBRARY_PAGE_TRIES && missingLib > 0; i++) {
+        const page = await randomLibraryPage(provider, needs.source, tried, cache);
+        if (!page) break;
+        const { data: added } = await admin.rpc("add_reserve_songs", {
+          p_arena_id: arena.id,
+          p_source: "host_library",
+          p_tracks: page,
+          p_limit: missingLib,
+        });
+        missingLib -= added ?? 0;
+        total += added ?? 0;
+      }
     } catch (err) {
       console.error("[spotify-host] reserve host_library", arena.id, err);
     }
@@ -839,7 +854,7 @@ async function refillReserve(arena: { id: string; host_id: string }): Promise<{ 
       const { data: added } = await admin.rpc("add_reserve_songs", {
         p_arena_id: arena.id,
         p_source: "guest_library",
-        p_tracks: await randomLibraryPage(lender.provider, LIKED_SONGS_ID),
+        p_tracks: (await randomLibraryPage(lender.provider, LIKED_SONGS_ID, new Set())) ?? [],
         p_limit: guest.need,
         p_contributor: guest.user_id,
       });
@@ -849,20 +864,26 @@ async function refillReserve(arena: { id: string; host_id: string }): Promise<{ 
     }
   }
 
-  const artists: string[] = shuffle(needs.artists ?? []);
+  // The arena's own artists and their related ones, mixed
+  const artists: string[] = shuffle([...new Set<string>([...(needs.artists ?? []), ...(needs.related_artists ?? [])])]);
   let missing = needs.arena_artist;
   for (const artist of artists.slice(0, ARTIST_SEARCH_TRIES)) {
     if (missing <= 0) break;
     try {
-      const tracks = await provider.search(`artist:"${artist.replace(/"/g, "")}"`);
-      const { data: added } = await admin.rpc("add_reserve_songs", {
-        p_arena_id: arena.id,
-        p_source: "arena_artist",
-        p_tracks: shuffle(tracks.filter(playable)),
-        p_limit: missing,
-      });
-      missing -= added ?? 0;
-      total += added ?? 0;
+      const query = `artist:"${artist.replace(/"/g, "")}"`;
+      for (const offset of [0, ARTIST_DEEP_OFFSETS[Math.floor(Math.random() * ARTIST_DEEP_OFFSETS.length)]]) {
+        const tracks = await provider.search(query, offset);
+        const { data: added } = await admin.rpc("add_reserve_songs", {
+          p_arena_id: arena.id,
+          p_source: "arena_artist",
+          p_tracks: shuffle(tracks.filter(playable)),
+          p_limit: missing,
+        });
+        missing -= added ?? 0;
+        total += added ?? 0;
+        // Something new on the first page, or nothing deeper to look at
+        if ((added ?? 0) > 0 || tracks.length < 10 || missing <= 0) break;
+      }
     } catch (err) {
       console.error("[spotify-host] reserve arena_artist", arena.id, err);
     }
@@ -871,10 +892,17 @@ async function refillReserve(arena: { id: string; host_id: string }): Promise<{ 
 }
 
 // A random page of a library source, shuffled, playable ones only
-async function randomLibraryPage(provider: SpotifyPlaybackProvider, source: string) {
-  const first = await provider.playlistTracks(source, 0);
-  const pages = Math.ceil(first.total / LIBRARY_PAGE);
-  const page = pages > 1 ? await provider.playlistTracks(source, Math.floor(Math.random() * pages) * LIBRARY_PAGE) : first;
+// (a page not in `tried`; null = every page tried)
+async function randomLibraryPage(
+  provider: SpotifyPlaybackProvider, source: string, tried: Set<number>, cache: { first?: LibraryPage } = {},
+) {
+  const first = cache.first ?? (cache.first = await provider.playlistTracks(source, 0));
+  const pages = Math.max(1, Math.ceil(first.total / LIBRARY_PAGE));
+  const left = [...Array(pages).keys()].filter((p) => !tried.has(p));
+  if (!left.length) return null;
+  const pick = left[Math.floor(Math.random() * left.length)];
+  tried.add(pick);
+  const page = pick === 0 ? first : await provider.playlistTracks(source, pick * LIBRARY_PAGE);
   return shuffle(page.tracks.filter(playable));
 }
 
@@ -1199,13 +1227,44 @@ async function flushAppends(provider: SpotifyPlaybackProvider, arenaId: string, 
   }
 }
 
-async function playFromResumePoint(provider: SpotifyPlaybackProvider, session: any, deviceId: string, pb: any) {
+// Step 20 (pilot 2026-10-31): Spotify plays a playlist "at a track" from that
+// track's FIRST occurrence. Winners repeat in an arena playlist (60-min rule),
+// so after a Resume or a put-back the host's Spotify went back hours and went
+// on playing old songs. MF now plays the occurrence the plan means: its
+// position (the plan index, checked against the playlist; else the occurrence
+// nearest to it; a uri offset only when the playlist can't be read).
+async function playTrack(
+  provider: SpotifyPlaybackProvider, session: { id: string; uri: string }, deviceId: string,
+  uri: string, idxHint: number | null, positionMs: number,
+) {
+  const position = await provider.playlistPosition(session.id, uri, idxHint);
+  if (position == null) console.warn("[spotify-host] playlist position unknown", session.id, uri, idxHint);
   await provider.play({
     deviceId,
     contextUri: session.uri,
-    offsetUri: pb.resume_track_uri ?? undefined,
-    positionMs: pb.resume_position_ms ?? 0,
+    ...(position != null ? { offsetPosition: position } : { offsetUri: uri }),
+    positionMs,
   });
+}
+
+// The plan index of a uri around the expected entry (it, the previous or the
+// next one), else the expected index itself (nearest occurrence)
+function planIdxFor(plan: any, uri: string | null): number | null {
+  const e = plan?.expected;
+  if (!e || e.idx == null) return null;
+  const idx = Number(e.idx);
+  if (uri === e.track_uri) return idx;
+  if (uri && uri === plan.prev_uri) return idx - 1;
+  if (uri && uri === plan.next_uri) return idx + 1;
+  return idx;
+}
+
+async function playFromResumePoint(provider: SpotifyPlaybackProvider, session: any, deviceId: string, pb: any, plan: any) {
+  if (!pb.resume_track_uri) {
+    await provider.play({ deviceId, contextUri: session.uri, positionMs: 0 });
+    return;
+  }
+  await playTrack(provider, session, deviceId, pb.resume_track_uri, planIdxFor(plan, pb.resume_track_uri), pb.resume_position_ms ?? 0);
 }
 
 // The arena's sound plan at a moment (arena_playback_plan): the track that
@@ -1257,12 +1316,13 @@ async function resumeArena(userId: string, body: any) {
   const pick = pickDevice(await provider.getStatus(), account.preferred_device_id);
   if (!pick) throw new HttpError(409, "no_device", "Open Spotify on your device and try again");
 
-  const expected = !!(await loadPlan(arena.id, arena.paused_at)).expected;
+  const pausedPlan = await loadPlan(arena.id, arena.paused_at);
+  const expected = !!pausedPlan.expected;
   if (expected) {
     const session = await ensureSession(provider, arena, pb);
     if (session) {
       try {
-        await playFromResumePoint(provider, session, pick.device.id, pb);
+        await playFromResumePoint(provider, session, pick.device.id, pb, pausedPlan);
       } catch (err) {
         await playbackError(err, account.id);
       }
@@ -1461,7 +1521,7 @@ async function checkArena(pb: any, arena: any) {
             try {
               const resumed = await ensureSession(provider, arena, pb);
               if (resumed) {
-                await playFromResumePoint(provider, resumed, pick.device.id, pb);
+                await playFromResumePoint(provider, resumed, pick.device.id, pb, plan);
                 resumedUri = pb.resume_track_uri;
                 resumedMs = pb.resume_position_ms;
               }
@@ -1518,7 +1578,8 @@ async function checkArena(pb: any, arena: any) {
       if (leadError) console.warn("[spotify-host] autoplay_lead_in", arena.id, leadError.message);
       if (lead?.kick && pick && session) {
         try {
-          await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: lead.track_uri, positionMs: 0 });
+          // The song due after the radio: a just-decided winner, the last occurrence
+          await playTrack(provider, session, pick.device.id, lead.track_uri, null, 0);
           await syncClock(arena, lead.track_uri, 0);
         } catch (err) {
           console.warn("[spotify-host] play after radio failed", arena.id, err);
@@ -1559,7 +1620,7 @@ async function checkArena(pb: any, arena: any) {
         return true;
       }
       try {
-        await provider.play({ deviceId: pick!.device.id, contextUri: session!.uri, offsetUri: expected.track_uri, positionMs });
+        await playTrack(provider, session!, pick!.device.id, expected.track_uri, Number(expected.idx), positionMs);
       } catch (err) {
         console.warn("[spotify-host] put back failed", arena.id, err);
         return false;
@@ -1594,7 +1655,7 @@ async function checkArena(pb: any, arena: any) {
         await syncClock(arena, playing, status.progressMs, status.observedAt);
       } else if (next) {
         try {
-          await provider.play({ deviceId: pick!.device.id, contextUri: session!.uri, offsetUri: next.track_uri, positionMs: Number(next.position_ms) });
+          await playTrack(provider, session!, pick!.device.id, next.track_uri, Number(next.idx), Number(next.position_ms));
         } catch (err) {
           console.warn("[spotify-host] play after unplayable failed", arena.id, err);
         }
@@ -1659,7 +1720,7 @@ async function checkArena(pb: any, arena: any) {
       // gap, stopped at the playlist's end): play it from the start
       if (!recentlyCorrected) {
         try {
-          await provider.play({ deviceId: pick.device.id, contextUri: session.uri, offsetUri: expected.track_uri, positionMs: 0 });
+          await playTrack(provider, session, pick.device.id, expected.track_uri, Number(expected.idx), 0);
           await record({ ...snapshot, ...putBacks, strikes: 0, strike_reason: null });
           await syncClock(arena, expected.track_uri, 0);
           return;

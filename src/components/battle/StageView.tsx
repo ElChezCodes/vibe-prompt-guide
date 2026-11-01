@@ -196,12 +196,22 @@ const StageView = ({
   } else if (derivedPhase === "LOCK_IN" && battle?.resolution_type === "normal") {
     // Votes closed at lock-in; the result is revealed just before the end
     message = { key: "lockin", title: "VOTES LOCKED", subtitle: "Result at the end", tone: "final", holdMs: PHASE_MESSAGE_MS };
+  } else if (derivedPhase === "LOCK_IN" && battle?.resolution_type === "fit") {
+    // Step 20: nobody voted, not even passively: the best fit for the arena wins
+    message = { key: "lockin", title: "NO VOTES", subtitle: "The song that fits the arena best wins", tone: "final", holdMs: PHASE_MESSAGE_MS };
   } else if (derivedPhase === "SUDDEN_DEATH") {
     message = { key: "sudden", title: "SUDDEN DEATH", subtitle: "One final vote each", tone: "sudden", holdMs: PHASE_MESSAGE_MS };
   } else if (derivedPhase === "RESULT" && resultSide === "draw") {
     message = { key: "draw", title: "DRAW", subtitle: "Both songs play next", tone: "draw", holdMs: RESULT_MESSAGE_MS, blocking: true };
   } else if (derivedPhase === "RESULT" && winnerSide) {
-    message = { key: "winner", title: "WINNER", subtitle: winnerTitle || undefined, tone: winnerSide === "A" ? "a" : "b", holdMs: RESULT_MESSAGE_MS, blocking: true };
+    message = {
+      key: "winner",
+      title: battle?.resolution_type === "fit" ? "BEST FIT" : "WINNER",
+      subtitle: winnerTitle || undefined,
+      tone: winnerSide === "A" ? "a" : "b",
+      holdMs: RESULT_MESSAGE_MS,
+      blocking: true,
+    };
   }
 
   // Voting needs the backend state; a decided battle never takes votes

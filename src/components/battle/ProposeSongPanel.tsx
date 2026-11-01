@@ -113,6 +113,8 @@ interface ProposeSongPanelProps {
 const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  // Shown on the send button, so it can't be mistaken for "Propose a song"
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   // Which account the selected song was found with (propose re-reads it with that one)
   const [selectedAccount, setSelectedAccount] = useState<CatalogAccount>("own");
   const [results, setResults] = useState<SpotifyTrack[]>([]);
@@ -193,6 +195,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
       // The query and its results stay, so several songs of the same search
       // (e.g. one artist) can be proposed in a row (user request 2026-10-27)
       setSelectedSongId(null);
+      setSelectedTitle(null);
       loadMyProposals();
     } catch (err) {
       setNotice(
@@ -227,8 +230,9 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
     loadMyProposals();
   };
 
-  const selectTrack = (trackId: string, account: CatalogAccount) => {
-    setSelectedSongId(trackId);
+  const selectTrack = (track: SpotifyTrack, account: CatalogAccount) => {
+    setSelectedSongId(track.spotify_track_id);
+    setSelectedTitle(track.title);
     setSelectedAccount(account);
   };
 
@@ -359,7 +363,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
             arenaId={arenaId}
             needsReconnect={!sources?.can_read_library}
             selectedTrackId={selectedSongId}
-            onSelect={(track) => selectTrack(track.spotify_track_id, "own")}
+            onSelect={(track) => selectTrack(track, "own")}
           />
         </div>
       ) : (
@@ -441,7 +445,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
                   key={track.spotify_track_id}
                   track={track}
                   selected={selectedSongId === track.spotify_track_id}
-                  onSelect={() => selectTrack(track.spotify_track_id, searchedWith ?? searchAccount)}
+                  onSelect={() => selectTrack(track, searchedWith ?? searchAccount)}
                 />
               ))}
             </div>
@@ -461,14 +465,17 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false }: ProposeSongPanelProps
         </p>
       )}
 
-      {/* Submit Button */}
+      {/* Send the picked song (step 20: named after it, not "Propose Song"
+          like the button that opens this panel) */}
       <div className="flex-shrink-0 pt-2">
         <Button
           onClick={handleSubmit}
           disabled={!selectedSongId || isSubmitting}
           className="w-full h-12 text-base font-bold rounded-xl disabled:opacity-40"
         >
-          {isSubmitting ? "Proposing..." : "Propose Song"}
+          <span className="truncate">
+            {isSubmitting ? "Sending..." : selectedSongId ? `Send “${selectedTitle ?? "this song"}” to the queue` : "Pick a song to send"}
+          </span>
         </Button>
       </div>
     </div>

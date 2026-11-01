@@ -72,7 +72,7 @@ export interface PlaybackSession {
 
 export interface PlaybackProvider {
   getStatus(): Promise<PlaybackStatus>;
-  play(opts: { deviceId: string; contextUri: string; offsetUri?: string; positionMs?: number }): Promise<void>;
+  play(opts: { deviceId: string; contextUri: string; offsetUri?: string; offsetPosition?: number; positionMs?: number }): Promise<void>;
   // Appends tracks to the arena's session (the playlist), in order: what plays next
   queue(session: PlaybackSession, trackUris: string | string[]): Promise<void>;
   skip(deviceId: string): Promise<void>;
@@ -80,13 +80,16 @@ export interface PlaybackProvider {
   onProgress(handler: (status: PlaybackStatus) => Promise<void>): Promise<void>;
   // Session = the arena's private playlist, first track = the warm-up
   createSession(name: string, firstTrackUri: string): Promise<PlaybackSession>;
-  search(query: string): Promise<CatalogTrack[]>;
+  search(query: string, offset?: number): Promise<CatalogTrack[]>;
   getTrack(trackId: string): Promise<CatalogTrack | null>;
   // The token owner's own library, only to pick a song to propose (step 7)
   listPlaylists(ownerId: string): Promise<LibraryPlaylist[]>;
   playlistTracks(playlistId: string, offset: number): Promise<LibraryPage>;
   // Whether a track is in the session's playlist (null = couldn't tell)
   playlistHas(playlistId: string, trackUri: string): Promise<boolean | null>;
+  // The playlist position of a track: the occurrence nearest to the hint
+  // (null hint = the last one); null = not found / couldn't tell
+  playlistPosition(playlistId: string, trackUri: string, hint: number | null): Promise<number | null>;
   // The token owner's Liked Songs, only when they like a song in MF
   isSaved(trackId: string): Promise<boolean>;
   save(trackId: string): Promise<void>;
@@ -230,17 +233,20 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     };
   }
 
-  async play({ deviceId, contextUri, offsetUri, positionMs }: {
+  async play({ deviceId, contextUri, offsetUri, offsetPosition, positionMs }: {
     deviceId: string;
     contextUri: string;
     offsetUri?: string;
+    offsetPosition?: number;
     positionMs?: number;
   }) {
     await this.must(`/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
       method: "PUT",
       body: JSON.stringify({
         context_uri: contextUri,
-        offset: offsetUri ? { uri: offsetUri } : { position: 0 },
+        // A uri offset starts at the FIRST occurrence of that track: with a
+        // winner repeated in the playlist, prefer the position (step 20)
+        offset: offsetPosition != null ? { position: offsetPosition } : offsetUri ? { uri: offsetUri } : { position: 0 },
         position_ms: Math.max(0, Math.floor(positionMs ?? 0)),
       }),
     });
@@ -285,10 +291,11 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
     return session;
   }
 
-  async search(query: string): Promise<CatalogTrack[]> {
+  async search(query: string, offset = 0): Promise<CatalogTrack[]> {
     // limit ≤ 10 since Feb 2026. An explicit market (never "from_token")
     // makes Spotify send is_playable and relink to the playable version
     const params = this.withMarket(new URLSearchParams({ q: query, type: "track", limit: "10" }));
+    if (offset > 0) params.set("offset", String(Math.floor(offset)));
     const body = await this.must(`/search?${params}`);
     return (body?.tracks?.items ?? []).filter((t: any) => t?.id).map((t: any) => toCatalogTrack(t, this.market));
   }
@@ -358,6 +365,28 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       if (!res.body?.next) return false;
     }
     return null;
+  }
+
+  async playlistPosition(playlistId: string, uri: string, hint: number | null): Promise<number | null> {
+    const itemUri = (e: any) => (e?.item ?? e?.track)?.uri ?? null;
+    const id = encodeURIComponent(playlistId);
+    // Usually the plan's index is the playlist position: one small call
+    if (hint != null && hint >= 0) {
+      const res = await this.api(`/playlists/${id}/items?limit=1&offset=${Math.floor(hint)}`);
+      if (res.status === 200 && itemUri(res.body?.items?.[0]) === uri) return Math.floor(hint);
+    }
+    const found: number[] = [];
+    for (let page = 0, offset = 0; page < 10; page++, offset += LIBRARY_PAGE) {
+      const res = await this.api(`/playlists/${id}/items?limit=${LIBRARY_PAGE}&offset=${offset}`);
+      if (res.status !== 200) return null;
+      (res.body?.items ?? []).forEach((e: any, i: number) => {
+        if (itemUri(e) === uri) found.push(offset + i);
+      });
+      if (!res.body?.next) break;
+    }
+    if (!found.length) return null;
+    if (hint == null) return found[found.length - 1];
+    return found.reduce((best, p) => (Math.abs(p - hint) < Math.abs(best - hint) ? p : best));
   }
 
   async playlistTracks(playlistId: string, offset: number): Promise<LibraryPage> {

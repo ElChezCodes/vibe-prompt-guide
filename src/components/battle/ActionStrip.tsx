@@ -18,7 +18,7 @@ const ActionStrip = ({ arenaId }: ActionStripProps) => {
           className="flex items-center gap-2 h-12 px-6 rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
         >
           <Music className="h-4 w-4" />
-          <span className="font-semibold">Propose Song</span>
+          <span className="font-semibold">Propose a song</span>
         </Button>
       </div>
 

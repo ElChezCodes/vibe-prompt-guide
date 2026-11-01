@@ -848,5 +848,25 @@ additions (#1, #4 above), each marked where it lands.
        votes were so rare** (hypothesis: anonymous users with no/few
        in-arena signals → `affinity_score` NULL below `min_signals`; only 4
        people ever voted, 0 likes).
+    **Fixes built 2026-11-01** (`supabase/sql/pilot_fixes_2026-11-01.sql`,
+    spotify-host deployed, user decisions 2026-11-01):
+    1. Causes found: (a) Spotify's `offset.uri` plays a track's *first*
+       occurrence in the playlist, and winners repeat (152 entries, 88
+       distinct), so every Resume/put-back went back hours → MF now plays the
+       plan's playlist position (`playTrack`); (b) system songs came back
+       every 60 min ("Calentita" won 6 times) → **a song that sounded never
+       returns as a system song** (user: "Nunca repetir", and the arena must
+       not run out: deeper sources — 3 random pages of the host's source,
+       arena artists + MusicBrainz/ListenBrainz related artists, deeper search
+       pages). Human proposals keep the 60-min rule.
+    2. Guests get "Invite" in the Battle Room (QR + code + share/copy).
+    3+4. Dialogs above the Battle Room HUD (z-[90]); opener "Propose a song",
+       send button "Send “<title>” to the queue".
+    5. Next up adds the system songs of the next 5 battles ("Picked by Music
+       Fighter"; next battle exact, later ones "may change").
+    6. Zero votes → `resolution_type = 'fit'`: best fit with the arena, then
+       continuity with what just sounded, then random. Passive votes were
+       rare because 6/9 (anonymous) participants had < 3 own songs
+       (`min_signals`): no profile; user chose to keep the rule.
     Then the GO/NO-GO write-up (Paso_4): still missing the user's notes on
     reactions and whether they'd repeat.

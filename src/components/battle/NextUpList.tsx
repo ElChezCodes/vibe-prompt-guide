@@ -12,7 +12,9 @@ const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 
 const detail = (song: NextUpSong): string => {
   if (song.available_at) return `Can play again at ${timeLabel(song.available_at)}`;
   const parts: string[] = [];
-  if (song.pair_no === 1) parts.push(song.vs_system ? "Next battle · vs a song picked by the system" : "Next battle");
+  if (song.pair_no === 1) parts.push("Next battle");
+  else if (song.pair_no) parts.push(`Battle ${song.pair_no}`);
+  if (song.is_system) parts.push(song.pair_no === 1 ? "Picked by Music Fighter" : "Music Fighter's pick, may change");
   if (song.is_mine) parts.push("Your song");
   return parts.join(" · ");
 };
@@ -20,6 +22,7 @@ const detail = (song: NextUpSong): string => {
 /**
  * Step 17: the next 10 songs in the order matchmaking would send them to
  * fight (style continuity with the music playing, fair turns). Read-only.
+ * Step 20: also the system songs that fill the next 5 battles, marked.
  * When the order changes, the numbers 1-10 stay as fixed places and each song
  * slides from its old place to its new one, so it shows which songs went up
  * or down and where they are now; new songs fade in.
@@ -85,7 +88,11 @@ const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; icon
               <div data-slide className="relative flex-1 min-w-0">
                 <SpotifyTrackRow
                   track={{ ...song, spotify_url: `https://open.spotify.com/track/${song.spotify_track_id}` }}
-                  details={label ? <p className="text-xs text-song-a truncate">{label}</p> : undefined}
+                  details={
+                    label ? (
+                      <p className={`text-xs truncate ${song.is_system ? "text-muted-foreground" : "text-song-a"}`}>{label}</p>
+                    ) : undefined
+                  }
                   iconOnlyLink={iconOnlyLink}
                 />
               </div>
