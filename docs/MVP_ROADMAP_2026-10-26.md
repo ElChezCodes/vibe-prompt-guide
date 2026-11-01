@@ -815,3 +815,38 @@ additions (#1, #4 above), each marked where it lands.
     gathering since 2026-10-27, not a venue), fix-only
     hardening pass, GO/NO-GO/iterate/discard decision. Depends on everything
     above being functionally real first.
+    **Pilot run 2026-10-31** (birthday party, arena "Cumple del Manu",
+    `20c1c77b-576d-465d-8d40-0f79fee94b5a`, 15:25 → ~04:03 Mexico time,
+    UTC−6; not ended with End Arena: Spotify stopped, the arena paused and
+    expired at 08:00). Data: 115 battles, 0 waits for songs, 152 playlist
+    entries all appended (none unplayable, no Autoplay/lead-in); ~30 people,
+    9 joined, 4 ever voted; explicit votes in 35/115 battles; 23 human
+    proposals, 94/115 battles system vs system; 0 likes, 0 backings;
+    presence mostly INACTIVO at lock-in; 37 Sudden Deaths, all 0-0 ties
+    nobody voted in → draw → both songs played. User's notes (2026-11-01):
+    music only stopped when the host changed music in their own Spotify, and
+    MF's "Resume" brought the playlist back (OK).
+    **Fix list for step 20 (user, 2026-11-01), to do in its own chat:**
+    1. **Songs repeated**: MF seemed to loop, playing again playlist songs
+       that had already sounded. Investigate in the pilot's data
+       (`playlist_queue`, battles' `started_at` re-anchoring, put-backs,
+       `sync_arena_clock`/manual-change handling after the host's own
+       Spotify changes + Resume).
+    2. **Guests can share the join QR/code** (today only the host can):
+       every member gets the QR + code to invite others.
+    3. **NowPlaying card overlaps the Propose button** once you search a song
+       (Battle Room bottom stack): visual obstacle.
+    4. **Two "Propose song" buttons confuse** (the one that opens the search
+       and the one that submits the selected song): rename/redesign.
+    5. **"Next up to fight" only lists active proposals**: it's usually
+       empty; also show the system songs that are/will be picked (reserve
+       chain / matchmaking's system picks), marked as system.
+    6. **Battle with truly zero votes (not even passive)** (user decision
+       2026-11-01): no Sudden Death/draw; the song that best fits the arena
+       wins (fit, as in step 13/17). The user expects this to be rare with
+       9 people because passive votes should exist; also check **why passive
+       votes were so rare** (hypothesis: anonymous users with no/few
+       in-arena signals → `affinity_score` NULL below `min_signals`; only 4
+       people ever voted, 0 likes).
+    Then the GO/NO-GO write-up (Paso_4): still missing the user's notes on
+    reactions and whether they'd repeat.
