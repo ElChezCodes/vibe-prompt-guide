@@ -1621,9 +1621,7 @@ async function checkArena(pb: any, arena: any) {
     // lengthens the battle over that song by the radio track, follows that
     // track's real end (seeks) and wakes us then; once Spotify is on another
     // radio track the arena song starts at once (kick).
-    // (Autoplay keeps the arena playlist as its context; another playlist,
-    // album or search is the host's own music, never a lead-in: step 20)
-    const radio = status.isPlaying && inContext && !onPlaylist && !!playing && !(plan.arena_uris ?? []).includes(playing) &&
+    const radio = status.isPlaying && !onPlaylist && !!playing && !(plan.arena_uris ?? []).includes(playing) &&
       status.progressMs != null && status.durationMs != null;
     if (radio && (!expected || Number(expected.position_ms) < KICK_MS ||
                   Number(expected.duration_ms) - Number(expected.position_ms) < SEAM_MS)) {
@@ -1663,13 +1661,10 @@ async function checkArena(pb: any, arena: any) {
     const atSeam = onPlaylist && status.isPlaying &&
       ((playing === plan.prev_uri && position < SEAM_MS) || (playing === plan.next_uri && remaining < SEAM_MS));
     // Last check was on the expected song and now the player is past the
-    // playlist's end (Autoplay, or stopped back at 0). Step 20 (test
-    // 2026-11-01): Autoplay keeps the playlist as its context; the host
-    // playing another playlist is NOT past the end (the song playing is
-    // almost always the playlist's last one), it is off_playlist -> pause
+    // playlist's end (Autoplay, another playlist, or stopped back at 0)
     const sawExpected = pb.current_track_uri === expected.track_uri;
     const pastEnd = !!expected.is_last && sawExpected &&
-      (status.isPlaying ? inContext && !onPlaylist : playing !== expected.track_uri || (status.progressMs ?? 0) + SEAM_MS < (pb.progress_ms ?? 0));
+      (status.isPlaying ? !onPlaylist : playing !== expected.track_uri || (status.progressMs ?? 0) + SEAM_MS < (pb.progress_ms ?? 0));
     const recentlyCorrected = !!pb.manual_change_at &&
       Date.now() - new Date(pb.manual_change_at).getTime() < CORRECTION_COOLDOWN_MS;
 
@@ -1780,6 +1775,13 @@ async function checkArena(pb: any, arena: any) {
       }
       if (await putBack(position, true)) return;
       problem = "off_playlist";
+    } else if (!manual && status.isPlaying && !inContext) {
+      // The host played another playlist/album/search (user decision
+      // 2026-11-01, back to how it behaved before): automatic mode puts the
+      // battle's song back at once and asks; "I'll control it" lets the next
+      // change play
+      if (await putBack(position, true)) return;
+      problem = "off_playlist";
     } else if (manual && onPlaylist && status.isPlaying && (plan.later_uris ?? []).includes(playing)) {
       // Manual control: a skip forward re-times the battle, it doesn't restart it
       await record({ ...snapshot, strikes: 0, strike_reason: null });
@@ -1787,7 +1789,7 @@ async function checkArena(pb: any, arena: any) {
       return;
     } else if (!status.isPlaying && playing === expected.track_uri) {
       problem = "playback_paused";
-    } else if (position < KICK_MS && (!status.isPlaying || (inContext && !onPlaylist))) {
+    } else if (position < KICK_MS && (!onPlaylist || !status.isPlaying)) {
       // The song just became due and Spotify isn't on it (Autoplay after a
       // gap, stopped at the playlist's end): play it from the start
       if (!recentlyCorrected) {
