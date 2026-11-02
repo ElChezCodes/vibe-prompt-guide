@@ -1,7 +1,7 @@
 import { PRIVACY_POLICY_VERSION } from "@/integrations/supabase/account";
 
-// TODO(owner): the user will provide the contact email (step 7b, 2026-10-27)
-const PRIVACY_CONTACT = "[contact email pending]";
+// Music Fighter's contact email (user, 2026-11-01)
+const PRIVACY_CONTACT = "musicfighterapp@gmail.com";
 
 // Privacy policy (Spotify Developer Terms V.12; needed for accounts, step 7b).
 // Plain text on purpose: the visual pass is done in Lovable.
@@ -12,7 +12,10 @@ const PrivacyScreen = () => (
 
     <p>
       Music Fighter is a private, non-commercial app for choosing music together at gatherings among friends. Contact:{" "}
-      {PRIVACY_CONTACT}.
+      <a href={`mailto:${PRIVACY_CONTACT}`} className="text-primary underline underline-offset-2">
+        {PRIVACY_CONTACT}
+      </a>
+      .
     </p>
 
     <h2 className="font-semibold text-foreground">What we store</h2>

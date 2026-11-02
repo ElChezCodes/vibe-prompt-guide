@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 "Music Fighter" — a real-time, arena-style music battle app for **private gatherings among friends** (not bars/venues). A host creates an arena, participants join with a code, and songs face off head-to-head while participants vote from their phones. A separate "stage view" renders the battle on a shared screen (TV/projector).
 
+Music Fighter's contact email (privacy policy, `/privacy`; user, 2026-11-01): **musicfighterapp@gmail.com**.
+
 This is a **Lovable** project: it is edited both locally and via the Lovable web editor (lovable.dev), and changes from either side sync through this git repo. `.lovable/plan.md` holds the description of the most recently applied Lovable change — treat it as a scratch note, not documentation, and expect it to be overwritten/irrelevant across sessions.
 
 ## Business Rules (from project spec, not inferable from code)
