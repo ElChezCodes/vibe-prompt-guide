@@ -71,8 +71,10 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
   return (
     <div className="flex flex-col gap-1.5 w-full max-w-md mx-auto">
       {playback.now_playing_title && playback.now_playing_spotify_track_id ? (
-        <div className="neon-row rounded-xl px-2 py-1 backdrop-blur-md">
+        <div className="neon-row rounded-xl px-2 py-1.5 backdrop-blur-md">
           <SpotifyTrackRow
+            size="lg"
+            marquee
             track={{
               title: playback.now_playing_title,
               artist: playback.now_playing_artist ?? "",
@@ -80,7 +82,7 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
               spotify_url: `https://open.spotify.com/track/${playback.now_playing_spotify_track_id}`,
             }}
             details={
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate flex items-center gap-1.5">
+              <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground truncate flex items-center gap-1.5">
                 <span className="relative flex h-1.5 w-1.5 shrink-0">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />

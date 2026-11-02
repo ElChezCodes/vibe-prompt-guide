@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Ban, Check, Music } from "lucide-react";
 import { SpotifyTrack } from "@/integrations/supabase/spotify";
 import { formatDuration } from "@/integrations/supabase/arenas";
+import Marquee from "@/components/streaming/Marquee";
 
 // Spotify icon (Design Guidelines: logo next to Spotify metadata)
 export const SpotifyIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
@@ -27,6 +28,10 @@ interface Props {
   unavailableLabel?: string;
   // Shared Stage View: the link back is the Spotify logo alone (user, 2026-10-29)
   iconOnlyLink?: boolean;
+  // NowPlaying (2026-11-01): bigger artwork/text, title and artist scroll
+  // when they don't fit instead of being cut off
+  size?: "md" | "lg";
+  marquee?: boolean;
 }
 
 /**
@@ -43,7 +48,11 @@ const SpotifyTrackRow = ({
   action,
   unavailableLabel = "Not available in the host's country",
   iconOnlyLink = false,
+  size = "md",
+  marquee = false,
 }: Props) => {
+  const lg = size === "lg";
+  const art = lg ? "w-16 h-16" : "w-12 h-12";
   const unavailable = track.is_playable === false;
   const disabled = disabledProp || unavailable;
   return (
@@ -68,25 +77,25 @@ const SpotifyTrackRow = ({
       <img
         src={track.artwork_url}
         alt=""
-        className="w-12 h-12 flex-shrink-0 rounded-md object-contain bg-background/60"
+        className={`${art} flex-shrink-0 rounded-md object-contain bg-background/60`}
       />
     ) : (
-      <div className="w-12 h-12 flex-shrink-0 rounded-md bg-muted/60 flex items-center justify-center">
+      <div className={`${art} flex-shrink-0 rounded-md bg-muted/60 flex items-center justify-center`}>
         <Music className="w-5 h-5 text-muted-foreground" />
       </div>
     )}
     <div className="flex-1 min-w-0">
       <p
-        className={`flex items-center gap-1 text-sm font-semibold truncate ${
+        className={`flex items-center gap-1 ${lg ? "text-base" : "text-sm"} font-semibold truncate ${
           unavailable ? "text-muted-foreground" : selected ? "text-primary" : "text-foreground"
         }`}
       >
         {selected && <Check className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={3} />}
-        <span className="truncate">{track.title}</span>
+        {marquee ? <Marquee className="flex-1">{track.title}</Marquee> : <span className="truncate">{track.title}</span>}
       </p>
-      <p className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-        <SpotifyIcon className="w-3 h-3 flex-shrink-0 text-[#1DB954]" />
-        <span className="truncate">{track.artist}</span>
+      <p className={`flex items-center gap-1 ${lg ? "text-sm" : "text-xs"} text-muted-foreground min-w-0`}>
+        <SpotifyIcon className={`${lg ? "w-3.5 h-3.5" : "w-3 h-3"} flex-shrink-0 text-[#1DB954]`} />
+        {marquee ? <Marquee className="flex-1">{track.artist}</Marquee> : <span className="truncate">{track.artist}</span>}
         {track.duration_ms ? (
           <span className="flex-shrink-0 tabular-nums before:content-['·'] before:mx-1">
             {formatDuration(track.duration_ms)}

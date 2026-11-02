@@ -584,7 +584,7 @@ const BattleRoomScreen = () => {
             </div>
           )}
           {arena.state === "active" && !isPaused && (
-            <div className="w-full max-w-sm px-4 pt-2">
+            <div className="w-full max-w-md px-4 pt-2">
               <NowPlaying
                 arenaId={arena.id}
                 playback={playback}
