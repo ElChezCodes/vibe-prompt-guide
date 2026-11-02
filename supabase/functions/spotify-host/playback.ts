@@ -93,6 +93,8 @@ export interface PlaybackProvider {
   // The playlist position of a track: the occurrence nearest to the hint
   // (null hint = the last one); null = not found / couldn't tell
   playlistPosition(playlistId: string, trackUri: string, hint: number | null): Promise<number | null>;
+  // Wake a device / make it the active one without changing what plays
+  transfer(deviceId: string): Promise<void>;
   // The token owner's Liked Songs, only when they like a song in MF
   isSaved(trackId: string): Promise<boolean>;
   save(trackId: string): Promise<void>;
@@ -410,6 +412,10 @@ export class SpotifyPlaybackProvider implements PlaybackProvider {
       if (!res.body?.next) return false;
     }
     return null;
+  }
+
+  async transfer(deviceId: string) {
+    await this.must("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [deviceId], play: false }) });
   }
 
   async playlistPosition(playlistId: string, uri: string, hint: number | null): Promise<number | null> {

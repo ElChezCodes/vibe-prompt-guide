@@ -195,6 +195,8 @@ const BattleRoomScreen = () => {
   // exit animation (display only; votes always go to the live battle)
   const display = useBattleDisplay(battle, playback?.paused_at ?? null);
   const [resumeError, setResumeError] = useState("");
+  // One Resume at a time (it waits for Spotify to really play, ~2-4 s)
+  const [resuming, setResuming] = useState(false);
   // Height of the bottom stack (NowPlaying + Propose), so the cards end above
   // it: the winner's pose covered its title/artist (user, 2026-11-01)
   const [bottomInset, setBottomInset] = useState(0);
@@ -214,12 +216,15 @@ const BattleRoomScreen = () => {
     }
   }, []);
   const handleResume = async () => {
-    if (!arenaId) return;
+    if (!arenaId || resuming) return;
     setResumeError("");
+    setResuming(true);
     try {
       await resumeSpotifyArena(arenaId);
     } catch (err) {
       setResumeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResuming(false);
     }
   };
 
@@ -539,11 +544,12 @@ const BattleRoomScreen = () => {
               {participant?.is_host && (
                 <button
                   onClick={handleResume}
-                  className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold glow-primary hover:brightness-110 transition"
+                  disabled={resuming}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold glow-primary hover:brightness-110 transition disabled:opacity-60"
                 >
                   <Play className="w-3.5 h-3.5" fill="currentColor" />
-                  <span className="hidden min-[380px]:inline">Resume on Spotify</span>
-                  <span className="min-[380px]:hidden">Resume</span>
+                  <span className="hidden min-[380px]:inline">{resuming ? "Resuming…" : "Resume on Spotify"}</span>
+                  <span className="min-[380px]:hidden">{resuming ? "…" : "Resume"}</span>
                 </button>
               )}
             </div>

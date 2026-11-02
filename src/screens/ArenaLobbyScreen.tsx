@@ -50,6 +50,7 @@ const ArenaLobbyScreen = () => {
   const [warmup, setWarmup] = useState<ArenaWarmup | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  const [resuming, setResuming] = useState(false);
   // Host-level Spotify connection (stored summary; live devices on Connect)
   const [spotify, setSpotify] = useState<StreamingConnectionSummary | null>(null);
 
@@ -293,16 +294,22 @@ const ArenaLobbyScreen = () => {
                 <Button
                   size="sm"
                   className="w-full font-bold"
-                  onClick={() =>
-                    resumeSpotifyArena(arena.id).catch((err) =>
-                      setErrorMessage(
-                        err instanceof SpotifyHostError ? START_ERRORS[err.code] ?? err.message : String(err),
-                      ),
-                    )
-                  }
+                  disabled={resuming}
+                  onClick={() => {
+                    if (resuming) return;
+                    setResuming(true);
+                    setErrorMessage("");
+                    resumeSpotifyArena(arena.id)
+                      .catch((err) =>
+                        setErrorMessage(
+                          err instanceof SpotifyHostError ? START_ERRORS[err.code] ?? err.message : String(err),
+                        ),
+                      )
+                      .finally(() => setResuming(false));
+                  }}
                 >
                   <Play className="w-4 h-4 mr-1" />
-                  Resume on Spotify
+                  {resuming ? "Resuming…" : "Resume on Spotify"}
                 </Button>
               </div>
             )}

@@ -157,6 +157,17 @@ const WATCH_MIN_INTERVAL_MS = 12_000;
 // Nudges from the database (step 18) may check sooner
 const NUDGE_MIN_INTERVAL_MS = 1_500;
 const STRIKES_TO_PAUSE = 2;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// What MF did to the host's Spotify and why (playback_events, 7 days; the
+// Edge Function logs aren't reachable when reviewing a test). Never throws.
+async function logEvent(arenaId: string, kind: string, detail: Record<string, unknown> = {}) {
+  try {
+    await admin.rpc("log_playback_event", { p_arena_id: arenaId, p_kind: kind, p_detail: detail });
+  } catch {
+    // logging must never break playback
+  }
+}
 // Step 18: Spotify a few seconds off the plan at a song change is not a change
 const SEAM_MS = 5_000;
 // A song that became due less than this ago and isn't playing is started
@@ -1322,15 +1333,52 @@ async function resumeArena(userId: string, body: any) {
   if (expected) {
     const session = await ensureSession(provider, arena, pb);
     if (session) {
+      // Test 2026-11-01: Resume took 3 clicks. One click should do: a device
+      // that went to sleep refuses the first play (wake it, retry), and
+      // Spotify may not be on the playlist yet right after it (check, retry)
+      let attempts = 0;
+      let woke = false;
       try {
-        await playFromResumePoint(provider, session, pick.device.id, pb, pausedPlan);
+        try {
+          attempts++;
+          await playFromResumePoint(provider, session, pick.device.id, pb, pausedPlan);
+        } catch (err) {
+          if (!(err instanceof PlaybackError) || err.premiumRequired || ![404, 500, 502, 503].includes(err.status)) throw err;
+          woke = true;
+          await provider.transfer(pick.device.id).catch(() => {});
+          await sleep(800);
+          attempts++;
+          await playFromResumePoint(provider, session, pick.device.id, pb, pausedPlan);
+        }
+        await sleep(1200);
+        const after = await provider.getStatus();
+        // (context only: the track id may be a relinked version)
+        const onArena = after.contextUri === session.uri && after.isPlaying;
+        if (!onArena) {
+          console.warn("[spotify-host] resume not on the playlist yet, retrying", arena.id, after.contextUri, after.trackUri);
+          attempts++;
+          await playFromResumePoint(provider, session, pick.device.id, pb, pausedPlan);
+        }
+        await logEvent(arena.id, "resume", {
+          by: "button", ok: true, attempts, woke, on_playlist_at_check: onArena, reason: arena.pause_reason,
+          track: pb.resume_track_uri, position_ms: pb.resume_position_ms, device: pick.device.name,
+        });
       } catch (err) {
+        await logEvent(arena.id, "resume", {
+          by: "button", ok: false, attempts, woke, reason: arena.pause_reason, device: pick.device.name,
+          error: err instanceof PlaybackError ? `${err.status} ${err.message}` : String(err),
+        });
         await playbackError(err, account.id);
       }
     }
   }
   if (pick.adopted) await adoptDevice(account, pick.device);
-  await admin.from("arena_playback").update({ device_id: pick.device.id, device_name: pick.device.name }).eq("arena_id", arena.id);
+  // checked_at = now: the watcher's next look is >= 12 s away, so a stale
+  // player state right after the play can't count as off the playlist
+  await admin.from("arena_playback").update({
+    device_id: pick.device.id, device_name: pick.device.name,
+    strikes: 0, strike_reason: null, checked_at: new Date().toISOString(),
+  }).eq("arena_id", arena.id);
   await admin.rpc("resume_arena", { p_arena_id: arena.id });
   // Playback restarted at the resume point: the battle clock follows it
   if (expected) await syncClock(arena, pb.resume_track_uri, pb.resume_position_ms);
@@ -1474,6 +1522,7 @@ async function checkArena(pb: any, arena: any) {
   const host = await hostPlayer(pb);
   if (!host || (!pb.playlist_id && !arena.paused_at)) {
     await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: "spotify_disconnected" });
+    if (!arena.paused_at) await logEvent(arena.id, "pause", { reason: "spotify_disconnected" });
     await record({ is_playing: false });
     return;
   }
@@ -1550,6 +1599,7 @@ async function checkArena(pb: any, arena: any) {
       await record(snapshot);
       if (canResume) {
         await admin.rpc("resume_arena", { p_arena_id: arena.id });
+        await logEvent(arena.id, "resume", { by: "auto", reason: arena.pause_reason, track: resumedUri, position_ms: resumedMs });
         await syncClock(arena, resumedUri, resumedMs);
       }
       return;
@@ -1647,6 +1697,9 @@ async function checkArena(pb: any, arena: any) {
         ...snapshot, ...putBacks, strikes: 0, strike_reason: null,
         ...(flagChange ? { manual_change_at: new Date().toISOString() } : {}),
       });
+      await logEvent(arena.id, "put_back", {
+        expected: expected.track_uri, position_ms: positionMs, playing, context: status.contextUri, past_end: pastEnd,
+      });
       return true;
     };
 
@@ -1721,6 +1774,7 @@ async function checkArena(pb: any, arena: any) {
         // The host skipped the last song before a winner exists: lock-in now,
         // the winner plays as soon as it is decided
         await admin.rpc("skip_to_lockin", { p_arena_id: arena.id });
+        await logEvent(arena.id, "skip_to_lockin", { playing, context: status.contextUri });
         await record({ ...snapshot, strikes: 0, strike_reason: null });
         return;
       }
@@ -1740,6 +1794,7 @@ async function checkArena(pb: any, arena: any) {
         try {
           await playTrack(provider, session, pick.device.id, expected.track_uri, Number(expected.idx), 0);
           await record({ ...snapshot, ...putBacks, strikes: 0, strike_reason: null });
+          await logEvent(arena.id, "kick", { expected: expected.track_uri, playing, context: status.contextUri });
           await syncClock(arena, expected.track_uri, 0);
           return;
         } catch (err) {
@@ -1762,6 +1817,9 @@ async function checkArena(pb: any, arena: any) {
     await record({ ...snapshot, strikes, strike_reason: problem });
     if (strikes >= STRIKES_TO_PAUSE) {
       await admin.rpc("pause_arena", { p_arena_id: arena.id, p_reason: problem });
+      await logEvent(arena.id, "pause", {
+        reason: problem, expected: expected.track_uri, playing, context: status.contextUri, is_playing: status.isPlaying,
+      });
     }
   });
 }
