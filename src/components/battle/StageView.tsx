@@ -303,16 +303,10 @@ const StageView = ({
         </div>
       </div>
 
-      {/* Bottom balance spacer, carries arena name + mood. Not in the Battle
-          Room (user, 2026-11-01): it pushed NowPlaying + Propose below the fold */}
-      {!withTabBar && (
-        <div className="h-16 lg:h-24 flex items-center justify-center">
-          <p className="text-sm lg:text-base text-muted-foreground">
-            {arena.name}
-            {getMoodLabel(arena.mood) && <span> · {getMoodLabel(arena.mood)}</span>}
-          </p>
-        </div>
-      )}
+      {/* Bottom balance spacer, empty (the arena name + mood line was dropped:
+          Battle Room 2026-11-01, Stage View 2026-11-06). On the Stage View it
+          is where the pause / waiting banner sits, clear of the cards. */}
+      {!withTabBar && <div className="h-16 lg:h-24" />}
 
     </div>
   );

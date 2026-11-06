@@ -880,3 +880,9 @@ additions (#1, #4 above), each marked where it lands.
     system, passive votes came from 3 of 9 people (the others had no
     profile), 32 battles had no vote at all. Next: define how the collective
     mind works for guests who barely act (to decide with the user).
+    **Pilot result (user, 2026-11-06): GO** to keep iterating. The next big
+    step is the "collective mind" (the passive affinity of users + arena
+    steering the party's music), in its own chat, after the two smaller items
+    of 2026-11-06 (votes from the Next up list, in-battle QR votes). Stage
+    View: the arena name + mood line under the cards was dropped (user,
+    2026-11-06; same as the Battle Room on 2026-11-01).
