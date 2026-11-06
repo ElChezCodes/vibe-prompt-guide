@@ -7,7 +7,7 @@ import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { DerivedBattlePhase, getResultSide } from "@/lib/derivedBattlePhase";
 import { getMoodLabel } from "@/integrations/supabase/arenas";
 import { QRCodeSVG } from "qrcode.react";
-import { SpotifyIcon, SpotifyLogoLink } from "@/components/streaming/SpotifyTrackRow";
+import { SpotifyLogoLink } from "@/components/streaming/SpotifyTrackRow";
 import { StageSongCredit } from "@/integrations/supabase/stageView";
 
 interface ArenaData {
@@ -321,10 +321,10 @@ const StageView = ({
   );
 };
 
-// Footer under each card (the square above it is the vote button), so "Open
-// Spotify" and the like stay their own taps; a minimum height keeps both
+// Footer under each card (the square above it is the vote button), so the
+// Spotify logo and the like stay their own taps; a minimum height keeps both
 // cards' squares level
-const STAGE_CARD_FOOTER_CLASS = "min-h-16 lg:min-h-24";
+const STAGE_CARD_FOOTER_CLASS = "min-h-[5.875rem] lg:min-h-24";
 
 const formatPoints = (n: number) => (Math.round(n * 100) / 100).toString();
 
@@ -348,7 +348,7 @@ const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
 
 // With Spotify artwork the square is the artwork alone (Spotify: artwork
 // uncropped and never covered), so title/artist move here, next to the
-// Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
+// Spotify logo, which is the link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
 const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike, shared, credit, voteUrl }: {
@@ -379,25 +379,11 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
     )}
     {shared && showInfo && credit !== undefined && <SongCreditLine credit={credit} isA={isA} />}
     <div className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
-      {source === "spotify" && trackId && shared && (
-        <SpotifyLogoLink href={`https://open.spotify.com/track/${trackId}`} className="h-5 lg:h-7" />
-      )}
-      {source === "spotify" && trackId && !shared && (
-        <a
-          href={`https://open.spotify.com/track/${trackId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
-        >
-          <SpotifyIcon className="h-3.5 w-3.5" />
-          Open Spotify
-        </a>
-      )}
-      {showInfo && isSelected && (
-        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>{isPreassigned ? "Your pre-assigned vote" : "Your vote"}</span>
-      )}
-      {showInfo && isPassive && (
-        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
+      {/* Logo and like always on one line (the word only where it fits), so
+          both cards' footers keep their height */}
+      <div className="flex items-center justify-center">
+      {source === "spotify" && trackId && (
+        <SpotifyLogoLink href={`https://open.spotify.com/track/${trackId}`} className={shared ? "h-5 lg:h-7" : "h-5"} />
       )}
       {onToggleLike && (
         <button
@@ -405,11 +391,18 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
           onClick={onToggleLike}
           aria-pressed={!!isLiked}
           aria-label={isLiked ? "Unlike song" : "Like song"}
-          className="flex items-center gap-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-text-secondary"
+          className="flex items-center gap-1 p-1 text-[10px] lg:text-xs font-bold uppercase tracking-wide text-text-secondary"
         >
           <Heart className={`h-3.5 w-3.5 ${isLiked ? (isA ? "fill-song-a text-song-a" : "fill-song-b text-song-b") : ""}`} />
-          {isLiked ? "Liked" : "Like"}
+          <span className="hidden sm:inline">{isLiked ? "Liked" : "Like"}</span>
         </button>
+      )}
+      </div>
+      {showInfo && isSelected && (
+        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase ${isA ? "text-song-a" : "text-song-b"}`}>{isPreassigned ? "Your pre-assigned vote" : "Your vote"}</span>
+      )}
+      {showInfo && isPassive && (
+        <span className={`whitespace-nowrap text-[10px] lg:text-xs font-semibold uppercase opacity-80 ${isA ? "text-song-a" : "text-song-b"}`}>Your passive vote</span>
       )}
     </div>
     </div>

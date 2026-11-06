@@ -12,8 +12,8 @@ export const SpotifyIcon = ({ className = "h-4 w-4" }: { className?: string }) =
   </svg>
 );
 
-// The shared screen's link back to Spotify (user, 2026-11-06: it reads
-// "Spotify", not "Open Spotify"). Spotify's own full logo, unmodified: typing
+// The link back to Spotify on the Stage View, the battle cards and Now Playing
+// (user, 2026-11-06: it reads "Spotify", not "Open Spotify"). Spotify's own full logo, unmodified: typing
 // the word beside the icon would be recreating it, and "Spotify" alone isn't
 // one of the allowed link texts. White on dark backgrounds (green is only for
 // black or white ones), never under 70 px wide, with clear space around it.
@@ -45,7 +45,7 @@ interface Props {
   // Shown (and the row can't be picked) when Spotify can't play it in the
   // host's country (is_playable false)
   unavailableLabel?: string;
-  // Shared Stage View: the link back is Spotify's full logo, no "Open Spotify"
+  // The link back is Spotify's full logo, no "Open Spotify" (Stage View, Now Playing)
   logoLink?: boolean;
   // NowPlaying (2026-11-01): bigger artwork/text, title and artist scroll
   // when they don't fit instead of being cut off

@@ -80,6 +80,7 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
             size="lg"
             marquee
             stackAction
+            logoLink
             track={{
               title: playback.now_playing_title,
               artist: playback.now_playing_artist ?? "",
