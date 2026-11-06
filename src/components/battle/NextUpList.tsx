@@ -32,12 +32,12 @@ const detail = (song: NextUpSong): string => {
  */
 const NextUpList = ({
   songs,
-  iconOnlyLink = false,
+  logoLink = false,
   onToggleVote,
   votingSongId = null,
 }: {
   songs: NextUpSong[];
-  iconOnlyLink?: boolean;
+  logoLink?: boolean;
   onToggleVote?: (song: NextUpSong) => void;
   votingSongId?: string | null;
 }) => {
@@ -113,7 +113,7 @@ const NextUpList = ({
                       <p className={`text-xs truncate ${song.is_system ? "text-muted-foreground" : "text-song-a"}`}>{label}</p>
                     ) : undefined
                   }
-                  iconOnlyLink={iconOnlyLink}
+                  logoLink={logoLink}
                   // Above the Spotify link: beside it there is no room for the title
                   stackAction
                   action={<VoteControl song={song} onToggleVote={onToggleVote} busy={votingSongId === song.song_id} />}

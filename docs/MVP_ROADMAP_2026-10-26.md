@@ -901,6 +901,8 @@ additions (#1, #4 above), each marked where it lands.
        and Battle Room).
     **Possible phase 2 of the QR (not built):** Google one-tap, to make a
     double vote harder; needs a Google Cloud OAuth client + privacy policy.
-    **Open, for the user to decide:** Spotify's guidelines ask partners for
-    the full logo (icon + wordmark) and allow the icon alone only as an app
-    icon; the Stage View shows the icon alone (user decision 2026-10-29).
+    **Stage View logo (user, 2026-11-06):** the icon alone became Spotify's
+    official full logo (icon + wordmark), clickable, reading "Spotify"; the
+    guidelines don't say whether a logo may be the link, and they don't
+    allow "Spotify" as typed link text. **Open:** the guidelines' minimum for
+    the icon is 21 px, and the small icons of the phone rows are 12-14 px.

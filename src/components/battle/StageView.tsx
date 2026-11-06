@@ -7,7 +7,7 @@ import { ArenaBattleView } from "@/hooks/useBattleOrchestrator";
 import { DerivedBattlePhase, getResultSide } from "@/lib/derivedBattlePhase";
 import { getMoodLabel } from "@/integrations/supabase/arenas";
 import { QRCodeSVG } from "qrcode.react";
-import { SpotifyIcon } from "@/components/streaming/SpotifyTrackRow";
+import { SpotifyIcon, SpotifyLogoLink } from "@/components/streaming/SpotifyTrackRow";
 import { StageSongCredit } from "@/integrations/supabase/stageView";
 
 interface ArenaData {
@@ -47,8 +47,8 @@ interface StageViewProps {
   onToggleLike?: (songId: string) => void;
   // A finished battle held on screen until the next one shows (useBattleDisplay)
   preparingNext?: boolean;
-  // Shared Stage View (/a/:code/stage): who proposed each song + a QR for
-  // "Open Spotify" (nobody can click a TV)
+  // Shared Stage View (/a/:code/stage): who proposed each song, the vote QRs
+  // and Spotify's full logo as the link back
   shared?: boolean;
   credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
   // Shared Stage View, while votes are open: what each card's QR encodes
@@ -379,16 +379,18 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
     )}
     {shared && showInfo && credit !== undefined && <SongCreditLine credit={credit} isA={isA} />}
     <div className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
-      {source === "spotify" && trackId && (
+      {source === "spotify" && trackId && shared && (
+        <SpotifyLogoLink href={`https://open.spotify.com/track/${trackId}`} className="h-5 lg:h-7" />
+      )}
+      {source === "spotify" && trackId && !shared && (
         <a
           href={`https://open.spotify.com/track/${trackId}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 whitespace-nowrap text-[10px] lg:text-xs font-bold uppercase tracking-wide text-[#1DB954]"
-          aria-label={shared ? "Open Spotify" : undefined}
         >
-          <SpotifyIcon className={shared ? "h-5 w-5 lg:h-6 lg:w-6" : "h-3.5 w-3.5"} />
-          {!shared && "Open Spotify"}
+          <SpotifyIcon className="h-3.5 w-3.5" />
+          Open Spotify
         </a>
       )}
       {showInfo && isSelected && (
