@@ -886,3 +886,21 @@ additions (#1, #4 above), each marked where it lands.
     of 2026-11-06 (votes from the Next up list, in-battle QR votes). Stage
     View: the arena name + mood line under the cards was dropped (user,
     2026-11-06; same as the Battle Room on 2026-11-01).
+    **Built 2026-11-06** (`supabase/sql/next_up_qr_votes_2026-11-06.sql`,
+    user decisions in CLAUDE.md "Votes from Next up & QR votes"; awaiting the
+    user's in-app test):
+    1. **Votes from the Next up list** = pre-assigned votes (step 14), weight
+       1, no decay (`max(0, 1 − t/60)` discarded). Strong matchmaking factor,
+       3 list votes + 5 duplicates, button only in the next 10, no PI, system
+       songs can be voted and the vote promotes them, proposing carries your
+       one vote in Next up only ("Your pick"), never cast in the battle.
+    2. **QR votes in battle**: phase 1 = per-song QR on the Stage View,
+       one token per battle, anonymous session, scanning = joining. Hidden at
+       lock-in/result/pause, shown in Sudden Death; an old QR doesn't vote.
+       The card's QR to Spotify moved to the Now Playing card (Stage View
+       and Battle Room).
+    **Possible phase 2 of the QR (not built):** Google one-tap, to make a
+    double vote harder; needs a Google Cloud OAuth client + privacy policy.
+    **Open, for the user to decide:** Spotify's guidelines ask partners for
+    the full logo (icon + wordmark) and allow the icon alone only as an app
+    icon; the Stage View shows the icon alone (user decision 2026-10-29).

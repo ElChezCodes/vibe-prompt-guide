@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { ThumbsUp } from "lucide-react";
 import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import { NextUpSong } from "@/integrations/supabase/proposals";
 
@@ -15,7 +16,7 @@ const detail = (song: NextUpSong): string => {
   if (song.pair_no === 1) parts.push("Next battle");
   else if (song.pair_no) parts.push(`Battle ${song.pair_no}`);
   if (song.is_system) parts.push(song.pair_no === 1 ? "Picked by Music Fighter" : "Music Fighter's pick, may change");
-  if (song.is_mine) parts.push("Your song");
+  if (song.is_mine) parts.push("Your pick");
   return parts.join(" · ");
 };
 
@@ -26,8 +27,20 @@ const detail = (song: NextUpSong): string => {
  * When the order changes, the numbers 1-10 stay as fixed places and each song
  * slides from its old place to its new one, so it shows which songs went up
  * or down and where they are now; new songs fade in.
+ * 2026-11-06: votes. onToggleVote only where the viewer can vote (not the
+ * Stage View); the list shows the backend's count, it decides nothing.
  */
-const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; iconOnlyLink?: boolean }) => {
+const NextUpList = ({
+  songs,
+  iconOnlyLink = false,
+  onToggleVote,
+  votingSongId = null,
+}: {
+  songs: NextUpSong[];
+  iconOnlyLink?: boolean;
+  onToggleVote?: (song: NextUpSong) => void;
+  votingSongId?: string | null;
+}) => {
   const rows = useRef(new Map<string, HTMLLIElement>());
   const lastTops = useRef(new Map<string, number>());
 
@@ -65,7 +78,14 @@ const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; icon
 
   return (
     <div>
-      <p className="neon-label mb-3">Next up to fight</p>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <p className="neon-label">Next up to fight</p>
+        {onToggleVote && songs.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {songs[0].votes_left} {songs[0].votes_left === 1 ? "vote" : "votes"} left
+          </p>
+        )}
+      </div>
       <ol className="relative space-y-2 pr-4">
         {songs.map((song) => {
           const label = detail(song);
@@ -94,6 +114,9 @@ const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; icon
                     ) : undefined
                   }
                   iconOnlyLink={iconOnlyLink}
+                  // Above the Spotify link: beside it there is no room for the title
+                  stackAction
+                  action={<VoteControl song={song} onToggleVote={onToggleVote} busy={votingSongId === song.song_id} />}
                 />
               </div>
             </li>
@@ -101,6 +124,45 @@ const NextUpList = ({ songs, iconOnlyLink = false }: { songs: NextUpSong[]; icon
         })}
       </ol>
     </div>
+  );
+};
+
+// The count, and the vote button unless it is their own proposal (it already
+// carries their one vote) or a song they can't vote
+const VoteControl = ({
+  song,
+  onToggleVote,
+  busy,
+}: {
+  song: NextUpSong;
+  onToggleVote?: (song: NextUpSong) => void;
+  busy: boolean;
+}) => {
+  const count = <span className="tabular-nums">{song.votes}</span>;
+  if (!onToggleVote || !song.votable) {
+    if (song.votes === 0) return null;
+    return (
+      <span className="flex-shrink-0 inline-flex items-center gap-1 px-1 text-xs font-semibold text-muted-foreground">
+        <ThumbsUp className="h-3.5 w-3.5" />
+        {count}
+      </span>
+    );
+  }
+  const noneLeft = !song.my_vote && song.votes_left <= 0;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggleVote(song)}
+      disabled={busy || noneLeft}
+      aria-pressed={song.my_vote}
+      aria-label={song.my_vote ? `Remove your vote for ${song.title}` : `Vote for ${song.title}`}
+      className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${
+        song.my_vote ? "bg-song-a text-song-a-foreground" : "hud-chip text-foreground"
+      }`}
+    >
+      <ThumbsUp className="h-3.5 w-3.5" />
+      {count}
+    </button>
   );
 };
 

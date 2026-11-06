@@ -11,9 +11,12 @@ import {
   getMyProposals,
   LOW_QUEUE_THRESHOLD,
   MyProposal,
+  NextUpSong,
+  NextUpVoteResult,
   ProposalStatus,
   proposeSong,
   searchSongs,
+  voteNextUp,
   withdrawBacking,
   withdrawProposal,
 } from "@/integrations/supabase/proposals";
@@ -70,16 +73,34 @@ const proposeNotice = ({ result, available_at }: ProposeOutcome): string => {
   }
 };
 
+// A list vote that worked shows on the list itself: only the rest needs words
+const nextUpVoteNotice = (result: NextUpVoteResult): string => {
+  switch (result) {
+    case "votes_full":
+      return "You've used your 3 votes: one comes back when its song fights, or remove one";
+    case "voted":
+      return "That song is fighting right now 🎶 You voted for it";
+    case "not_in_next_up":
+    case "not_queued":
+    case "in_battle":
+    case "already_voted":
+      return "That song just moved: check the list again";
+    default:
+      return "";
+  }
+};
+
 const statusLabel = (p: MyProposal): string => {
   // Step 14: songs they backed (someone else proposed them first)
   if (p.kind === "backing") {
     const backed: Partial<Record<ProposalStatus, string>> = {
-      next: `Your vote is ready · #${p.place} in the next 10`,
+      // place null: a system song they voted from Next up
+      next: p.place ? `Your vote is ready · #${p.place} in the next 10` : "Your vote is ready · Music Fighter will send it to fight",
       waiting: `Your vote is ready · waiting #${p.place}`,
       competing: p.vote_applied ? "Fighting now · your vote was cast" : "Fighting now · your vote wasn't cast",
       removed: "Your vote was removed",
       withdrawn: "Withdrawn by whoever proposed it",
-      purged: "Dropped after 20 battles waiting",
+      purged: p.backing_source === "list" ? "It can't fight any more: your vote is back" : "Dropped after 20 battles waiting",
     };
     const outcome = backed[p.status];
     if (outcome) return outcome;
@@ -143,7 +164,8 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill", sticky
   const [notice, setNotice] = useState("");
 
   const queueSummary = useArenaQueueSummary(arenaId);
-  const nextUp = useArenaNextUp(arenaId, showNextUp);
+  const { songs: nextUp, refresh: refreshNextUp } = useArenaNextUp(arenaId, showNextUp);
+  const [votingSongId, setVotingSongId] = useState<string | null>(null);
   const showResults = tab === "search" && searchQuery.length > 0;
   // The host's own account is the host's: nothing to choose
   const canChooseAccount = !!sources?.own_connected && !sources.is_host;
@@ -244,6 +266,28 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill", sticky
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Votes from the Next up list (2026-11-06): the backend decides, the list
+  // shows the result on the refresh
+  const handleToggleVote = async (song: NextUpSong) => {
+    if (votingSongId) return;
+    setVotingSongId(song.song_id);
+    setNotice("");
+    try {
+      if (song.my_vote) {
+        await withdrawBacking(arenaId, song.song_id);
+      } else {
+        const message = nextUpVoteNotice(await voteNextUp(arenaId, song.song_id));
+        if (message) setNotice(message);
+      }
+      await refreshNextUp();
+      loadMyProposals();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Couldn't save your vote");
+    } finally {
+      setVotingSongId(null);
     }
   };
 
@@ -457,7 +501,7 @@ const ProposeSongPanel = ({ arenaId, showNextUp = false, layout = "fill", sticky
             // Step 17: the next 10 to fight, then their own proposals
             scroll(
               <>
-                <NextUpList songs={nextUp} />
+                <NextUpList songs={nextUp} onToggleVote={handleToggleVote} votingSongId={votingSongId} />
                 {myProposals.length > 0 && <div className="mt-5">{proposalsList}</div>}
               </>,
             )

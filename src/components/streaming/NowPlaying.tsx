@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import SpotifyTrackRow from "@/components/streaming/SpotifyTrackRow";
 import { ArenaPlayback, ControlMode, setArenaControlMode } from "@/integrations/supabase/spotify";
 
@@ -33,6 +35,7 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
   // The put-back the host already answered (a newer one asks again)
   const [answeredChangeAt, setAnsweredChangeAt] = useState<string | null>(null);
   const [confirmAuto, setConfirmAuto] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
   const serverMode = playback?.control_mode ?? null;
   useEffect(() => {
@@ -63,6 +66,7 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
   };
 
   const nowSongId = playback.now_playing_song_id;
+  const spotifyUrl = `https://open.spotify.com/track/${playback.now_playing_spotify_track_id}`;
   const isLiked = !!nowSongId && !!likedSongIds?.has(nowSongId);
 
   const showPrompt =
@@ -75,11 +79,12 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
           <SpotifyTrackRow
             size="lg"
             marquee
+            stackAction
             track={{
               title: playback.now_playing_title,
               artist: playback.now_playing_artist ?? "",
               artwork_url: playback.now_playing_artwork_url,
-              spotify_url: `https://open.spotify.com/track/${playback.now_playing_spotify_track_id}`,
+              spotify_url: spotifyUrl,
             }}
             details={
               <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground truncate flex items-center gap-1.5">
@@ -94,23 +99,47 @@ const NowPlaying = ({ arenaId, playback, isHost, likedSongIds, onToggleLike }: P
               </p>
             }
             action={
-              onToggleLike && nowSongId ? (
+              <div className="flex items-center gap-1">
+                {/* The QR to this song (user, 2026-11-06). Too small to scan here:
+                    a tap enlarges it, so someone else can scan it from this phone */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleLike(nowSongId);
+                    setShowQr(true);
                   }}
-                  aria-pressed={isLiked}
-                  aria-label={isLiked ? "Unlike song" : "Like song"}
-                  className="flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-text-secondary hover:text-foreground transition-colors"
+                  aria-label="Show this song's QR"
+                  className="bg-white rounded p-0.5"
                 >
-                  <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-primary text-primary" : ""}`} />
-                  <span className="hidden min-[380px]:inline">{isLiked ? "Liked" : "Like"}</span>
+                  <QRCodeSVG value={spotifyUrl} size={28} marginSize={0} />
                 </button>
-              ) : undefined
+                {onToggleLike && nowSongId ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleLike(nowSongId);
+                    }}
+                    aria-pressed={isLiked}
+                    aria-label={isLiked ? "Unlike song" : "Like song"}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-secondary hover:text-foreground transition-colors"
+                  >
+                    <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-primary text-primary" : ""}`} />
+                    <span className="hidden min-[380px]:inline">{isLiked ? "Liked" : "Like"}</span>
+                  </button>
+                ) : null}
+              </div>
             }
           />
+          <Dialog open={showQr} onOpenChange={setShowQr}>
+            <DialogContent className="max-w-xs">
+              <DialogTitle className="truncate">{playback.now_playing_title}</DialogTitle>
+              <DialogDescription>Scan to open this song in Spotify</DialogDescription>
+              <div className="mx-auto bg-white rounded-xl p-3">
+                <QRCodeSVG value={spotifyUrl} size={220} marginSize={1} />
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       ) : playback.player_context === "other" ? (
         <p className="neon-row rounded-full px-3 py-1.5 text-[11px] text-muted-foreground text-center">

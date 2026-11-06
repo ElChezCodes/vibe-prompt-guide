@@ -42,7 +42,8 @@ export interface StageViewData {
     next_artist: string | null;
     unplayable_title: string | null;
   } | null;
-  battle: { battle_id: string; a: StageSongCredit | null; b: StageSongCredit | null } | null;
+  // vote_token: what this battle's vote QRs carry, one per battle
+  battle: { battle_id: string; vote_token: string | null; a: StageSongCredit | null; b: StageSongCredit | null } | null;
   next_up: NextUpSong[];
   // Top 3 during the arena, everyone once it finished; next_up = the first 5
   leaderboard: { place: number; display_name: string; pi: number; is_host: boolean }[];

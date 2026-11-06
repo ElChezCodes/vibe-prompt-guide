@@ -32,6 +32,8 @@ interface Props {
   // when they don't fit instead of being cut off
   size?: "md" | "lg";
   marquee?: boolean;
+  // NowPlaying: the action above the Spotify link, so the title keeps the width
+  stackAction?: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ const SpotifyTrackRow = ({
   iconOnlyLink = false,
   size = "md",
   marquee = false,
+  stackAction = false,
 }: Props) => {
   const lg = size === "lg";
   const art = lg ? "w-16 h-16" : "w-12 h-12";
@@ -110,18 +113,20 @@ const SpotifyTrackRow = ({
       )}
       {details}
     </div>
-    {action}
-    <a
-      href={track.spotify_url}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className={SPOTIFY_LINK_CLASS}
-      aria-label={iconOnlyLink ? "Open Spotify" : undefined}
-    >
-      <SpotifyIcon className="w-3.5 h-3.5" />
-      {!iconOnlyLink && "Open Spotify"}
-    </a>
+    <div className={stackAction ? "flex-shrink-0 flex flex-col items-end gap-1" : "contents"}>
+      {action}
+      <a
+        href={track.spotify_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={SPOTIFY_LINK_CLASS}
+        aria-label={iconOnlyLink ? "Open Spotify" : undefined}
+      >
+        <SpotifyIcon className="w-3.5 h-3.5" />
+        {!iconOnlyLink && "Open Spotify"}
+      </a>
+    </div>
   </div>
   );
 };

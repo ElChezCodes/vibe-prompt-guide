@@ -8,6 +8,10 @@ export const arenaPath = (code: string, screen: ArenaScreen) => `/a/${code}/${sc
 // What the lobby QR encodes: opens Join with the code filled in
 export const joinUrl = (code: string) => `${window.location.origin}/join/${code}`;
 
+// What a card's QR on the Stage View encodes: scanning it votes that song of
+// that battle (the token dies with the battle, which is how the QR rotates)
+export const voteUrl = (token: string, side: "a" | "b") => `${window.location.origin}/v/${token}/${side}`;
+
 export const stageUrl = (code: string) => `${window.location.origin}${arenaPath(code, "stage")}`;
 
 // Arena tab target: the host runs a waiting arena from the lobby

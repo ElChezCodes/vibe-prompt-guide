@@ -9,7 +9,7 @@ import ScreenMessage from "@/components/nav/ScreenMessage";
 import { useBattleOrchestrator } from "@/hooks/useBattleOrchestrator";
 import { useStageView } from "@/hooks/useStageView";
 import { useBattleDisplay } from "@/hooks/useBattleDisplay";
-import { joinUrl } from "@/lib/arenaRoutes";
+import { joinUrl, voteUrl } from "@/lib/arenaRoutes";
 import { StageViewData } from "@/integrations/supabase/stageView";
 import { PAUSE_REASON_LABELS, PauseReason } from "@/integrations/supabase/spotify";
 
@@ -46,6 +46,13 @@ const StageViewScreen = () => {
 
   // Credits belong to the battle on screen only (the poll may lag a new battle)
   const credits = battle && data.battle?.battle_id === battle.battle_id ? data.battle : null;
+  // The vote QRs: only while votes are open, Sudden Death included (the backend
+  // still checks every scan); a new battle brings a new token, which rotates them
+  const votesOpen = !data.arena.paused_at && !preparingNext && (phase === "NORMAL" || phase === "FINAL_30S" || phase === "SUDDEN_DEATH");
+  const voteUrls =
+    votesOpen && credits?.vote_token
+      ? { a: voteUrl(credits.vote_token, "a"), b: voteUrl(credits.vote_token, "b") }
+      : null;
 
   return (
     <div className="min-h-dvh w-full bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -59,6 +66,7 @@ const StageViewScreen = () => {
           pausedAt={data.arena.paused_at}
           shared
           credits={credits}
+          voteUrls={voteUrls}
         />
         <StageStatusBanner data={data} />
       </div>
@@ -122,15 +130,25 @@ const NowPlayingCard = ({ data }: { data: StageViewData }) => {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary mb-2">
         {pb.now_playing_kind === "warmup" ? "Now playing · warm-up" : "Now playing · winner"}
       </h2>
-      <SpotifyTrackRow
-        track={{
-          title: pb.now_playing_title,
-          artist: pb.now_playing_artist ?? "",
-          artwork_url: pb.now_playing_artwork_url,
-          spotify_url: pb.now_playing_spotify_track_id ? spotifyUrl(pb.now_playing_spotify_track_id) : null,
-        }}
-        iconOnlyLink
-      />
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <SpotifyTrackRow
+            track={{
+              title: pb.now_playing_title,
+              artist: pb.now_playing_artist ?? "",
+              artwork_url: pb.now_playing_artwork_url,
+              spotify_url: pb.now_playing_spotify_track_id ? spotifyUrl(pb.now_playing_spotify_track_id) : null,
+            }}
+            iconOnlyLink
+          />
+        </div>
+        {/* A TV can't be clicked: the link back to the song that sounds */}
+        {pb.now_playing_spotify_track_id && (
+          <div className="bg-white rounded p-1 flex-shrink-0" aria-hidden>
+            <QRCodeSVG value={spotifyUrl(pb.now_playing_spotify_track_id)} size={72} marginSize={1} />
+          </div>
+        )}
+      </div>
       {pb.next_title && (
         <p className="mt-2 text-sm text-text-secondary truncate">
           Then: <span className="text-foreground">{pb.next_title}</span> · {pb.next_artist}

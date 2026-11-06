@@ -43,6 +43,8 @@ export interface MyProposal {
   at: string;
   kind: ProposalKind;
   vote_applied: boolean | null;
+  // A backing's origin: a duplicate proposal, or a vote from the Next up list
+  backing_source: 'duplicate' | 'list' | null;
 }
 
 // Spotify search with the member's own account or the host's (step 7, see
@@ -136,6 +138,41 @@ export interface NextUpSong {
   is_mine: boolean;
   available_at: string | null;
   is_system: boolean;
+  // Votes from this list (2026-11-06): a proposal carries its proposer's one
+  // vote here; votable = the viewer may vote it (not their own proposal);
+  // votes_left = the viewer's remaining list votes (0 on the Stage View)
+  votes: number;
+  my_vote: boolean;
+  votable: boolean;
+  votes_left: number;
+}
+
+// A pre-assigned vote from the list, the same mechanism as a duplicate
+// proposal (back_proposal, source 'list'); removed with withdrawBacking.
+export type NextUpVoteResult =
+  | 'backed'
+  | 'already_backed'
+  | 'own_proposal'
+  | 'votes_full'
+  | 'not_in_next_up'
+  | 'not_queued'
+  | 'voted'
+  | 'already_voted'
+  | 'in_battle';
+
+export async function voteNextUp(arenaId: string, songId: string): Promise<NextUpVoteResult> {
+  const { data, error } = await supabase.rpc('back_proposal', {
+    p_arena_id: arenaId,
+    p_song_id: songId,
+    p_source: 'list',
+  });
+
+  if (error) {
+    console.error('Failed to vote from Next up:', error.message, error);
+    throw error;
+  }
+
+  return data as NextUpVoteResult;
 }
 
 export async function getArenaNextUp(arenaId: string): Promise<NextUpSong[]> {

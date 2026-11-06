@@ -51,12 +51,17 @@ interface StageViewProps {
   // "Open Spotify" (nobody can click a TV)
   shared?: boolean;
   credits?: { a: StageSongCredit | null; b: StageSongCredit | null } | null;
+  // Shared Stage View, while votes are open: what each card's QR encodes
+  voteUrls?: { a: string; b: string } | null;
   // Battle Room since step 20: the app's tab bar (4rem) sits below it
   withTabBar?: boolean;
   // Height of what the Battle Room lays over its bottom (NowPlaying + Propose):
   // the cards' area ends above it, so the winner's pose never goes under it
   bottomInset?: number;
 }
+
+// Scannable from a few metres on a TV, within the height of a 720p screen
+const VOTE_QR_SIZE_CLASS = "h-24 w-24 lg:h-[min(12rem,19vh)] lg:w-[min(12rem,19vh)]";
 
 // Paso_2 §6.2 resolution sequence (display only, from the backend result)
 const LOSER_EXIT_MS = 350;
@@ -83,6 +88,7 @@ const StageView = ({
   onToggleLike,
   preparingNext = false,
   shared = false,
+  voteUrls = null,
   credits = null,
   withTabBar = false,
   bottomInset = 0,
@@ -268,6 +274,7 @@ const StageView = ({
               onToggleLike={onToggleLike && battle?.song_a_id ? () => onToggleLike(battle.song_a_id) : undefined}
               shared={shared}
               credit={credits?.a}
+              voteUrl={voteUrls?.a}
             />
           </div>
 
@@ -298,15 +305,17 @@ const StageView = ({
               onToggleLike={onToggleLike && battle?.song_b_id ? () => onToggleLike(battle.song_b_id) : undefined}
               shared={shared}
               credit={credits?.b}
+              voteUrl={voteUrls?.b}
             />
           </div>
         </div>
       </div>
 
       {/* Bottom balance spacer, empty (the arena name + mood line was dropped:
-          Battle Room 2026-11-01, Stage View 2026-11-06). On the Stage View it
-          is where the pause / waiting banner sits, clear of the cards. */}
-      {!withTabBar && <div className="h-16 lg:h-24" />}
+          Battle Room 2026-11-01, Stage View 2026-11-06). None on a big screen:
+          the page must fit a 720p height; the pause / waiting banner sits over
+          the vote QRs' slot then, and those are hidden while it shows. */}
+      {!withTabBar && <div className="h-12 lg:hidden" />}
 
     </div>
   );
@@ -342,7 +351,7 @@ const VoteBreakdown = ({ votesA, votesB, passiveA, passiveB }: {
 // Spotify logo and the "Open Spotify" link back (Developer Policy II.4).
 // Curated-library songs (placeholder ids, no artwork) keep the text inside
 // the card and get no link.
-const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike, shared, credit }: {
+const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isSelected, isPreassigned, isPassive, isA, isLiked, onToggleLike, shared, credit, voteUrl }: {
   source?: string;
   trackId?: string;
   songTitle: string;
@@ -356,22 +365,20 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
   onToggleLike?: () => void;
   shared?: boolean;
   credit?: StageSongCredit | null;
+  voteUrl?: string | null;
 }) => (
-  <div className={`${shared ? "" : STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
+  // On the shared screen the vote QR sits beside the text, not under it: a TV
+  // has no scroll and the page must fit a 720p height
+  <div className={`${shared ? "lg:flex-row lg:items-center lg:gap-3" : STAGE_CARD_FOOTER_CLASS} pt-2 flex flex-col items-center justify-start min-w-0 text-center`}>
+    <div className="w-full flex-1 min-w-0 flex flex-col items-center">
     {showInfo && (
       <>
-        <p className="w-full text-sm lg:text-2xl font-semibold text-foreground truncate">{songTitle || "—"}</p>
+        <p className={`w-full text-sm lg:text-2xl font-semibold text-foreground ${shared ? "line-clamp-2 break-words" : "truncate"}`}>{songTitle || "—"}</p>
         <p className="w-full text-xs lg:text-lg text-text-secondary truncate">{artistName}</p>
       </>
     )}
     {shared && showInfo && credit !== undefined && <SongCreditLine credit={credit} isA={isA} />}
     <div className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
-      {shared && source === "spotify" && trackId && (
-        // Black on white with a quiet zone so phones read it
-        <div className="bg-white rounded p-1" aria-hidden>
-          <QRCodeSVG value={`https://open.spotify.com/track/${trackId}`} size={56} marginSize={1} />
-        </div>
-      )}
       {source === "spotify" && trackId && (
         <a
           href={`https://open.spotify.com/track/${trackId}`}
@@ -403,6 +410,25 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
         </button>
       )}
     </div>
+    </div>
+    {shared && <CardVoteQr url={voteUrl} isA={isA} />}
+  </div>
+);
+
+// Shared Stage View (2026-11-06): scanning votes this card's song. The slot
+// stays when votes are closed (lock-in, result, pause) so the cards don't jump.
+// The QR to Spotify lives on the Now Playing card, for the song that sounds.
+const CardVoteQr = ({ url, isA }: { url?: string | null; isA: boolean }) => (
+  <div className={`mt-2 lg:mt-0 flex-shrink-0 flex flex-col items-center gap-1 ${url ? "" : "invisible"}`} aria-hidden={!url}>
+    {/* Black on white with a quiet zone so phones read it */}
+    <div className={`bg-white rounded-xl p-1.5 ring-2 ${isA ? "ring-song-a" : "ring-song-b"}`}>
+      {url ? (
+        <QRCodeSVG value={url} size={160} marginSize={1} className={VOTE_QR_SIZE_CLASS} />
+      ) : (
+        <div className={VOTE_QR_SIZE_CLASS} />
+      )}
+    </div>
+    <p className={`text-xs lg:text-base font-bold uppercase tracking-wide ${isA ? "text-song-a" : "text-song-b"}`}>Scan to vote</p>
   </div>
 );
 
@@ -442,9 +468,10 @@ interface StageSongCardProps {
   onToggleLike?: () => void;
   shared?: boolean;
   credit?: StageSongCredit | null;
+  voteUrl?: string | null;
 }
 
-const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, glowing, onVote, isLiked, onToggleLike, shared, credit }: StageSongCardProps) => {
+const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, source, trackId, currentVote, passiveVoteSongId, tag, isWinner, glowing, onVote, isLiked, onToggleLike, shared, credit, voteUrl }: StageSongCardProps) => {
   const isA = position === "A";
 
   // Determine selection by comparing songId against currentVote (a passive
@@ -552,6 +579,7 @@ const StageSongCard = ({ position, songId, songTitle, artistName, artworkUrl, so
         onToggleLike={onToggleLike}
         shared={shared}
         credit={credit}
+        voteUrl={voteUrl}
       />
     </>
   );

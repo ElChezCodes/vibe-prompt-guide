@@ -1,4 +1,6 @@
 import { supabase } from "./client";
+import { ensureParticipant } from "./participants";
+import { getOrCreateIdentityAnchor } from "./identityAnchors";
 
 // "passive": cast by the backend at lock-in (step 9), never by the client
 export type VoteType = "regular" | "sudden_death" | "passive";
@@ -324,6 +326,72 @@ async function handleSuddenDeathVote(
   }
 
   return { vote: data, action: "sudden_death_created" };
+}
+
+// What a scanned vote QR means right now (resolve_vote_token, reads only).
+// The token belongs to one battle: an old QR never votes in another one.
+export type VoteQrStatus = "open" | "sudden_death" | "locked" | "paused" | "over" | "finished" | "invalid";
+
+export interface VoteQrTarget {
+  status: VoteQrStatus;
+  arena_id?: string;
+  arena_code?: string;
+  battle_id?: string;
+  song_id?: string;
+  title?: string;
+}
+
+export async function resolveVoteQr(token: string, side: string): Promise<VoteQrTarget> {
+  const { data, error } = await supabase.rpc("resolve_vote_token", { p_token: token, p_side: side });
+
+  if (error) {
+    console.error("Failed to read vote QR:", error.message);
+    throw error;
+  }
+
+  return (data ?? { status: "invalid" }) as VoteQrTarget;
+}
+
+/**
+ * Votes the QR's song as whoever this browser is (anonymous session or
+ * account): scanning joins the arena like any other entry (enter_arena), then
+ * the vote takes the usual path, so RLS and the phase rules apply. The only
+ * difference with tapping a card: scanning the same QR again never cancels the
+ * vote. Returns the message to show.
+ */
+export async function voteFromQr(target: VoteQrTarget): Promise<string> {
+  const anchor = await getOrCreateIdentityAnchor();
+  const participant = await ensureParticipant(target.arena_id, anchor, false);
+  const current = await getParticipantVote(target.battle_id, participant.id);
+  const title = target.title ?? "that song";
+
+  const alreadyCounted =
+    current?.status === "active" &&
+    current.song_id === target.song_id &&
+    (target.status !== "sudden_death" || current.vote_type === "sudden_death");
+  if (alreadyCounted) return `Your vote is already on “${title}”`;
+
+  const { action } = await applyVoteIntent(
+    target.battle_id,
+    participant.id,
+    target.song_id,
+    current,
+    target.arena_id,
+    anchor,
+  );
+
+  switch (action) {
+    case "sudden_death_immutable":
+      return "Your Sudden Death vote is final";
+    case "locked":
+    case "phase_rejected":
+    case "frozen":
+      return "Votes are locked right now";
+    case "error":
+      return "Couldn't save your vote: tap the song to vote";
+    default:
+      return `You voted for “${title}”`;
+  }
 }
 
 export async function getActiveVoteCounts(

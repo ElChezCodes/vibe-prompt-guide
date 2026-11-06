@@ -7,6 +7,7 @@ import SplashScreen from "./screens/SplashScreen";
 import JoinArenaScreen from "./screens/JoinArenaScreen";
 import BattleRoomScreen from "./screens/BattleRoomScreen";
 import StageViewScreen from "./screens/StageViewScreen";
+import VoteQrScreen from "./screens/VoteQrScreen";
 import CreateArenaScreen from "./screens/CreateArenaScreen";
 import ArenaLobbyScreen from "./screens/ArenaLobbyScreen";
 import ConnectStreamingScreen from "./screens/ConnectStreamingScreen";
@@ -54,6 +55,9 @@ const AppRoutes = () => {
       </Route>
       {/* Stage view for venue displays, opened from a shared link */}
       <Route path="/a/:code/stage" element={<StageViewScreen />} />
+
+      {/* What the Stage View's vote QRs encode */}
+      <Route path="/v/:token/:side" element={<VoteQrScreen />} />
 
       {/* Spotify OAuth redirect URI (host connection, step 5) */}
       <Route path="/spotify/callback" element={<SpotifyCallbackScreen />} />

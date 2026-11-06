@@ -262,8 +262,16 @@ const BattleRoomScreen = () => {
         if (vote) setVoteRecord(vote);
       });
     };
+    // A QR scanned on this phone votes in a new tab: back here, show that vote
+    const onVisible = () => {
+      if (document.visibilityState === "visible") onVoteCast();
+    };
     window.addEventListener("arena:vote_cast", onVoteCast);
-    return () => window.removeEventListener("arena:vote_cast", onVoteCast);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("arena:vote_cast", onVoteCast);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [battle?.battle_id, participant]);
 
   // Consume resolution result (UI-side only)
