@@ -915,3 +915,7 @@ additions (#1, #4 above), each marked where it lands.
        background (10 places): same criterion as the logo?
     3. The icon's minimum is 21 px; the phone rows' are 12-14 px.
     4. The guidelines don't say whether a logo may be the link back.
+    **Checkpoint 2026-11-06:** `docs/CHECKPOINT_2026-11-06.md`. Next, Claude
+    forks by area in this repo: visuals with PixelLab (with the Home notes),
+    an organized pilot 2 for more passive affinity and data; the collective
+    mind is designed after that.
