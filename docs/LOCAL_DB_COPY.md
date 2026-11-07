@@ -34,6 +34,12 @@ privileges: 0 differences. 69 tables with 70,867 rows: identical.
 `auth.schema_migrations` and `storage.migrations` are left out by the dump.
 Smoke test as `authenticated`: the view reads, a client insert into `battles` is refused.
 
+## Behaviour matrix
+`supabase/tests/behavior_matrix/`: host, member, stranger and no session read, vote,
+join, propose and call RPCs, and the server jobs run. `matrix_setup.sql` turns pilot 1's
+arena into a live one, **on the copy only, never on production**; `matrix.sql` prints one
+`RES|` line per check. Run it before and after a change, and diff.
+
 ## What a dump doesn't hold
 - Vault secrets (`spotify_watch_secret`) and Edge secrets: in Supabase only.
 - Files in Storage: only their rows, not the objects.
