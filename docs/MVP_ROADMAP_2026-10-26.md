@@ -458,9 +458,9 @@ additions (#1, #4 above), each marked where it lands.
    User decisions: email + 6-digit code only (Google later); signing into an
    existing account from an anonymous device **merges** that device's data
    into the account; privacy contact email: musicfighterapp@gmail.com
-   (set 2026-11-01, shown on `/privacy`). Pending
-   owner config: Auth URL/OTP/templates and custom SMTP (Gmail app password
-   recommended, or Brevo).
+   (set 2026-11-01, shown on `/privacy`). Owner config done: Auth
+   URL/OTP/templates (2026-10-27) and custom SMTP with a Gmail app password
+   (2026-11-06, in-app test passed with an email outside the project).
 8. **Own affinity profile — BUILT 2026-10-27 together with step 9** (`supabase/sql/affinity_passive_vote_2026-10-27.sql`, Edge Function `musicbrainz-enrich`; details in CLAUDE.md "Own affinity & passive vote"). Build decisions 2026-10-27: account signals persist until account deletion with a 1-year half-life; anonymous guests get an in-arena-only profile (purged with the votes, merged into an account if they sign in) and keep proposing through the host's Spotify without connecting their own; ISRC→MusicBrainz in its own Edge Function + per-minute cron at ≤ 1 req/s; k=1.25 kept as decided (configurable), Paso_1 §8 "never reverse a clear win" not adopted.
    Original definition:
    (user decision: no code in the step-8 chat; "define 8, build with 9").
