@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Music2, Swords } from "lucide-react";
+import { Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BeamedNotes, FlaggedNote } from "@/components/nav/MusicNotes";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentArena } from "@/hooks/useCurrentArena";
 import { arenaHomePath } from "@/lib/arenaRoutes";
@@ -37,8 +38,8 @@ const SplashScreen = () => {
   return (
     <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-6 overflow-hidden">
       {/* Neon notes in the corners (static) */}
-      <Music2 aria-hidden className="absolute top-8 left-6 w-10 h-10 text-song-a icon-glow-a opacity-80" />
-      <Music2 aria-hidden className="absolute top-8 right-6 w-10 h-10 text-song-b icon-glow-b opacity-80" />
+      <BeamedNotes className="absolute top-8 left-6 h-10 w-auto text-song-a icon-glow-a opacity-80" />
+      <FlaggedNote className="absolute top-8 right-6 h-12 w-auto text-song-b icon-glow-b opacity-80" />
 
       <div className="flex flex-col items-center gap-8 w-full max-w-xs">
         {/* Logo */}
