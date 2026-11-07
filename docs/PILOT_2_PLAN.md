@@ -131,6 +131,9 @@ dashboard lists 2 users, the same 2 accounts behind the 5 stored connections, so
 
 ## 3. Minimal changes
 
+**User decision, 2026-11-07: none.** The app stays as it is and the organiser explains the
+goal aloud. The list below is kept as options for later.
+
 Nothing is required to run the party: everything below only makes the script land.
 
 | # | Priority | Change | Where | SQL | Effort |
@@ -241,11 +244,17 @@ zero times, is the gap to address.
   doesn't anonymise anyone.
 - Anything that adds a data source, such as Spotify data for taste (never: policy III.13).
 
-**Option for sequences in pilot 2.** Don't keep them. If the design raises a question
-about order within a person, answer it on the copy inside the 30 days and keep only the
-aggregate result. So: run the export early, and hold the first design session
-before day 30 while the copy still exists.
+**Sequences (user decision, 2026-11-07).** `/privacy` doesn't change.
+- **Pilot 1:** aggregates only, as already saved. Its individual votes are purged as promised.
+- **Pilot 2:** before playing, each guest accepts in writing that their data is kept for
+  the pilot. Only those guests' per-person sequences are kept, outside this repo. Anyone
+  who doesn't accept plays normally and counts only in the aggregates.
+
+**Before the party:** write the one-page consent (what is kept, why, for how long, how to
+ask for deletion at musicfighterapp@gmail.com) and its form, which records the guest's
+nickname in the arena, the only link to the data. Then add a per-person export that
+reads those nicknames. Neither exists yet, and signed forms never enter this repo.
 
 **Deadlines**
 - Pilot 2's clock starts when its arena ends; the export is due in 7 days, the copy gone by 30.
-- Pilot 1's purge and the 2026-11-06 dump: 2026-12-01.
+- Pilot 1's purge, the 2026-11-06 dump and the restored copy holding it: 2026-12-01.
