@@ -414,16 +414,15 @@ const StageCardFooter = ({ source, trackId, songTitle, artistName, showInfo, isS
 // stays when votes are closed (lock-in, result, pause) so the cards don't jump.
 // The QR to Spotify lives on the Now Playing card, for the song that sounds.
 const CardVoteQr = ({ url, isA }: { url?: string | null; isA: boolean }) => (
-  <div className={`mt-2 lg:mt-0 flex-shrink-0 flex flex-col items-center gap-1 ${url ? "" : "invisible"}`} aria-hidden={!url}>
-    {/* Black on white with a quiet zone so phones read it */}
-    <div className={`bg-white rounded-xl p-1.5 ring-2 ${isA ? "ring-song-a" : "ring-song-b"}`}>
-      {url ? (
-        <QRCodeSVG value={url} size={160} marginSize={1} className={VOTE_QR_SIZE_CLASS} />
-      ) : (
-        <div className={VOTE_QR_SIZE_CLASS} />
-      )}
-    </div>
-    <p className={`text-xs lg:text-base font-bold uppercase tracking-wide ${isA ? "text-song-a" : "text-song-b"}`}>Scan to vote</p>
+  // Black on white with a quiet zone so phones read it. No caption (user,
+  // 2026-11-06): a QR under each song explains itself.
+  <div
+    className={`mt-2 lg:mt-0 flex-shrink-0 bg-white rounded-xl p-1.5 ring-2 ${isA ? "ring-song-a" : "ring-song-b"} ${url ? "" : "invisible"}`}
+    role={url ? "img" : undefined}
+    aria-label={url ? "Scan to vote" : undefined}
+    aria-hidden={!url}
+  >
+    {url ? <QRCodeSVG value={url} size={160} marginSize={1} className={VOTE_QR_SIZE_CLASS} /> : <div className={VOTE_QR_SIZE_CLASS} />}
   </div>
 );
 
