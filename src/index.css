@@ -358,6 +358,14 @@
   .icon-glow-b {
     filter: drop-shadow(0 0 8px hsl(var(--song-b) / 0.85));
   }
+
+  /* Pixel art: hard edges, no selection. Size it at a whole multiple of the art.
+     Never apply it to Spotify artwork, Spotify's logo or a QR. */
+  .pixel-sprite {
+    image-rendering: pixelated;
+    user-select: none;
+    pointer-events: none;
+  }
 }
 
 /* Ranking / PI arcade styling */

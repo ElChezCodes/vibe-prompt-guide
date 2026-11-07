@@ -15,7 +15,7 @@ CLAUDE.md. History: `docs/MVP_ROADMAP_2026-10-26.md`, step 20.
 - 4 of 9 ever voted (2 cast 11+ votes); explicit votes in 35/115 battles; 32 with no
   vote at all, not even passive; 37 Sudden Deaths, all 0-0.
 - 5 people proposed 23 songs, one of them 14. 94/115 battles were system vs system.
-- Passive votes need 3 songs with signals: only 3 of 9 reached it.
+- Passive votes need 3 songs with signals: 4 of 9 reached it (corrected 2026-11-07), the fourth with 5 battles left.
 - At lock-in, 1.15 people on average were ACTIVO or PASIVO (max 5).
 - Aggregates by battle, on the user's PC, not in this public repo:
   `~/projects/music-fighter-docs/pilots/pilot-1-2026-10-31-aggregate.json`.
