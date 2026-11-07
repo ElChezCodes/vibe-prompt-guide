@@ -906,5 +906,12 @@ additions (#1, #4 above), each marked where it lands.
     (icon + wordmark), clickable, reading "Spotify"; song rows elsewhere
     keep "Open Spotify". The
     guidelines don't say whether a logo may be the link, and they don't
-    allow "Spotify" as typed link text. **Open:** the guidelines' minimum for
-    the icon is 21 px, and the small icons of the phone rows are 12-14 px.
+    allow "Spotify" as typed link text.
+    **Pending Spotify brand review (user, 2026-11-06: leave it as it is for
+    now, review later, e.g. before asking to leave dev mode):**
+    1. Logo color: the full logo is white (green only on black or white
+       backgrounds; MF's is #070B13). Alternative: green on a pure black patch.
+    2. The small icons and "Open Spotify" links are still green on that
+       background (10 places): same criterion as the logo?
+    3. The icon's minimum is 21 px; the phone rows' are 12-14 px.
+    4. The guidelines don't say whether a logo may be the link back.
