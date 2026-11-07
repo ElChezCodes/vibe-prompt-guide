@@ -37,9 +37,9 @@ const SplashScreen = () => {
 
   return (
     <div className="relative min-h-[calc(100dvh-4rem)] w-full flex flex-col items-center justify-center px-6 overflow-hidden">
-      {/* Neon notes in the corners (static) */}
-      <BeamedNotes className="absolute top-8 left-6 h-10 w-auto text-song-a icon-glow-a opacity-80" />
-      <FlaggedNote className="absolute top-8 right-6 h-12 w-auto text-song-b icon-glow-b opacity-80" />
+      {/* Neon notes in the corners (static), italic like the logo */}
+      <BeamedNotes className="absolute top-8 left-6 h-10 w-auto -skew-x-12 text-song-a icon-glow-a opacity-80" />
+      <FlaggedNote className="absolute top-8 right-6 h-12 w-auto -skew-x-12 text-song-b icon-glow-b opacity-80" />
 
       <div className="flex flex-col items-center gap-8 w-full max-w-xs">
         {/* Logo */}
